@@ -218,6 +218,15 @@ def _judge(
             "Raise --timeout or narrow the test command.",
         )
 
+    if counterfactual.is_setup_failure:
+        return (
+            Verdict.INCONCLUSIVE,
+            "The setup step failed without the fix, so the tests never ran. "
+            "A setup step that depends on the change — an install, a codegen "
+            "pass — cannot run in the counterfactual, and its failure is not "
+            "evidence that the tests would have caught anything.",
+        )
+
     if not counterfactual.is_clean_failure(runner):
         return (
             Verdict.INCONCLUSIVE,

@@ -87,6 +87,33 @@ Exit code: 0 — CI carries on.
 Same source diff both times. The only thing that changed is whether the test
 was ever capable of failing.
 
+## It checks itself
+
+`falsify` found a real bug in `falsify`, and the counterfactual is the proof.
+
+A `--setup` step like `pip install -e .` depends on the changed source, so it
+*always* fails in the counterfactual — and that failure was being read as "the
+test went red". A change whose tests never ran at all would have come back
+`PROVEN`. The fix, and the test that pins it, produce this:
+
+```
+PASS PROVEN — the test fails without the fix and passes with it
+
+  evidence
+    without the fix    red                  exit 1  (want red)
+    with the fix       green                exit 0  (want green)
+```
+
+And `-v` shows *why* the counterfactual went red — not a crash, not an unrelated
+test, but the assertion that names the bug:
+
+```
+E       AssertionError: assert <Verdict.PROVEN> is <Verdict.INCONCLUSIVE>
+```
+
+That is what evidence looks like: the old code reached the wrong verdict, in
+writing, before anyone was asked to believe the new code reaches the right one.
+
 ## Install
 
 Python 3.9+ and git. No dependencies.

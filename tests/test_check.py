@@ -131,6 +131,23 @@ def test_a_run_that_breaks_instead_of_failing_is_inconclusive(repo):
     assert "wrong reason" in report.detail
 
 
+def test_a_setup_that_only_works_after_the_change_is_not_evidence(repo):
+    # `--setup` steps like `pip install -e .` or a codegen pass depend on the
+    # new source, so they fail in the counterfactual by construction. Read as
+    # a test result, that failure looks exactly like proof — the tool would
+    # wave through a change whose tests never ran at all.
+    repo.write("calc.py", FIXED_SOURCE)
+    repo.write("tests/test_calc.py", STRONG_TEST)
+    repo.write("generated.txt", "produced by this change\n")
+
+    report = run(repo, setup="test -f generated.txt")
+
+    assert report.verdict is Verdict.INCONCLUSIVE
+    assert not report.verdict.ok
+    assert report.counterfactual.is_setup_failure
+    assert "setup step failed" in report.detail
+
+
 @pytest.mark.parametrize(
     "verdict, expected",
     [

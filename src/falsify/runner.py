@@ -21,6 +21,10 @@ class RunResult:
     exit_code: int
     output: str
     timed_out: bool = False
+    #: Set when this result came from the setup step, not the tests. A setup
+    #: step that depends on the change (an install, a codegen pass) fails in
+    #: the counterfactual for reasons that say nothing about the tests.
+    is_setup_failure: bool = False
 
     @property
     def passed(self) -> bool:
@@ -33,7 +37,7 @@ class RunResult:
         for the wrong reason: it tells us nothing about whether the new test
         catches the bug. Only runners that report the difference can answer.
         """
-        if self.passed or self.timed_out:
+        if self.passed or self.timed_out or self.is_setup_failure:
             return False
         if runner is None or not runner.failure_exit_codes:
             return True
@@ -98,5 +102,6 @@ def run_with_setup(command: str, env: Environment) -> RunResult:
     if env.setup:
         env.setup_result = run(env.setup, env)
         if not env.setup_result.passed:
+            env.setup_result.is_setup_failure = True
             return env.setup_result
     return run(command, env)
