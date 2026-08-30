@@ -256,11 +256,56 @@ def test_ordinary_work_stays_inside_the_documented_two_to_five_range():
 
 
 def test_safety_critical_work_is_the_one_band_that_exceeds_the_record():
-    # Justified by the robotaxi programme specifically: a million promised for
-    # 2020, twenty running in 2026. Nothing else in the record is that far off.
+    # Justified by Waymo: 12 months planned to remove the safety driver at
+    # public scale, about 84 months actual. Nothing else in the record needs
+    # a band this wide.
     calibration = calibrate(Decision(title="d", phases=[Phase.SAFETY_CRITICAL]))
     assert calibration.high_multiplier == 10.0
     assert "sampled" in calibration.reason
+
+
+def test_the_wide_band_would_have_been_wrong_for_a_submission_review():
+    """Neuralink falsified the band as first written, and this pins the result.
+
+    18 months planned to a first human implant, 55 months actual — about 3x.
+    Calling that safety-critical returns 90-180 months, seven to fifteen years
+    for something that took four and a half. The band now applies only where
+    evidence accumulates across a fleet over time; a regulator reviewing one
+    submission is regulated work.
+    """
+    planned, actual = 18, 55
+
+    as_regulated = calibrate(
+        Decision(title="d", phases=[Phase.REGULATED], estimate=Estimate(months=planned))
+    )
+    assert as_regulated.months_low <= actual <= as_regulated.months_high
+
+    as_safety_critical = calibrate(
+        Decision(
+            title="d",
+            phases=[Phase.SAFETY_CRITICAL],
+            estimate=Estimate(months=planned),
+        )
+    )
+    assert actual < as_safety_critical.months_low, "the wide band overshoots it"
+
+
+def test_the_wide_band_is_right_where_evidence_accumulates_over_a_fleet():
+    # Waymo, the only independent support the narrowed band has.
+    planned, actual = 12, 84
+    calibration = calibrate(
+        Decision(
+            title="d",
+            phases=[Phase.SAFETY_CRITICAL],
+            estimate=Estimate(months=planned),
+        )
+    )
+    assert calibration.months_low <= actual <= calibration.months_high
+
+    narrower = calibrate(
+        Decision(title="d", phases=[Phase.REGULATED], estimate=Estimate(months=planned))
+    )
+    assert actual > narrower.months_high, "the regulated band is too tight here"
 
 
 def test_an_estimate_is_widened_not_replaced():

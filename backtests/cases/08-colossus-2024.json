@@ -10,21 +10,24 @@
     "https://newsletter.semianalysis.com/p/xais-colossus-2-first-gigawatt-datacenter",
     "https://www.cnbc.com/2026/07/16/elon-musk-memphis-ai-colossus-data-center.html"
   ],
-
   "expect": {
-    "must_flag": ["requirement-owner"],
-    "months_within": [4.0, 5.5],
-    "notes": "A generalisation check on the 2018 tent rules, six years later and three orders of magnitude larger. Same shape: delete the requirement that the building be new, delete the requirement that power come from the grid, accept something temporary and ugly, move. If the stopgap correction and the unowned-requirement rule were fitted to 2018 rather than real, this is where that shows."
+    "must_flag": [
+      "requirement-owner"
+    ],
+    "notes": "A generalisation check on the 2018 tent rules, six years later and three orders of magnitude larger. Same shape: delete the requirement that the building be new, delete the requirement that power come from the grid, accept something temporary and ugly, move. If the stopgap correction and the unowned-requirement rule were fitted to 2018 rather than real, this is where that shows.",
+    "actual_months": 4
   },
-
   "decision": {
     "decision": "Stand up 100,000 GPUs for training as fast as physically possible",
     "unit": "USD",
-    "estimate": { "months": 4 },
-    "phases": ["production"],
+    "estimate": {
+      "months": 4
+    },
+    "phases": [
+      "production"
+    ],
     "stopgap": true,
     "runway_months": 12,
-
     "requirements": [
       {
         "text": "The facility must be a purpose-built datacentre",
@@ -48,7 +51,6 @@
         "questioned": true
       }
     ],
-
     "steps": [
       {
         "name": "Convert a shuttered appliance factory",
@@ -73,7 +75,6 @@
         "reinstated": false
       }
     ],
-
     "components": [
       {
         "name": "Time to first training run, against the industry quote",

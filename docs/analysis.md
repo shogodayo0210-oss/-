@@ -328,12 +328,19 @@ and sat at 20, availability under 20%, with Dallas and Houston stuck at 3 and 6
 vehicles. This is the same programme that was promised as "over a million
 robotaxis" in 2020.
 
-That is why `safety_critical` exists as a phase, at 5–10×. Where the evidence a
-regulator needs is statistical — miles driven, incidents not had — the schedule
-is set by how fast reality can be sampled, and urgency does not compress it.
-**This is the most fitted change in the repository**: the band was added and
-the case assigned to it by the same hand. It should be treated as a hypothesis
-until it holds on a safety-critical case nobody chose for it.
+That is why `safety_critical` exists as a phase, at 5–10×: where evidence must
+be accumulated across a fleet over time — miles driven, incidents not had — the
+schedule is set by how fast reality can be sampled, and urgency does not
+compress it.
+
+That band was added fitted, and has since been tested. It held on Waymo — a
+different company with the opposite temperament, twelve months planned to
+remove the safety driver at public scale and about 84 actual — which is the
+evidence that it describes a kind of work rather than one man's optimism. It
+**failed** on Neuralink, whose first human implant ran about 3× and belongs in
+the ordinary regulated band. The scope was narrowed accordingly, after the
+fact. See [backtest.md](backtest.md); the narrowed version is still a
+hypothesis.
 
 **The expensive pattern ran a third time.** Over-automation, "funding secured",
 Twitter — irreversible, senior, unchallenged. DOGE in 2025 is the same shape.

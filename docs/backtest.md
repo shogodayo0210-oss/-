@@ -164,7 +164,61 @@ was always the mission working as a recruiting instrument. In 2025 it ran
 backwards — European sales down 49% into a market up 34% — and a scale that
 bottoms out at zero cannot express a liability.
 
-## What the seven rounds actually taught
+## Round 8 — the fitted band, tested properly
+
+`safety_critical` was the one change labelled a hypothesis: the band was added
+and the case assigned to it in the same sitting. Round 8 tested it under
+pre-registration — **both cases written and their expected ranges fixed from
+the historical record before the engine was run once.**
+
+Two cases, chosen to attack it from different sides.
+
+**Waymo passed, and it is the strongest single result here.** The band claims
+something about a *kind of work*, not about a person — so it has to hold for an
+organisation with the opposite temperament, no reality-distortion field, and a
+reputation built on caution. Waymo said a public robotaxi service in Phoenix
+during 2018; genuine driverless service at multi-city scale arrived around 2024.
+Twelve months planned, about 84 actual. The band's 60–120 contains it. If this
+band were merely a measure of one man's optimism, it should have missed badly
+here. It did not.
+
+**Neuralink failed, and falsified the band as written.** Stated in 2019, FDA
+clearance wanted by end-2020, human trials in 2020 — about 18 months. First
+human implant January 2024, about 55 months. That is roughly **3×**. Classified
+as safety-critical, the engine returned **90–180 months**: seven to fifteen
+years for something that took four and a half.
+
+### What the failure was actually telling us
+
+The two cases differ in a way that is not a fudge. Waymo had to prove a
+statistical claim **across a fleet, accumulated over time** — miles driven,
+incidents not had. Neuralink had to get **one device into one volunteer**, which
+is a regulator reviewing a submission: hard, slow, and a different shape.
+
+So the band was narrowed to the first kind. Neuralink's first implant is
+regulated work, and at 3–5× the corrected 54–90 months contains the 55 it took.
+
+**This narrowing is post-hoc.** It was drawn after seeing the result, by the
+same hand that drew the band. Its only independent support is Waymo. The wide
+version is dead; the narrow version is a better hypothesis and is still a
+hypothesis.
+
+And one thing this round could not settle: `robotaxi-2025` is unfinished, so it
+cannot discriminate between the two bands — both reach past where things stand.
+All the discrimination came from the two cases added here.
+
+### The harness had a bug, and the band's first pass was fake
+
+Checking `months_within` only looked at where the corrected *upper bound* fell.
+Robotaxi originally "passed" by grazing the boundary of its expected range —
+6 months × 5 = exactly 30, against a range starting at 30. The engine had not
+got it right; the arithmetic had landed on the edge.
+
+The honest test of a calibration is whether **reality falls inside the band it
+produced**, and the harness now checks that. It is a better test and it is
+harder to pass by accident.
+
+## What the eight rounds actually taught
 
 **The engine was built from the good weather.** Every original rule assumed
 time to think. Three of the four additions are about pressure: what to ignore
@@ -198,21 +252,25 @@ broke.** Requirements work because you can go and ask the named person why. By
 2026 the named person owns SpaceX, Tesla, xAI, Neuralink, Boring and X, and
 above him at any of them there is nobody to ask.
 
-## Seven cases, ten rules — a summary
+## Twelve cases, ten rules — a summary
 
-| Rule | Came from | Generalised? |
+| Rule | Came from | Tested against something it was not built for |
 |---|---|---|
-| `automated-too-early` | stated method | held on 2017 |
-| `requirement-owner` | stated method | held on 2018, held on 2024 |
+| `stopgap` correction | GA4 tent, 2018 | **yes — Colossus, 2024, six years and 3 orders of magnitude away** |
+| `irreversible-unquestioned` | the 2018 tweet | **yes — Twitter, 2022** |
+| `safety_critical` band | robotaxi, 2025 | **yes — passed Waymo, failed Neuralink; narrowed** |
+| `requirement-owner` | stated method | held on 2018 and 2024 |
 | `unquestioned-authority` | stated method | held on 2017, 2018, 2025 |
-| `stopgap` correction | GA4 tent, 2018 | **held on Colossus, 2024** |
+| `automated-too-early` | stated method | held on 2017 |
 | `runway` / survival mode | Tesla, 2008 | held on the tent |
 | `ruin-risk` | Tesla, 2008 | surfaces, does not resolve |
-| `irreversible-unquestioned` | the 2018 tweet | **held on Twitter, 2022** |
-| `cheaper-to-try` | Falcon 1, 2008 | untested elsewhere |
-| `cost-lands-elsewhere` | DOGE, 2025 | untested elsewhere |
-| `safety_critical` band | robotaxi, 2025 | **fitted — treat as a hypothesis** |
+| `cheaper-to-try` | Falcon 1, 2008 | **not yet** |
+| `cost-lands-elsewhere` | DOGE, 2025 | **not yet** |
 
-Two rules have fired correctly on cases they were not built for. One is
-explicitly fitted. The rest are untested outside their origin, and saying so is
-worth more than a hit rate.
+Three rules have now been put in front of a case they were not built for. Two
+survived unchanged. One was broken, narrowed, and survives in a smaller form
+with a single independent confirmation.
+
+Two rules have never been tested outside their origin case, and until they are
+they are descriptions of one event each. Saying that is worth more than a hit
+rate.

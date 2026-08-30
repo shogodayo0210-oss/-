@@ -30,8 +30,10 @@ PHASE_REASONS: dict[Phase, str] = {
     Phase.PRODUCTION: "making it repeatedly, at cost, is where schedules start to slip",
     Phase.REGULATED: "a regulator who has to agree is not an engineering problem",
     Phase.SAFETY_CRITICAL: (
-        "the evidence needed here is statistical, so the schedule is set by how "
-        "fast reality can be sampled and not by how fast anyone works"
+        "the evidence has to be accumulated across a fleet over time, so the "
+        "schedule is set by how fast reality can be sampled rather than by how "
+        "fast anyone works — if a regulator is merely reviewing a submission, "
+        "that is the regulated band and this one overshoots it"
     ),
 }
 

@@ -69,13 +69,28 @@ def run_case(path: Path, verbose: bool = False) -> Score:
         problems.append(f"wrongly flagged {', '.join(wrongly)}")
 
     # Some cases turn on the corrected schedule rather than on any finding.
-    bounds = expect.get("months_within")
-    if bounds and calibration.months_high is not None:
-        low, high = bounds
-        if not (low <= calibration.months_high <= high):
+    #
+    # The honest test of a calibration is whether reality lands inside the
+    # band it produced. An earlier version of this harness only checked where
+    # the upper bound fell, which let a case pass by grazing the edge of its
+    # expected range — robotaxi did exactly that, and the bug was only visible
+    # because the number looked suspiciously like the boundary.
+    actual = expect.get("actual_months")
+    if actual is not None and calibration.months_low is not None:
+        if not (calibration.months_low <= actual <= calibration.months_high):
             problems.append(
-                f"corrected schedule {calibration.months_low:.2f}"
-                f"-{calibration.months_high:.2f}mo outside expected {low}-{high}mo"
+                f"reality took {actual}mo, outside the corrected "
+                f"{calibration.months_low:.2f}-{calibration.months_high:.2f}mo"
+            )
+
+    # For work that is not finished, all that can be asked is that the band
+    # already reaches past where things stand.
+    floor = expect.get("actual_months_at_least")
+    if floor is not None and calibration.months_high is not None:
+        if calibration.months_high < floor:
+            problems.append(
+                f"still unfinished at {floor}mo, but the corrected band stops "
+                f"at {calibration.months_high:.2f}mo"
             )
 
     score = Score(

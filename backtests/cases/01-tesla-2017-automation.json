@@ -10,18 +10,23 @@
     "https://techcrunch.com/2018/04/13/elon-musk-says-humans-are-underrated-calls-teslas-excessive-automation-a-mistake/",
     "https://www.cbsnews.com/news/elon-musk-tesla-model-3-problems-interview-today-2018-04-13/"
   ],
-
   "expect": {
-    "must_flag": ["automated-too-early", "unquestioned-authority"],
-    "notes": "This is the engine's home ground. Rule 3 says automate last and only what survived deletion; this is that rule's textbook violation, admitted as such by the person who made it."
+    "must_flag": [
+      "automated-too-early",
+      "unquestioned-authority"
+    ],
+    "notes": "This is the engine's home ground. Rule 3 says automate last and only what survived deletion; this is that rule's textbook violation, admitted as such by the person who made it.",
+    "actual_months": 12
   },
-
   "decision": {
     "decision": "Automate Model 3 general assembly to the maximum extent",
     "unit": "USD",
-    "estimate": { "months": 6 },
-    "phases": ["production"],
-
+    "estimate": {
+      "months": 6
+    },
+    "phases": [
+      "production"
+    ],
     "requirements": [
       {
         "text": "The line must be the most automated automotive assembly line in the world",
@@ -38,7 +43,6 @@
         "questioned": true
       }
     ],
-
     "steps": [
       {
         "name": "Conveyor network moving parts between robot cells in general assembly",
@@ -56,7 +60,6 @@
         "reinstated": false
       }
     ],
-
     "components": [
       {
         "name": "General assembly automation, per line",

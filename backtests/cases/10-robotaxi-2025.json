@@ -10,20 +10,23 @@
     "https://electrek.co/2026/06/03/tesla-robotaxi-expands-entire-austin-metro-only-20-vehicles/",
     "https://en.wikipedia.org/wiki/Tesla_Robotaxi"
   ],
-
   "expect": {
-    "must_flag": ["unquestioned-authority"],
-    "months_within": [45, 75],
+    "must_flag": [
+      "unquestioned-authority"
+    ],
     "known_gap": true,
-    "notes": "The engine's largest correction, 3-5x for regulated work, is not enough here and the record says so plainly: a million robotaxis promised for 2020, twenty vehicles running in 2026. This is not the ordinary regulated slip. Where the evidence a regulator needs is statistical -- miles driven, incidents not had -- no amount of urgency compresses it, because the schedule is set by how fast reality can be sampled rather than by how fast anyone works."
+    "notes": "The engine's regulated band, 3-5x, gave 18-30 months for a programme that promised a million vehicles for 2020 and was running twenty in 2026. Note honestly what this case can and cannot settle: the work is not finished, so it cannot by itself distinguish the regulated band from the safety-critical one -- both reach past where things stand. The discrimination comes from waymo-driverless-at-scale, which is finished, and from neuralink-first-implant, which shows where the band does not apply.",
+    "actual_months_at_least": 19
   },
-
   "decision": {
     "decision": "Launch an unsupervised robotaxi service in Austin",
     "unit": "USD",
-    "estimate": { "months": 6 },
-    "phases": ["safety_critical"],
-
+    "estimate": {
+      "months": 6
+    },
+    "phases": [
+      "safety_critical"
+    ],
     "requirements": [
       {
         "text": "The fleet must reach 500 vehicles in Austin by year end",
@@ -47,7 +50,6 @@
         "questioned": true
       }
     ],
-
     "steps": [
       {
         "name": "Run invite-only with staff aboard first",
@@ -67,7 +69,6 @@
         "reinstated": true
       }
     ],
-
     "components": []
   }
 }

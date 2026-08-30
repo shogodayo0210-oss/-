@@ -166,8 +166,33 @@ is that the people bearing the cost push back. That is switched off when one
 person controls both sides — and it compounds, because the requirements rule
 works only while there is a named person you can go and ask why.
 
-The full record, including which rules are fitted and which have generalised,
-is in [docs/backtest.md](docs/backtest.md).
+### Then the fitted rule was put on trial
+
+One change was labelled a hypothesis rather than a finding: a `safety_critical`
+band at 5–10×, added and assigned to its own origin case in the same sitting.
+It was tested under pre-registration — two cases written and their expected
+ranges fixed from the record before the engine ran once.
+
+**Waymo passed.** A different company, opposite temperament, no
+reality-distortion field: twelve months planned to remove the safety driver at
+public scale, about 84 actual, inside the band. If the band only measured one
+man's optimism it should have missed here.
+
+**Neuralink broke it.** Eighteen months planned to a first human implant,
+about 55 actual — roughly 3×, where the band predicted seven to fifteen years.
+
+So the wide claim is dead. The band now covers only work whose evidence must be
+**accumulated across a fleet over time**, not a regulator reviewing a single
+submission — and that narrowing is post-hoc, with Waymo as its only independent
+support. It is a better hypothesis, not a finding.
+
+The same round found that the harness had been checking the wrong thing: only
+where a corrected band's upper bound fell, which let one case pass by grazing
+the edge of its expected range. It now checks whether reality lands *inside*
+the band, which is the actual test of a calibration.
+
+The full record — which rules have been tested outside their origin, which have
+not, and which was falsified — is in [docs/backtest.md](docs/backtest.md).
 
 ## Does the screen mean anything?
 

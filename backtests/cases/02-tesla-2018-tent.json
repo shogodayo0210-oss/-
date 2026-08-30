@@ -10,22 +10,25 @@
     "https://techcrunch.com/2018/07/02/elon-musk-model-3-tent-tesla/",
     "https://www.teslarati.com/tesla-gigafactory-formula-fremont-tent/"
   ],
-
   "expect": {
-    "must_flag": ["requirement-owner"],
-    "months_within": [0.5, 1.5],
+    "must_flag": [
+      "requirement-owner"
+    ],
     "known_gap": true,
-    "notes": "Two things are being tested. The engine should flag the unowned requirement that general assembly happen inside the permitted building -- deleting exactly that requirement is what the tent was. But the schedule correction is the real test: this was delivered in three weeks against a three-week plan, and a flat 2-3x correction turns 0.75 months into 1.5-2.25 and calls a success late. The documented overshoot mechanism is scale, cost and regulation; a reversible stopgap bypasses all three, and the engine does not know that."
+    "notes": "Two things are being tested. The engine should flag the unowned requirement that general assembly happen inside the permitted building -- deleting exactly that requirement is what the tent was. But the schedule correction is the real test: this was delivered in three weeks against a three-week plan, and a flat 2-3x correction turns 0.75 months into 1.5-2.25 and calls a success late. The documented overshoot mechanism is scale, cost and regulation; a reversible stopgap bypasses all three, and the engine does not know that.",
+    "actual_months": 0.75
   },
-
   "decision": {
     "decision": "Add a third general assembly line to reach 5,000 Model 3 per week",
     "unit": "USD",
-    "estimate": { "months": 0.75 },
-    "phases": ["production"],
+    "estimate": {
+      "months": 0.75
+    },
+    "phases": [
+      "production"
+    ],
     "runway_months": 2,
     "stopgap": true,
-
     "requirements": [
       {
         "text": "General assembly must take place inside the permitted main building",
@@ -42,7 +45,6 @@
         "questioned": true
       }
     ],
-
     "steps": [
       {
         "name": "Erect a temporary structure on the parking lot",
@@ -65,7 +67,6 @@
         "deleted": false
       }
     ],
-
     "components": [
       {
         "name": "Temporary general assembly line, built from warehouse scrap",

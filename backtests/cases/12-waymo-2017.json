@@ -1,0 +1,63 @@
+{
+  "case": "waymo-driverless-at-scale",
+  "date": "2017-11",
+  "situation": "Waymo says a public self-driving taxi service can be deployed in Phoenix during 2018. Nobody involved is Elon Musk. The remaining work is proving, statistically and at fleet scale, that vehicles without a human in the seat are safe enough to carry the public.",
+  "what_he_actually_did": "n/a — a different company, included deliberately. Waymo took the methodical route: extensive mapping, a long Early Rider programme, safety drivers retained well past the target date.",
+  "outcome": "LATE",
+  "outcome_detail": "Rather than a public launch in 2018, Waymo began charging Early Rider fees in December 2019 with safety drivers still aboard. Genuinely driverless public service, at multi-city scale, arrived around 2024 — roughly 84 months against about 12 planned, a factor near seven.",
+  "sources": [
+    "https://techcrunch.com/2017/11/27/waymo-racks-up-4-million-self-driven-miles",
+    "https://www.thedriverlessdigest.com/p/waymos-2025-year-in-review-the-year",
+    "https://www.eetimes.com/waymos-robotaxi-program-progress-and-potential/"
+  ],
+  "expect": {
+    "notes": "The strongest independence check available. The safety_critical band claims something about a kind of work, not about a person — so it has to hold for an organisation with the opposite temperament, no reality-distortion field, and a reputation built on being cautious. If the band only describes Musk's optimism it should miss badly here. Range fixed from the record before running.",
+    "actual_months": 84
+  },
+  "decision": {
+    "decision": "Run a public ride-hail service with nobody in the driver's seat",
+    "unit": "USD",
+    "estimate": {
+      "months": 12
+    },
+    "phases": [
+      "safety_critical"
+    ],
+    "requirements": [
+      {
+        "text": "Vehicles must operate with no human in the driver's seat",
+        "owner": "John Krafcik",
+        "authority": "high",
+        "grounded_in": "contract",
+        "questioned": true
+      },
+      {
+        "text": "Safety performance must be demonstrable to regulators before removing the driver",
+        "owner": "NHTSA",
+        "authority": "normal",
+        "grounded_in": "regulation",
+        "questioned": true
+      }
+    ],
+    "steps": [
+      {
+        "name": "Run an Early Rider programme with safety drivers to accumulate miles",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Map the operating area exhaustively before opening it",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Remove the safety driver on the original schedule",
+        "deleted": true,
+        "reinstated": true
+      }
+    ],
+    "components": []
+  }
+}

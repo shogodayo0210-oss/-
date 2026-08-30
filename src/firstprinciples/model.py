@@ -53,10 +53,18 @@ class Phase(str, Enum):
     PROTOTYPE = "prototype"
     PRODUCTION = "production"
     REGULATED = "regulated"
-    #: Where the evidence a regulator needs is statistical — miles driven,
-    #: incidents not had, patients followed. Added after backtesting: a
-    #: million robotaxis were promised for 2020 and twenty were running in
-    #: 2026, which the ordinary regulated band does not begin to cover.
+    #: Where the evidence must be **accumulated across a fleet or population
+    #: over time** — miles driven, incidents not had, patients followed —
+    #: before the thing can operate at all.
+    #:
+    #: Not merely "a regulator is involved". Getting one device into one
+    #: volunteer is a regulator reviewing a submission, and belongs in
+    #: REGULATED; Neuralink's first implant ran about 3x, which REGULATED
+    #: covers and this band badly overshoots. Removing the safety driver
+    #: across a public fleet is this band, and Waymo ran about 7x.
+    #:
+    #: The distinction is post-hoc — it was drawn after Neuralink falsified
+    #: the wider version. See docs/backtest.md.
     SAFETY_CRITICAL = "safety_critical"
 
 
