@@ -183,6 +183,11 @@ class Decision:
     #: push back — is switched off.
     decided_by: str | None = None
     cost_borne_by: str | None = None
+    #: Whether the decider is in the blast radius too. Kodak forced this in:
+    #: its management lost the company they ran, which is shared downside, not
+    #: insulation. Without the distinction the rule fires on every corporate
+    #: failure that ever cost anyone a job — which is all of them.
+    decider_shares_cost: bool = False
     #: Populated separately by opportunity.Assessment to keep the two halves
     #: of the tool — what to do, and how to do it — independent.
     opportunity: Any = None
@@ -212,6 +217,7 @@ class Decision:
             analysis_cost=_optional_number(raw.get("analysis_cost"), "analysis_cost"),
             decided_by=raw.get("decided_by"),
             cost_borne_by=raw.get("cost_borne_by"),
+            decider_shares_cost=bool(raw.get("decider_shares_cost", False)),
             estimate=Estimate(
                 months=_optional_number(estimate_raw.get("months"), "estimate.months"),
                 cost=_optional_number(estimate_raw.get("cost"), "estimate.cost"),

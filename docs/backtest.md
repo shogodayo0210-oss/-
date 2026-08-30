@@ -218,7 +218,65 @@ The honest test of a calibration is whether **reality falls inside the band it
 produced**, and the harness now checks that. It is a better test and it is
 harder to pass by accident.
 
-## What the eight rounds actually taught
+## Round 9 — the last two untested rules
+
+`cheaper-to-try` and `cost-lands-elsewhere` each described exactly one event.
+Round 9 put them in front of cases with no connection to Musk at all, again
+under pre-registration: four predictions written down before the engine ran.
+
+**All four predictions were correct, including the one that said a rule would
+fail.**
+
+**Boeing 737 MAX — `cost-lands-elsewhere` fired.** A different company, a
+different industry, a decade before DOGE, and the same structure: the MAX was
+sold on not needing simulator training, MCAS went undocumented, and Boeing
+contracted a $1M-per-aircraft rebate with Southwest should training turn out to
+be required. That rebate is the decision made legible — a financial structure
+whose purpose was to keep the cost off the party deciding. The people who bore
+it were not in the room and were not aboard.
+
+**Wells Fargo — fired again**, in a third industry. An unreachable target set by
+people who did not have to meet it; 5,300 dismissals over five years while the
+target-setters kept their jobs. Executives did eventually pay — fines,
+clawbacks, dismissals — but half a decade later and only once it was public,
+which is not the feedback path the rule is about.
+
+**The Wright brothers, 1901 — `cheaper-to-try` fired.** A different century and
+a domain with no rockets and no runway pressure. Lilienthal's tables predicted
+three times the lift the glider produced; deriving the correction was not
+purchasable at any price in 1901, and a wind tunnel was scrap lumber and a
+fortnight. Measuring was the cheap option and analysis was the expensive one.
+
+### Kodak broke the rule, exactly as predicted
+
+The prediction written before the run: **Kodak should not fire, and will.**
+
+Kodak's management protected film, and 47,000 people lost their jobs. A rule
+comparing `decided_by` against `cost_borne_by` as strings fires on that. But
+almost every corporate failure eventually costs employees, and **a rule that
+fires on all of them is a famous-disaster detector, not a rule.**
+
+The distinction is **insulation, not identity**. Kodak's management lost the
+company they ran. Boeing's executives were not aboard those aircraft; Wells
+Fargo's were not fired for missing a quota. The rule now asks whether the
+decider is in the blast radius, and stays quiet when they are — shared downside
+is a real concern and a different one, and blurring the two costs the rule its
+meaning.
+
+### The meta-finding
+
+Two of the three rules tested against an independent case this round and last
+needed **narrowing**, in the same direction: `safety_critical` was too wide
+until Neuralink, `cost-lands-elsewhere` was too wide until Kodak.
+
+That is not a coincidence. **A rule derived from one event is systematically
+too general**, because the single case cannot show you which of its features
+were doing the work. The only thing that separates them is a case that shares
+some features and not others — which is what an independent test is for, and
+why "it explains everything I have looked at" is close to worthless as
+evidence.
+
+## What the nine rounds actually taught
 
 **The engine was built from the good weather.** Every original rule assumed
 time to think. Three of the four additions are about pressure: what to ignore
@@ -252,25 +310,27 @@ broke.** Requirements work because you can go and ask the named person why. By
 2026 the named person owns SpaceX, Tesla, xAI, Neuralink, Boring and X, and
 above him at any of them there is nobody to ask.
 
-## Twelve cases, ten rules — a summary
+## Sixteen cases, ten rules — a summary
 
 | Rule | Came from | Tested against something it was not built for |
 |---|---|---|
-| `stopgap` correction | GA4 tent, 2018 | **yes — Colossus, 2024, six years and 3 orders of magnitude away** |
-| `irreversible-unquestioned` | the 2018 tweet | **yes — Twitter, 2022** |
-| `safety_critical` band | robotaxi, 2025 | **yes — passed Waymo, failed Neuralink; narrowed** |
+| `stopgap` correction | GA4 tent, 2018 | **survived — Colossus 2024, six years and 3 orders of magnitude away** |
+| `irreversible-unquestioned` | the 2018 tweet | **survived — Twitter 2022, Boeing 737 MAX** |
+| `cheaper-to-try` | Falcon 1, 2008 | **survived — the Wright brothers, 1901** |
+| `cost-lands-elsewhere` | DOGE, 2025 | **passed Boeing and Wells Fargo, broke on Kodak; narrowed** |
+| `safety_critical` band | robotaxi, 2025 | **passed Waymo, broke on Neuralink; narrowed** |
 | `requirement-owner` | stated method | held on 2018 and 2024 |
-| `unquestioned-authority` | stated method | held on 2017, 2018, 2025 |
+| `unquestioned-authority` | stated method | held on 2017, 2018, 2025, Wells Fargo |
 | `automated-too-early` | stated method | held on 2017 |
-| `runway` / survival mode | Tesla, 2008 | held on the tent |
-| `ruin-risk` | Tesla, 2008 | surfaces, does not resolve |
-| `cheaper-to-try` | Falcon 1, 2008 | **not yet** |
-| `cost-lands-elsewhere` | DOGE, 2025 | **not yet** |
+| `runway` / survival mode | Tesla, 2008 | **only ever tested on Musk cases** |
+| `ruin-risk` | Tesla, 2008 | surfaces, does not resolve — nothing to test |
 
-Three rules have now been put in front of a case they were not built for. Two
-survived unchanged. One was broken, narrowed, and survives in a smaller form
-with a single independent confirmation.
+Every rule that was a description of one event has now been put in front of a
+case it was not built for. Three survived unchanged; two broke and survive in a
+narrower form. Three cases in the suite have nothing to do with Musk at all —
+Boeing, Wells Fargo, Kodak — plus Waymo and the Wright brothers, which is five
+of sixteen.
 
-Two rules have never been tested outside their origin case, and until they are
-they are descriptions of one event each. Saying that is worth more than a hit
-rate.
+**What remains untested is `runway` / survival mode.** Every case that exercises
+it is one of his. Until a company that is not his is watched deciding under
+three months of cash, that rule describes a temperament as much as a situation.

@@ -1,0 +1,66 @@
+{
+  "case": "wright-wind-tunnel",
+  "date": "1901-09",
+  "situation": "The 1901 glider produces about a third of the lift Lilienthal's published tables predict. Either the tables are wrong or the Wrights are. Correcting the tables by derivation is not available in 1901 — the theory does not exist. The alternative is to measure it themselves.",
+  "what_he_actually_did": "n/a — a different century, included deliberately. They mounted a test rig on a bicycle to confirm the published data was wrong, then built a wind tunnel from a wooden box six feet long and sixteen inches square, driven by a fan off the shop's gasoline engine, and measured roughly two hundred wing shapes directly.",
+  "outcome": "SUCCESS",
+  "outcome_detail": "The measurements replaced the received tables and became the basis for the 1903 aircraft. The equipment was scrap lumber and a few weeks; the analysis it replaced was a body of theory nobody had.",
+  "sources": [
+    "https://www.grc.nasa.gov/www/k-12/airplane/wrights/tunnel.html",
+    "https://airandspace.si.edu/explore/stories/researching-wright-way",
+    "https://www.centennialofflight.net/essay/Wright_Bros/1901/WR3.htm"
+  ],
+
+  "expect": {
+    "must_flag": ["cheaper-to-try"],
+    "notes": "The independence test for cheaper-to-try, which until now described exactly one event: the fourth Falcon 1 in 2008. This is 1901, a different domain, no rockets and no runway pressure, and the structure is the same -- measuring cost a fortnight and some lumber, while deriving the answer was not purchasable at any price.\n\nThe two cost figures are in weeks of two people's work and are order-of-magnitude judgements rather than records. What is defensible is the comparison, not the numbers: building the tunnel was cheap and deriving the theory was not available, which is the condition the rule tests."
+  },
+
+  "decision": {
+    "decision": "Measure lift ourselves rather than work from the published tables",
+    "unit": "person-weeks",
+    "estimate": { "months": 2 },
+    "phases": ["prototype"],
+    "attempt_cost": 6,
+    "analysis_cost": 60,
+
+    "requirements": [
+      {
+        "text": "Lift figures must be trustworthy before another glider is built",
+        "owner": "Wilbur Wright",
+        "authority": "high",
+        "grounded_in": "physics",
+        "questioned": true
+      },
+      {
+        "text": "Published tables from established authorities should be used",
+        "owner": null,
+        "authority": "unknown",
+        "grounded_in": "assumption",
+        "questioned": false
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Mount a test rig on a bicycle to check the published data",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Build a wind tunnel from scrap lumber and measure wing shapes directly",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Derive corrected coefficients from theory",
+        "deleted": true,
+        "reinstated": false
+      }
+    ],
+
+    "components": []
+  }
+}

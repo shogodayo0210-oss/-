@@ -1,0 +1,73 @@
+{
+  "case": "boeing-737max-training",
+  "date": "2011-2017",
+  "situation": "The 737 MAX is designed and sold on the promise that airlines will not need a new type rating or simulator training for their pilots. MCAS is added to compensate for the handling change from larger engines. Requiring simulator training would erase a headline selling point of the aircraft.",
+  "what_he_actually_did": "n/a — a different company, included deliberately. Boeing kept the no-simulator-training position, omitted MCAS from flight manuals and training material, and contracted with Southwest a rebate of $1M per aircraft should simulator training turn out to be required. The rebate is the decision made legible: a financial structure whose explicit purpose was to keep the training cost off the airline.",
+  "outcome": "FAILURE",
+  "outcome_detail": "Two crashes, 346 dead, and a worldwide grounding. In January 2020 Boeing reversed and recommended simulator training for all MAX pilots. The reversal was estimated to add about $5B on top of the $5.6B already committed to grounding costs.",
+  "sources": [
+    "https://www.seattletimes.com/business/boeing-aerospace/boeing-says-all-737-max-pilots-will-need-flight-simulator-training/",
+    "https://www.insurancejournal.com/news/national/2019/08/15/536328.htm",
+    "https://www.eurocockpit.eu/news/boeing-training-lesson"
+  ],
+
+  "expect": {
+    "must_flag": ["cost-lands-elsewhere", "irreversible-unquestioned"],
+    "notes": "The first independence test of cost-lands-elsewhere. The rule was written from DOGE in 2025; this is a different company, a different industry and a decade earlier, and the structure is identical: a decision made where its cost would not land, by people who would not be aboard. If the rule only described one man's 2025 it should miss here."
+  },
+
+  "decision": {
+    "decision": "Certify the MAX without requiring simulator training",
+    "unit": "USD",
+    "estimate": { "months": 24 },
+    "phases": ["safety_critical"],
+    "decided_by": "Boeing programme management",
+    "cost_borne_by": "flight crews and passengers",
+
+    "requirements": [
+      {
+        "text": "The MAX must not require a new type rating or simulator training",
+        "owner": "Boeing programme management",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "Handling must feel identical to the previous 737 to pilots",
+        "owner": "Boeing programme management",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "The aircraft must meet FAA certification requirements",
+        "owner": "FAA",
+        "authority": "normal",
+        "grounded_in": "regulation",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Ship MCAS without describing it in the flight manual",
+        "considered_for_deletion": false,
+        "deleted": false,
+        "reversible": false
+      },
+      {
+        "name": "Contract a per-aircraft rebate if simulator training is required",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Require simulator training on the difference",
+        "deleted": true,
+        "reinstated": true
+      }
+    ],
+
+    "components": []
+  }
+}

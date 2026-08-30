@@ -1,0 +1,65 @@
+{
+  "case": "wells-fargo-quotas",
+  "date": "2011",
+  "situation": "Senior management sets aggressive cross-selling targets for retail branches — famously eight products per household — and ties employment to meeting them. Nobody at the level setting the target has to make the numbers personally.",
+  "what_he_actually_did": "n/a — a different company. The quotas were kept and enforced. Branch staff were, in the words of later filings, hounded and threatened to meet targets described as unreachable.",
+  "outcome": "FAILURE",
+  "outcome_detail": "About 2 million accounts and cards were opened without customer authorisation. Roughly 5,300 employees were fired for the practices between 2011 and 2016 while the people who set the targets initially were not. $185M in fines in September 2016; quotas abolished from 1 January 2017. Executive consequences came later — four senior managers dismissed, about $32M in bonuses cancelled, a $17.5M fine for the former CEO.",
+  "sources": [
+    "https://www.congress.gov/crs-product/IF11129",
+    "https://corpgov.law.harvard.edu/2019/02/06/the-wells-fargo-cross-selling-scandal-2/",
+    "https://www.cbsnews.com/news/wells-fargo-fires-4-execs-over-bogus-accounts/"
+  ],
+
+  "expect": {
+    "must_flag": ["cost-lands-elsewhere", "unquestioned-authority"],
+    "notes": "A second independence test, in a third industry. Note the honest wrinkle: executives did eventually pay -- fines, clawbacks, dismissals -- five years later. The rule is about the decision point, and at the decision point the person setting an unreachable target bore none of the risk of missing it. Consequences arriving half a decade afterwards, only once the practice became public, is not the feedback path the rule is about."
+  },
+
+  "decision": {
+    "decision": "Tie branch employment to a cross-selling target of eight products per household",
+    "unit": "USD",
+    "estimate": { "months": 12 },
+    "phases": ["production"],
+    "decided_by": "Wells Fargo senior management",
+    "cost_borne_by": "branch employees and customers",
+
+    "requirements": [
+      {
+        "text": "Every household must hold eight Wells Fargo products",
+        "owner": "John Stumpf",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "Branch staff who miss the target are subject to dismissal",
+        "owner": "Carrie Tolstedt",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Report daily against target and escalate misses",
+        "automated": true,
+        "considered_for_deletion": false,
+        "reversible": true
+      },
+      {
+        "name": "Check whether the target is reachable before enforcing it",
+        "deleted": true,
+        "reinstated": false
+      },
+      {
+        "name": "Audit opened accounts against customer intent",
+        "deleted": true,
+        "reinstated": true
+      }
+    ],
+
+    "components": []
+  }
+}

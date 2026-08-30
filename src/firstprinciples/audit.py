@@ -245,11 +245,24 @@ def _check_who_pays(decision: Decision) -> list[Finding]:
 
     It is the only rule here that is not about thinking better. It is about a
     missing feedback path.
+
+    The test that matters is **insulation, not identity**, and Kodak forced
+    that distinction. Its management protected film and 47,000 people lost
+    their jobs — but management lost the company they ran. Boeing's executives
+    were not aboard those aircraft; Wells Fargo's were not fired for missing a
+    quota. Comparing names alone fires on every corporate failure that ever
+    cost anyone a job, which is all of them, and a rule that fires on all of
+    them is a famous-disaster detector rather than a rule.
+
+    Shared downside is a real concern and a different one. This rule stays
+    quiet about it rather than blurring the two.
     """
     decider, payer = decision.decided_by, decision.cost_borne_by
     if not decider or not payer:
         return []
     if decider.strip().lower() == payer.strip().lower():
+        return []
+    if decision.decider_shares_cost:
         return []
 
     return [

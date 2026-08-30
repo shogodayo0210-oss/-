@@ -292,6 +292,39 @@ def test_no_finding_when_the_decider_pays_or_it_was_not_stated(
     assert "cost-lands-elsewhere" not in rules(audit(decision))
 
 
+def test_shared_downside_is_not_insulation():
+    """Kodak broke this rule as first written, and this pins the fix.
+
+    Its management protected film and 47,000 people lost their jobs — but
+    management lost the company they ran. Boeing's executives were not aboard
+    those aircraft. Comparing names alone cannot tell the two apart, and a
+    rule that fires on every corporate failure that ever cost someone a job
+    is a famous-disaster detector rather than a rule.
+    """
+    insulated = Decision(
+        title="d",
+        decided_by="Boeing programme management",
+        cost_borne_by="flight crews and passengers",
+    )
+    assert "cost-lands-elsewhere" in rules(audit(insulated))
+
+    shared = Decision(
+        title="d",
+        decided_by="Kodak senior management",
+        cost_borne_by="Kodak employees and shareholders",
+        decider_shares_cost=True,
+    )
+    assert "cost-lands-elsewhere" not in rules(audit(shared))
+
+
+def test_the_decider_is_assumed_insulated_unless_stated():
+    # The conservative default: silence should have to be earned by answering
+    # the question, not obtained by leaving it blank.
+    decision = Decision(title="d", decided_by="A", cost_borne_by="B")
+    assert not decision.decider_shares_cost
+    assert "cost-lands-elsewhere" in rules(audit(decision))
+
+
 def test_it_is_about_a_missing_veto_not_about_bad_judgement():
     # The wording matters: nothing in the reasoning has to be wrong for this
     # to go badly, which is what makes it a different kind of finding.

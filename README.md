@@ -191,8 +191,36 @@ where a corrected band's upper bound fell, which let one case pass by grazing
 the edge of its expected range. It now checks whether reality lands *inside*
 the band, which is the actual test of a calibration.
 
-The full record — which rules have been tested outside their origin, which have
-not, and which was falsified — is in [docs/backtest.md](docs/backtest.md).
+### Then the rules were taken away from him entirely
+
+Five of the sixteen cases have nothing to do with Musk: Waymo, the Wright
+brothers, Boeing, Wells Fargo, Kodak. A rule that only works on one man is a
+biography, not a rule.
+
+**`cost-lands-elsewhere`** — written from DOGE in 2025 — fired on Boeing's
+decision to sell the 737 MAX without simulator training (the $1M-per-aircraft
+rebate to Southwest is that decision made legible) and on Wells Fargo's
+unreachable branch quotas. Different industries, different decades, same
+structure: the cost was arranged to land where the deciders were not.
+
+**`cheaper-to-try`** — written from the fourth Falcon 1 — fired on the Wright
+brothers building a wind tunnel out of scrap lumber in 1901 rather than trying
+to derive a correction to Lilienthal's tables. Different century, no rockets.
+
+**Kodak broke it, as predicted before the run.** Kodak's management protected
+film and 47,000 people lost their jobs — but management lost the company they
+ran. Almost every corporate failure eventually costs employees, and a rule that
+fires on all of them is a famous-disaster detector. The test is **insulation,
+not identity**: Boeing's executives were not aboard those aircraft.
+
+And a pattern worth more than any single rule: **two of the rules broke the
+first time they met an independent case, both by being too wide.** A rule
+derived from one event cannot show you which of its features were doing the
+work. That is what an independent test is for, and why "it explains everything
+I have looked at" is close to worthless as evidence.
+
+The full record — which rules survived, which broke, and which is still
+untested — is in [docs/backtest.md](docs/backtest.md).
 
 ## Does the screen mean anything?
 
