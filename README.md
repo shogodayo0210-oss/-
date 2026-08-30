@@ -197,6 +197,16 @@ Being clear about this matters more than the feature list.
 - **It cannot see untracked files.** A brand new test file git has never heard
   of is invisible to `git diff`, so `falsify` looks for them and warns loudly
   rather than waving the change through. `git add -N` is enough.
+- **It cannot prove a brand new module.** If the code under test did not exist
+  at the base commit, its tests cannot import there, so the counterfactual goes
+  red for the wrong reason. The honest verdict is `INCONCLUSIVE`, and that is
+  what you get. New modules are proved by their *second* change, not their
+  first.
+- **An editable install defeats it, silently.** `pip install -e .` puts your
+  working tree on the import path, so a scratch checkout that imports by
+  package name gets the *changed* code. This produced a wrong `PROVEN` on this
+  very repository. `falsify` now detects it and warns; run tests against the
+  checkout (`PYTHONPATH=src`) when it does.
 - **It runs your tests twice.** On a slow suite, scope the command with
   `{files}`.
 - **It is not mutation testing.** Mutation testing invents synthetic breakage
@@ -228,6 +238,18 @@ $ pytest
 ```
 
 `falsify` is subject to its own gate. If you send a patch, it should pass.
+
+## Also in this repository
+
+**[`fp`](docs/fp.md)** — a first-principles decision protocol with its own
+error bars. Takes a decision (a project, a process, a research direction) and
+checks whether requirements have named owners, whether anything was automated
+before it was deleted, and what you are paying for process versus substance —
+then widens your estimate by the correction the work actually earns.
+[Where every rule comes from](docs/analysis.md).
+
+The two tools share a premise: a claim is worth less than a record of
+something having been checked.
 
 ## License
 

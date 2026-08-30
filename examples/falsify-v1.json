@@ -1,0 +1,98 @@
+{
+  "decision": "falsify v1 — generate the falsification test, not just check it",
+  "unit": "reviewer-hours",
+  "estimate": { "months": 2 },
+  "phases": ["prototype", "production"],
+
+  "opportunity": {
+    "subject": "reviewing changes an agent wrote, for developers who already drown in them",
+    "notes": "Not a business. An open-source tool, scored the same way, because the screen is about where to point effort and not about whether money changes hands.",
+    "screens": {
+      "cost_detached": {
+        "score": 2,
+        "evidence": "A reviewer reads thirty reports to find one real defect. That ratio is set by nobody having automated the check, not by anything about reviewing."
+      },
+      "absorbable": {
+        "score": 2,
+        "evidence": "The expensive part is running the new test against the old code, and that is precisely what a CLI with git and a shell can do itself."
+      },
+      "soft_barrier": {
+        "score": 1,
+        "evidence": "Mostly convention — but mutation testing is adjacent, has existed for years, and stayed niche because it is slow and noisy. That is a real reason, not just habit, so this is not a 2."
+      },
+      "existing_need": {
+        "score": 2,
+        "evidence": "The pain exists today, in the author's own week, which is the only demand signal worth much at this stage."
+      },
+      "pulls_help": {
+        "score": 1,
+        "evidence": "'Red before green, or it didn't happen' is a line people repeat. It is still a developer tool, not a cause, and pretending otherwise would be scoring the wish."
+      },
+      "reachable_proof": {
+        "score": 2,
+        "evidence": "v0 exists, passes its own gate, and found a real bug in itself. The proof point is already reached."
+      }
+    }
+  },
+
+  "requirements": [
+    {
+      "text": "Must support Python, Go and TypeScript at launch",
+      "owner": null,
+      "authority": "unknown",
+      "grounded_in": "assumption",
+      "questioned": false
+    },
+    {
+      "text": "Must never send repository contents to a third party without consent",
+      "owner": "Shogo",
+      "authority": "normal",
+      "grounded_in": "contract",
+      "questioned": true
+    },
+    {
+      "text": "Should offer at most three candidate tests per change",
+      "owner": "Shogo",
+      "authority": "high",
+      "grounded_in": "assumption",
+      "questioned": false
+    }
+  ],
+
+  "steps": [
+    {
+      "name": "Infer what the change claims to fix",
+      "considered_for_deletion": true,
+      "deleted": false
+    },
+    {
+      "name": "Generate candidate falsification tests",
+      "considered_for_deletion": true,
+      "deleted": false
+    },
+    {
+      "name": "Run each candidate against the base commit and keep only the red ones",
+      "considered_for_deletion": true,
+      "deleted": false
+    },
+    {
+      "name": "Cache generated candidates between runs",
+      "automated": true,
+      "considered_for_deletion": false
+    },
+    {
+      "name": "Render a syntax-highlighted diff in the report",
+      "deleted": true,
+      "reinstated": false
+    }
+  ],
+
+  "components": [
+    {
+      "name": "One agent-written change, reviewed by hand",
+      "finished_cost": 0.75,
+      "material_cost": 0.05,
+      "quantity": 200
+    }
+  ]
+}

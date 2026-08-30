@@ -1,0 +1,93 @@
+{
+  "decision": "The weekly engineering status report",
+  "unit": "hours",
+  "estimate": { "months": 1 },
+  "phases": ["production"],
+
+  "opportunity": {
+    "subject": "one recurring internal process, six people, every week",
+    "notes": "No money changes hands. The unit is hours, and the ratio works the same.",
+    "screens": {
+      "cost_detached": {
+        "score": 2,
+        "evidence": "Six hours a week produce about thirty minutes of information nobody already had. The other five and a half hours exist because the format does."
+      },
+      "absorbable": {
+        "score": 2,
+        "evidence": "The expensive part is assembly, and the team doing the assembling is the team deciding."
+      },
+      "soft_barrier": {
+        "score": 2,
+        "evidence": "Nothing technical stops this changing. It continues because changing it requires telling someone senior that their table is not read."
+      },
+      "existing_need": {
+        "score": 1,
+        "evidence": "Someone genuinely needs to know what is happening. They do not need it in this shape, and possibly not weekly."
+      },
+      "pulls_help": {
+        "score": 0,
+        "evidence": "Nobody will volunteer to help fix a status report. This screen scores honestly at zero and the total should carry that."
+      },
+      "reachable_proof": {
+        "score": 2,
+        "evidence": "Skip it for two weeks and count who asks. That is the whole experiment."
+      }
+    }
+  },
+
+  "requirements": [
+    {
+      "text": "Every report must be reviewed before it goes out",
+      "owner": "legal department",
+      "authority": "unknown",
+      "grounded_in": "assumption",
+      "questioned": false
+    },
+    {
+      "text": "Must include the headcount and hiring pipeline table",
+      "owner": "Priya Raman",
+      "authority": "high",
+      "grounded_in": "assumption",
+      "questioned": false
+    },
+    {
+      "text": "Must go out before the Monday leadership call",
+      "owner": "Dan Okafor",
+      "authority": "normal",
+      "grounded_in": "contract",
+      "questioned": true
+    }
+  ],
+
+  "steps": [
+    {
+      "name": "Collect per-team updates in a shared doc",
+      "considered_for_deletion": true,
+      "deleted": false
+    },
+    {
+      "name": "Compile metrics into the standard table",
+      "automated": true,
+      "considered_for_deletion": false
+    },
+    {
+      "name": "Reformat the doc into slides",
+      "deleted": true,
+      "reinstated": false
+    },
+    {
+      "name": "Chase three people who did not fill theirs in",
+      "optimised": true,
+      "considered_for_deletion": false
+    }
+  ],
+
+  "components": [
+    {
+      "name": "One week's report, end to end",
+      "finished_cost": 6,
+      "material_cost": 0.5,
+      "quantity": 48
+    }
+  ]
+}

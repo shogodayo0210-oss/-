@@ -18,6 +18,7 @@ from typing import Sequence
 
 from . import detect, gitutil
 from .detect import Runner
+from .leaks import editable_installs_pointing_at
 from .runner import Environment, RunResult, run_with_setup
 
 
@@ -134,6 +135,7 @@ def check(
     )
 
     _warn_about_untracked_tests(report, root, test_globs)
+    _warn_about_editable_installs(report, root)
 
     if not changed:
         return report
@@ -260,6 +262,31 @@ def _resolve_command(
     if runner is None:
         return None, None, True
     return runner, detect.build_command(runner, test_files), True
+
+
+def _warn_about_editable_installs(report: Report, root: Path) -> None:
+    """An editable install of this repo undermines the whole counterfactual.
+
+    Found by running falsify on falsify: a `pip install -e .` had put this
+    repository's src directory on the import path, so the scratch checkout
+    imported the *changed* package rather than the base version. The run went
+    red for an unrelated reason and the verdict came back PROVEN.
+
+    A wrong PROVEN is worse than no answer, so this is the loudest warning the
+    tool has.
+    """
+    hits = editable_installs_pointing_at(root)
+    if not hits:
+        return
+    listed = ", ".join(hits[:3])
+    more = f" (+{len(hits) - 3} more)" if len(hits) > 3 else ""
+    report.warnings.append(
+        f"An editable install points at this repository ({listed}{more}). "
+        "Code imported by package name will come from your working tree, not "
+        "from the base commit, so the run without the fix may not be testing "
+        "the old code at all. Uninstall it, or run tests against the checkout "
+        "directly (PYTHONPATH=src)."
+    )
 
 
 def _warn_about_untracked_tests(

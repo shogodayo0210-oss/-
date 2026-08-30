@@ -26,6 +26,7 @@ dev = ["pytest>=7"]
 
 [project.scripts]
 falsify = "falsify.cli:main"
+fp = "firstprinciples.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
