@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import sys
 
-from .audit import AuditResult, Finding, Severity, amount
+from .audit import AuditResult, Finding, Mode, Severity, amount
 from .calibrate import Calibration
 from .model import Decision
 from .opportunity import FIT_SUMMARY, QUESTIONS, WHY, Assessment, Fit, MAX_SCORE
@@ -140,7 +140,10 @@ def _render_opportunity(assessment: Assessment, explain: bool, paint) -> list[st
 
 
 def _render_findings(result: AuditResult, unit: str, paint) -> list[str]:
-    lines = [paint("  HOW YOU ARE RUNNING IT", _BOLD), ""]
+    heading = paint("  HOW YOU ARE RUNNING IT", _BOLD)
+    if result.mode is Mode.SURVIVAL:
+        heading += paint("   · survival mode", _SEVERITY_COLOR[Severity.MEDIUM])
+    lines = [heading, ""]
 
     findings = result.sorted_findings()
     if not findings:
@@ -168,7 +171,19 @@ def _render_findings(result: AuditResult, unit: str, paint) -> list[str]:
         )
         lines.append("")
 
-    if result.reinstatement_ratio is not None:
+    if result.mode is Mode.SURVIVAL:
+        # Nagging about a reinstatement ratio here would be the exact mistake
+        # suppressing the finding was meant to avoid.
+        if result.suppressed:
+            lines.append(
+                paint(
+                    "    Set aside while the runway is short: "
+                    + ", ".join(result.suppressed),
+                    _DIM,
+                )
+            )
+            lines.append("")
+    elif result.reinstatement_ratio is not None:
         lines.append(
             paint(
                 f"    Reinstatement ratio {result.reinstatement_ratio:.0%} "

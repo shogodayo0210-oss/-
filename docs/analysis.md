@@ -219,6 +219,75 @@ method's own accounting never charges itself.
 If you adopt the protocol, adopt the corrections with it. That is the whole
 argument for building this as an analysis engine rather than a voice.
 
+## Under pressure, in his own words
+
+The four rules describe how he works when there is time to think. The crises
+show something the rules do not, and it is worth separating what he did from
+what he said about doing it.
+
+**He collapses the distance to the problem.** In April 2018 he took over the
+Model 3 line personally and slept at the factory. His account of why is
+notably unromantic: *"I'm sleeping on the factory floor, not because I think
+that's a fun place to sleep... Because I don't have time to go home and
+shower."* Not a management technique — an attempt to remove every layer
+between himself and the fact.
+
+**He measures progress rather than distance from the goal.** *"It's kind of
+torture being in production hell. But as long as you can see that you're
+ascending levels of hell, that's okay. Then at least that gives you hope."*
+The target was missed by 6–9 months and the frame stayed on rate of change,
+not on the gap.
+
+**He is not privately more optimistic than publicly.** *"It's worse than I
+thought"* and *"I definitely feel stress"*, said while the company was within
+single-digit weeks of bankruptcy. The 2×–5× overshoot in the record is not a
+man who cannot see the slip. It is a man who states targets he knows are
+unlikely, apparently as a forcing function — which is a different failure mode,
+and one no correction factor can fix, because the number was never a forecast.
+
+**Speed is allowed to produce ugly things.** The GA4 tent went up in three
+weeks out of warehouse scrap, ran on manual labour, and was explicitly meant to
+be temporary. Nothing about it is optimised. That is the point: under pressure
+the protocol's own order inverts, cycle time comes first, and the cleanup
+happens later or never.
+
+## The failures had intents, and each one names a rule
+
+The interesting thing about the three most expensive mistakes is that none of
+them was thoughtless. Each had a coherent intent. What failed in each was a
+specific structural feature — and the same feature, three times.
+
+**Over-automation (2017–18).** The intent was sound and is the method applied
+correctly one level up: make the factory itself the product, and take the
+idiot index out of labour rather than out of parts. He owned it plainly —
+*"excessive automation at Tesla was a mistake. To be precise, my mistake.
+Humans are underrated"* — and the fix was a deletion: *"we had this crazy,
+complex network of conveyor belts... it was not working, so we got rid of that
+whole thing."* The error was **ordering**: automating before the manual process
+was proven. His own rule, violated by him, at the largest available scale.
+→ `automated-too-early`
+
+**"Funding secured" (2018).** The intent, on his sworn account, was a verbal
+commitment from Saudi Arabia's PIF, a belief he could fund it by selling SpaceX
+stock, and a view that he *"was doing the right thing"* by telling shareholders
+directly. Not deception on his own telling — haste. The error was
+**irreversibility with no second opinion**: a tweet is final the instant it is
+sent, and no one saw it first.
+→ `irreversible-unquestioned`
+
+**Twitter (2022).** The intent was a public square, stated as such, with no
+cost thesis attached. The error was **the gate**: nothing about running a
+social network cost more than it must, so the whole machinery of the method had
+nothing to bite on. Conviction went in where a gap should have been.
+→ `OFF_PATTERN`, from the screen's gate
+
+Put together, three of these are one pattern: **irreversible, senior, and
+unchallenged.** That is not three lessons. It is one, learned three times, at
+increasing cost — and it is now a single rule in the engine.
+
+See [backtest.md](backtest.md) for the engine being run against each of these
+and getting some of them wrong first.
+
 ## Sources
 
 - Walter Isaacson, *Elon Musk* (2023) — the Algorithm, the requirements rule,
@@ -234,6 +303,11 @@ argument for building this as an analysis engine rather than a voice.
   TechCrunch reporting on its valuation, SpaceX's investor-relations release
   and S-1 for the June 2026 Nasdaq listing
 - Google Scholar and patent databases for the publication and patent counts
+- For the crises: his own 2018 CBS interview with Gayle King, his April 2018
+  post on excessive automation, his account of the Christmas Eve 2008 close,
+  contemporaneous reporting on the GA4 tent, and the SEC's 2018 press release
+  and his later trial testimony on "funding secured". Each case in
+  `backtests/cases/` carries its own source list.
 
 Secondary sources dominate the online material on all of this, and much of it
 is either promotional or hostile. The four rules above are the ones that appear

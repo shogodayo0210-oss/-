@@ -106,6 +106,9 @@ class Step:
     considered_for_deletion: bool = False
     automated: bool = False
     optimised: bool = False
+    #: Whether this can be undone cheaply. Most things can, so that is the
+    #: default; the ones that cannot deserve a different bar entirely.
+    reversible: bool = True
 
     def __post_init__(self) -> None:
         # Deleting a step is the strongest possible form of considering it.
@@ -145,6 +148,23 @@ class Decision:
     #: What costs are counted in. Money is the obvious case, but the ratio
     #: works just as well on hours, and a process is the commonest subject.
     unit: str = ""
+    #: How long before this runs out of money, time or patience. Added after
+    #: backtesting: with three days of runway, an audit of deletion ratios is
+    #: not merely unhelpful, it is misdirection.
+    runway_months: float | None = None
+    #: True when this is a deliberate stopgap that can be torn down. The
+    #: documented schedule overshoot comes from scale, cost and regulation,
+    #: and a stopgap sidesteps all three, so it must not carry the same
+    #: correction as the permanent version.
+    stopgap: bool = False
+    #: True when failure here ends the whole enterprise. The engine surfaces
+    #: this and deliberately declines to resolve it.
+    ruin_risk: bool = False
+    #: What one more attempt costs, against what the analysis that would
+    #: replace it costs. When trying is cheaper than deciding, deliberation is
+    #: the expensive option — the idiot index, applied to learning.
+    attempt_cost: float | None = None
+    analysis_cost: float | None = None
     #: Populated separately by opportunity.Assessment to keep the two halves
     #: of the tool — what to do, and how to do it — independent.
     opportunity: Any = None
@@ -165,6 +185,13 @@ class Decision:
         return cls(
             title=str(title),
             unit=str(raw.get("unit", "")),
+            runway_months=_optional_number(
+                raw.get("runway_months"), "runway_months"
+            ),
+            stopgap=bool(raw.get("stopgap", False)),
+            ruin_risk=bool(raw.get("ruin_risk", False)),
+            attempt_cost=_optional_number(raw.get("attempt_cost"), "attempt_cost"),
+            analysis_cost=_optional_number(raw.get("analysis_cost"), "analysis_cost"),
             estimate=Estimate(
                 months=_optional_number(estimate_raw.get("months"), "estimate.months"),
                 cost=_optional_number(estimate_raw.get("cost"), "estimate.cost"),
@@ -212,6 +239,7 @@ def _step(raw: Any, index: int) -> Step:
         considered_for_deletion=bool(raw.get("considered_for_deletion", False)),
         automated=bool(raw.get("automated", False)),
         optimised=bool(raw.get("optimised", raw.get("optimized", False))),
+        reversible=bool(raw.get("reversible", True)),
     )
 
 

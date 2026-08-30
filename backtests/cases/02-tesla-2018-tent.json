@@ -1,0 +1,77 @@
+{
+  "case": "tesla-2018-tent",
+  "date": "2018-05",
+  "situation": "Model 3 output is stuck around 2,000/week against a 5,000/week target. The indoor lines cannot be fixed fast enough. Tesla is weeks from running out of money. A third general assembly line is needed and there is no permitted building to put it in.",
+  "what_he_actually_did": "Built a temporary tent — GA4 — in the parking lot next to the Fremont plant, between 27 May and 18 June 2018, using scrap from Tesla's own warehouses. Ran it mostly on manual labour rather than automation, explicitly as a stopgap while the indoor lines were fixed.",
+  "outcome": "SUCCESS",
+  "outcome_detail": "GA4 produced roughly 20% of the 5,031 Model 3s built in the target week, at up to 120 cars per shift across three shifts. The layout later informed Tesla's Gigafactory designs. Built in about three weeks against a plan of three weeks.",
+  "sources": [
+    "https://qz.com/1309773/watch-tesla-build-a-massive-tent-for-its-model-3-assembly-line-in-three-weeks",
+    "https://techcrunch.com/2018/07/02/elon-musk-model-3-tent-tesla/",
+    "https://www.teslarati.com/tesla-gigafactory-formula-fremont-tent/"
+  ],
+
+  "expect": {
+    "must_flag": ["requirement-owner"],
+    "months_within": [0.5, 1.5],
+    "known_gap": true,
+    "notes": "Two things are being tested. The engine should flag the unowned requirement that general assembly happen inside the permitted building -- deleting exactly that requirement is what the tent was. But the schedule correction is the real test: this was delivered in three weeks against a three-week plan, and a flat 2-3x correction turns 0.75 months into 1.5-2.25 and calls a success late. The documented overshoot mechanism is scale, cost and regulation; a reversible stopgap bypasses all three, and the engine does not know that."
+  },
+
+  "decision": {
+    "decision": "Add a third general assembly line to reach 5,000 Model 3 per week",
+    "unit": "USD",
+    "estimate": { "months": 0.75 },
+    "phases": ["production"],
+    "runway_months": 2,
+    "stopgap": true,
+
+    "requirements": [
+      {
+        "text": "General assembly must take place inside the permitted main building",
+        "owner": null,
+        "authority": "unknown",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "The line must produce cars to the same quality standard as the indoor lines",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "regulation",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Erect a temporary structure on the parking lot",
+        "considered_for_deletion": true,
+        "deleted": false
+      },
+      {
+        "name": "Automate the new line to match the indoor lines",
+        "deleted": true,
+        "reinstated": false
+      },
+      {
+        "name": "Order purpose-built conveyance for the new line",
+        "deleted": true,
+        "reinstated": false
+      },
+      {
+        "name": "Staff it with manual assembly stations",
+        "considered_for_deletion": true,
+        "deleted": false
+      }
+    ],
+
+    "components": [
+      {
+        "name": "Temporary general assembly line, built from warehouse scrap",
+        "finished_cost": 6000000,
+        "material_cost": 2000000
+      }
+    ]
+  }
+}

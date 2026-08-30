@@ -1,0 +1,66 @@
+{
+  "case": "tesla-2008-survival",
+  "date": "2008-12",
+  "situation": "Lehman has collapsed and the Series E has fallen apart. Tesla is three days from bankruptcy. SpaceX has just had three consecutive Falcon 1 failures and under $200K in the bank. Musk personally has the last of the PayPal money and nothing else sellable — no house, borrowing from friends for rent. Splitting it saves neither for long; putting it all into one abandons the other.",
+  "what_he_actually_did": "Put his remaining personal money into both, kept both alive, and closed a $40M round at 6pm on Christmas Eve — the last hour of the last day possible, as investors were leaving town. His own money going in is what got the other investors over the line.",
+  "outcome": "SUCCESS",
+  "outcome_detail": "Both companies survived. Falcon 1 had reached orbit on 28 September 2008, and NASA awarded SpaceX a $1.6B resupply contract. He has said that without this convergence he would have lost both companies and gone personally bankrupt.",
+  "sources": [
+    "https://x.com/elonmusk/status/1323637665829396480",
+    "https://www.startuparchive.org/p/the-story-of-elon-musk-saving-tesla-and-spacex-from-bankruptcy-in-2008",
+    "https://fortune.com/2026/06/14/spacex-ipo-biggest-in-history-elon-musk-2-trillion-dollar-valuation-origin-story/"
+  ],
+
+  "expect": {
+    "must_flag": ["no-runway"],
+    "must_not_flag": ["under-deletion"],
+    "known_gap": true,
+    "notes": "The engine has nothing for this and should be recorded as having nothing. Three days of runway makes every rule it does have irrelevant: nobody is auditing an idiot index with the payroll about to bounce. Worse, the decision that actually mattered -- bet everything personally, accepting total ruin if wrong -- is invisible to a protocol with no concept of runway, reversibility or ruin. Any verdict the engine produces here is noise dressed as analysis."
+  },
+
+  "decision": {
+    "decision": "Keep both companies alive with the last of my own money",
+    "unit": "USD",
+    "estimate": { "months": 0.1 },
+    "phases": ["production"],
+    "runway_months": 0.1,
+    "ruin_risk": true,
+
+    "requirements": [
+      {
+        "text": "Both companies must survive the quarter",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "physics",
+        "questioned": true
+      },
+      {
+        "text": "Outside investors must be willing to close before year end",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "contract",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Put remaining personal capital into both companies",
+        "considered_for_deletion": true,
+        "deleted": false
+      },
+      {
+        "name": "Close the round before investors leave for the holiday",
+        "considered_for_deletion": true,
+        "deleted": false
+      },
+      {
+        "name": "Hold back a personal reserve",
+        "deleted": true,
+        "reinstated": false
+      }
+    ],
+
+    "components": []
+  }
+}

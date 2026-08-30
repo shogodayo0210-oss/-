@@ -25,6 +25,22 @@ IDIOT_INDEX_INVESTIGATE = 10.0
 IDIOT_INDEX_TARGET = 3.0
 
 
+#: Below this much runway, the protocol's own priorities inconvenient.
+#: Backtesting put the number here: Tesla built the GA4 tent with about two
+#: months of room, and the 2008 decision was made with three days.
+SURVIVAL_RUNWAY_MONTHS = 3.0
+
+#: Process hygiene. Correct in normal times; misdirection when the thing is
+#: weeks from ending. Nobody audits a reinstatement ratio with payroll about
+#: to bounce, and a report that leads with one is worse than no report.
+HYGIENE_RULES = frozenset({"no-deletion", "under-deletion", "optimised-too-early"})
+
+
+class Mode(str, Enum):
+    NORMAL = "NORMAL"
+    SURVIVAL = "SURVIVAL"
+
+
 class Severity(str, Enum):
     BLOCKER = "BLOCKER"
     HIGH = "HIGH"
@@ -55,6 +71,10 @@ class Finding:
     action: str | None = None
     #: Cash this finding puts on the table, where it can be estimated.
     value: float | None = None
+    #: Sorts ahead of severity. Only the runway finding uses it: everything
+    #: else in a report is conditional on there being a next quarter, so it
+    #: has to lead even among other blockers.
+    priority: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -72,9 +92,14 @@ class AuditResult:
     findings: list[Finding] = field(default_factory=list)
     reinstatement_ratio: float | None = None
     recoverable: float = 0.0
+    mode: Mode = Mode.NORMAL
+    suppressed: list[str] = field(default_factory=list)
 
     def sorted_findings(self) -> list[Finding]:
-        return sorted(self.findings, key=lambda f: (f.severity.rank, f.rule, f.subject))
+        return sorted(
+            self.findings,
+            key=lambda f: (f.priority, f.severity.rank, f.rule, f.subject),
+        )
 
     def worst(self) -> Severity | None:
         if not self.findings:
@@ -83,12 +108,14 @@ class AuditResult:
 
 
 def audit(decision: Decision) -> AuditResult:
-    result = AuditResult()
+    result = AuditResult(mode=_mode(decision))
 
     for requirement in decision.requirements:
         result.findings.extend(_check_requirement(requirement))
 
     result.findings.extend(_check_order(decision.steps))
+    result.findings.extend(_check_reversibility(decision))
+    result.findings.extend(_check_learning_cost(decision))
 
     ratio, deletion_findings = _check_deletion(decision.steps)
     result.reinstatement_ratio = ratio
@@ -99,7 +126,195 @@ def audit(decision: Decision) -> AuditResult:
         result.findings.extend(findings)
         result.recoverable += recoverable
 
+    if decision.ruin_risk:
+        result.findings.append(_ruin_finding())
+
+    if result.mode is Mode.SURVIVAL:
+        result.findings, result.suppressed = _apply_survival_mode(
+            result.findings, decision
+        )
+
     return result
+
+
+def _mode(decision: Decision) -> Mode:
+    if decision.runway_months is None:
+        return Mode.NORMAL
+    return (
+        Mode.SURVIVAL
+        if decision.runway_months <= SURVIVAL_RUNWAY_MONTHS
+        else Mode.NORMAL
+    )
+
+
+def _apply_survival_mode(
+    findings: list[Finding], decision: Decision
+) -> tuple[list[Finding], list[str]]:
+    """Re-rank for a decision that may not have a next quarter.
+
+    Two things change. Process-hygiene findings are dropped, because acting on
+    them costs time that does not exist. And paying well over the odds stops
+    being a defect: a tent built from warehouse scrap in three weeks has a
+    terrible cost ratio and was the right call, so the index is reported and
+    softened rather than pressed.
+
+    What survives untouched is everything that can still kill you on its own:
+    an unowned requirement, an unchallenged senior one, something automated
+    before anyone asked whether it should exist, and anything irreversible.
+    """
+    kept: list[Finding] = []
+    suppressed: list[str] = []
+
+    for finding in findings:
+        if finding.rule in HYGIENE_RULES:
+            suppressed.append(finding.rule)
+            continue
+        if finding.rule == "idiot-index":
+            kept.append(_soften(finding))
+            continue
+        kept.append(finding)
+
+    runway = decision.runway_months or 0.0
+    kept.insert(
+        0,
+        Finding(
+            rule="no-runway",
+            severity=Severity.BLOCKER,
+            subject=f"{runway:.2g} months of runway",
+            message=(
+                "There may be no next quarter. Every other finding here is "
+                "secondary to staying alive long enough to act on it."
+            ),
+            action="Fix the runway first. Then re-run this against the plan.",
+            priority=-1,
+        ),
+    )
+    return kept, sorted(set(suppressed))
+
+
+def _soften(finding: Finding) -> Finding:
+    """Lower a finding by one rank and say why."""
+    order = [
+        Severity.BLOCKER,
+        Severity.HIGH,
+        Severity.MEDIUM,
+        Severity.LOW,
+        Severity.INFO,
+    ]
+    lowered = order[min(order.index(finding.severity) + 1, len(order) - 1)]
+    return Finding(
+        rule=finding.rule,
+        severity=lowered,
+        subject=finding.subject,
+        message=finding.message
+        + " Overpaying for speed is not a defect while the runway is short.",
+        action=finding.action,
+        value=finding.value,
+    )
+
+
+def _ruin_finding() -> Finding:
+    return Finding(
+        rule="ruin-risk",
+        severity=Severity.HIGH,
+        subject="failure ends the whole thing",
+        message=(
+            "This bet cannot be repeated if it loses. The method this tool "
+            "implements has a documented history of accepting exactly such "
+            "bets and winning them, which is not evidence that taking them is "
+            "correct — the losers are not around to be studied."
+        ),
+        action=(
+            "Decide this yourself. No protocol should be allowed to tell you "
+            "to risk everything, and this one is not going to."
+        ),
+    )
+
+
+def _check_learning_cost(decision: Decision) -> list[Finding]:
+    """When trying is cheaper than deciding, deliberation is the expensive path.
+
+    Added after backtesting the fourth Falcon 1 launch. With three failures
+    behind it and weeks of runway left, the engine's answer was 'no runway,
+    ruin risk, decide it yourself' — true, and useless. The actual reasoning
+    was narrower and reusable: another vehicle cost less than the analysis
+    that would have replaced it, so the careful option was also the expensive
+    one.
+
+    This is the idiot index pointed at learning. It says nothing about whether
+    the attempt is survivable, which is a separate question and stays with the
+    person.
+    """
+    attempt, analysis = decision.attempt_cost, decision.analysis_cost
+    if attempt is None or analysis is None or attempt >= analysis:
+        return []
+
+    ratio = analysis / attempt if attempt > 0 else float("inf")
+    action = "Run the attempt. The analysis is the more expensive way to find out."
+    if decision.ruin_risk:
+        action = (
+            "Cheaper only holds if you survive it. Failure here ends everything, "
+            "so this argues for trying sooner, not for trying regardless."
+        )
+
+    return [
+        Finding(
+            rule="cheaper-to-try",
+            severity=Severity.MEDIUM,
+            subject="another attempt vs more analysis",
+            message=(
+                f"Analysis costs {ratio:.1f}× what one more attempt costs "
+                f"({amount(analysis, decision.unit)} against "
+                f"{amount(attempt, decision.unit)}). Deliberating is the "
+                "expensive option here, and it buys a worse answer than the "
+                "attempt would."
+            ),
+            action=action,
+        )
+    ]
+
+
+def _check_reversibility(decision: Decision) -> list[Finding]:
+    """Irreversible, and driven by a requirement nobody challenged.
+
+    Added after backtesting the 2018 'funding secured' tweet. The engine
+    already caught the unchallenged senior requirement, but rated the decision
+    the same as one that could be walked back on Monday — and being unable to
+    walk it back is the entire reason that one cost $40M. Irreversibility is
+    not a separate concern from unquestioned authority; it is the multiplier
+    on it.
+    """
+    unquestioned = [
+        r
+        for r in decision.requirements
+        if r.authority is Authority.HIGH and not r.questioned
+    ]
+    if not unquestioned:
+        return []
+
+    findings: list[Finding] = []
+    for step in decision.steps:
+        if step.reversible or step.deleted:
+            continue
+        names = ", ".join(r.owner for r in unquestioned if r.owner) or "someone senior"
+        findings.append(
+            Finding(
+                rule="irreversible-unquestioned",
+                severity=Severity.BLOCKER,
+                subject=step.name,
+                message=(
+                    f"This cannot be undone, and it rests on a requirement from "
+                    f"{names} that nobody has challenged. That pairing — no way "
+                    "back, no second opinion — is what turns an ordinary "
+                    "misjudgement into an expensive one."
+                ),
+                action=(
+                    "Get one person to argue against it before it happens, or "
+                    "find a reversible version to do first."
+                ),
+            )
+        )
+    return findings
 
 
 def _check_requirement(requirement: Requirement) -> list[Finding]:

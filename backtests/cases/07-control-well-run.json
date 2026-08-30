@@ -1,0 +1,86 @@
+{
+  "case": "control-well-run",
+  "date": "synthetic",
+  "situation": "SYNTHETIC. Not a historical case. A deliberately well-run decision: every requirement has a named owner, the senior one has been argued with, the assumptions have been traced to something real, steps were deleted and one was put back, nothing was automated before it was questioned, and the cost ratio is sane.",
+  "what_he_actually_did": "n/a — this case exists to check that the engine can stay quiet.",
+  "outcome": "CONTROL",
+  "outcome_detail": "An engine that flags everything scores perfectly on every failure case and is worth nothing. This is the negative control: if it fires here, the hit rate on the other cases means less than it appears to.",
+  "sources": [],
+
+  "expect": {
+    "must_flag": [],
+    "must_not_flag": [
+      "requirement-owner",
+      "unquestioned-authority",
+      "ungrounded-requirement",
+      "automated-too-early",
+      "optimised-too-early",
+      "no-deletion",
+      "under-deletion",
+      "idiot-index",
+      "irreversible-unquestioned",
+      "no-runway",
+      "ruin-risk",
+      "cheaper-to-try"
+    ],
+    "notes": "Silence is the pass condition. Every rule the engine has is listed, so adding a rule that misfires on a healthy decision breaks this case rather than quietly inflating the scores elsewhere."
+  },
+
+  "decision": {
+    "decision": "Move the nightly export to run against the read replica",
+    "unit": "hours",
+    "estimate": { "months": 1 },
+    "phases": ["production"],
+    "runway_months": 18,
+
+    "requirements": [
+      {
+        "text": "The export must finish before the 06:00 reporting window",
+        "owner": "Marta Ellis",
+        "authority": "normal",
+        "grounded_in": "contract",
+        "questioned": true
+      },
+      {
+        "text": "It must not read from the primary during business hours",
+        "owner": "Ken Aoyama",
+        "authority": "high",
+        "grounded_in": "physics",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Point the export job at the replica",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Nightly full-table snapshot before export",
+        "deleted": true,
+        "reinstated": true
+      },
+      {
+        "name": "Per-row checksum pass",
+        "deleted": true,
+        "reinstated": false
+      },
+      {
+        "name": "Alert on export duration",
+        "automated": true,
+        "considered_for_deletion": true,
+        "reversible": true
+      }
+    ],
+
+    "components": [
+      {
+        "name": "One nightly export run",
+        "finished_cost": 2.0,
+        "material_cost": 1.2
+      }
+    ]
+  }
+}

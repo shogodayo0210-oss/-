@@ -118,6 +118,36 @@ anywhere in the numbers above.
 **A model that reproduces only the wins is not a model.** It is fan fiction
 with footnotes.
 
+## It was backtested, and it lost
+
+The engine was built from what he *says* he does. Then it was run against what
+he actually did, at seven decision points where getting it wrong would have
+ended everything.
+
+```console
+$ python3 backtests/run.py --verbose
+```
+
+It got the 2017 over-automation right — including a schedule correction of
+12–18 months against a reality he called "6 to 9 months worse" than planned.
+It caught the `$420` tweet through its most counterintuitive rule.
+
+It also got three things wrong, and each failure became a rule:
+
+| It failed at | Now |
+|---|---|
+| Tesla's GA4 tent — called a three-week success a month late | `stopgap` work is barely corrected |
+| Tesla 2008, three days from bankruptcy — audited deletion ratios | `runway` changes what gets reported at all |
+| The `$420` tweet — rated a tweet like a decision you could undo | `irreversible-unquestioned` |
+| The fourth Falcon 1 — said "decide it yourself", which was useless | `cheaper-to-try` |
+
+Three of the additions are about **pressure**, and none of them appear in how
+this method is usually described — including by him. But all of them appear in
+what he did.
+
+The full record, including what the backtest is *not* evidence of, is in
+[docs/backtest.md](docs/backtest.md).
+
 ## Does the screen mean anything?
 
 A screen built only from things that worked will approve of everything. So the

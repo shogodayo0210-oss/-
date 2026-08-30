@@ -1,0 +1,62 @@
+{
+  "case": "spacex-2008-fourth-launch",
+  "date": "2008-08",
+  "situation": "Falcon 1 has failed three times. Initial funding of up to $100M is nearly gone and there is under $200K in the bank. The orthodox response to three consecutive failures is to stop, root-cause exhaustively, and fly again when the analysis is complete. There are enough parts for one more vehicle.",
+  "what_he_actually_did": "Chose to fly again, fast, rather than analyse further. The fourth Falcon 1 launched on 28 September 2008, about six weeks after the third failure.",
+  "outcome": "SUCCESS",
+  "outcome_detail": "Falcon 1 reached orbit — the first privately developed liquid-fuelled rocket to do so. NASA then awarded a $1.6B resupply contract. He has said that without this he would have lost both companies.",
+  "sources": [
+    "https://thespacebucket.com/how-spacex-almost-went-out-of-business/",
+    "https://fortune.com/2026/06/14/spacex-ipo-biggest-in-history-elon-musk-2-trillion-dollar-valuation-origin-story/"
+  ],
+
+  "expect": {
+    "must_flag": ["cheaper-to-try"],
+    "known_gap": true,
+    "notes": "The new gap round 2 could not have found. v2 correctly says 'no runway, ruin risk, decide it yourself' -- true, and useless. The actual reasoning was narrower and reusable: another attempt cost less than the analysis that would have replaced it, so deliberating was the expensive option. The engine has no way to express that, and without it the whole family of 'try it and see' decisions reads as recklessness."
+  },
+
+  "decision": {
+    "decision": "Fly the fourth Falcon 1 now rather than analyse further",
+    "unit": "USD",
+    "estimate": { "months": 1.5 },
+    "phases": ["prototype"],
+    "runway_months": 2,
+    "ruin_risk": true,
+    "attempt_cost": 7000000,
+    "analysis_cost": 20000000,
+
+    "requirements": [
+      {
+        "text": "The failure mode from flight three must be understood before flying",
+        "owner": "Tom Mueller",
+        "authority": "normal",
+        "grounded_in": "physics",
+        "questioned": true
+      },
+      {
+        "text": "Full root-cause analysis must complete before any launch attempt",
+        "owner": null,
+        "authority": "unknown",
+        "grounded_in": "assumption",
+        "questioned": false
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Fly the vehicle we already have parts for",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Exhaustive requalification of every subsystem before flying",
+        "deleted": true,
+        "reinstated": false
+      }
+    ],
+
+    "components": []
+  }
+}

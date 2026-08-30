@@ -31,6 +31,14 @@ PHASE_REASONS: dict[Phase, str] = {
 #: Used when no phase is declared, so the tool still says something honest.
 DEFAULT_MULTIPLIER = (2.0, 3.0)
 
+#: A deliberate stopgap barely slips at all, and the reason is the mechanism
+#: rather than optimism. The documented 2-5x comes from scale, cost and
+#: regulation; something temporary, torn down afterwards and not required to
+#: be cheap sidesteps all three. Backtesting forced this in: Tesla's GA4 tent
+#: went up in about three weeks against a three-week plan, and a flat 2-3x
+#: correction called that success late by a month.
+STOPGAP_MULTIPLIER = (1.0, 1.3)
+
 #: The commonly cited cost companion to the 2–3× schedule rule.
 COST_MULTIPLIER = 1.5
 
@@ -61,7 +69,14 @@ def calibrate(decision: Decision) -> Calibration:
     """Widen an estimate by the correction its phases earn."""
     driver = _dominant_phase(decision.phases)
 
-    if driver is None:
+    if decision.stopgap:
+        low, high = STOPGAP_MULTIPLIER
+        reason = (
+            "declared a stopgap, so the correction barely applies: the "
+            "documented overshoot lives in scale, cost and regulation, and a "
+            "temporary thing you intend to tear down meets none of them"
+        )
+    elif driver is None:
         low, high = DEFAULT_MULTIPLIER
         reason = (
             "no phase declared, so the general 2–3× correction applies; "

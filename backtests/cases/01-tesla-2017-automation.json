@@ -1,0 +1,68 @@
+{
+  "case": "tesla-2017-automation",
+  "date": "2017-07",
+  "situation": "Model 3 production is about to ramp. The plan is an 'alien dreadnought' general assembly line: automate as much of final assembly as physically possible, including a complex network of conveyor belts moving parts between robot cells. The stated target is 5,000 cars a week by the end of the year.",
+  "what_he_actually_did": "Automated general assembly heavily, including the conveyor network, before the manual process was proven.",
+  "outcome": "FAILURE",
+  "outcome_detail": "Production stalled at roughly 2,000/week through Q1 2018. In April 2018 he publicly wrote: 'Yes, excessive automation at Tesla was a mistake. To be precise, my mistake. Humans are underrated,' and told CBS 'we had this crazy, complex network of conveyor belts... it was not working, so we got rid of that whole thing.' Tesla came within single-digit weeks of bankruptcy.",
+  "sources": [
+    "https://x.com/elonmusk/status/984882630947753984",
+    "https://techcrunch.com/2018/04/13/elon-musk-says-humans-are-underrated-calls-teslas-excessive-automation-a-mistake/",
+    "https://www.cbsnews.com/news/elon-musk-tesla-model-3-problems-interview-today-2018-04-13/"
+  ],
+
+  "expect": {
+    "must_flag": ["automated-too-early", "unquestioned-authority"],
+    "notes": "This is the engine's home ground. Rule 3 says automate last and only what survived deletion; this is that rule's textbook violation, admitted as such by the person who made it."
+  },
+
+  "decision": {
+    "decision": "Automate Model 3 general assembly to the maximum extent",
+    "unit": "USD",
+    "estimate": { "months": 6 },
+    "phases": ["production"],
+
+    "requirements": [
+      {
+        "text": "The line must be the most automated automotive assembly line in the world",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "Must reach 5,000 units per week",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "contract",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Conveyor network moving parts between robot cells in general assembly",
+        "automated": true,
+        "considered_for_deletion": false
+      },
+      {
+        "name": "Robotic placement of interior trim and wiring harness",
+        "automated": true,
+        "considered_for_deletion": false
+      },
+      {
+        "name": "Manual final assembly stations",
+        "deleted": true,
+        "reinstated": false
+      }
+    ],
+
+    "components": [
+      {
+        "name": "General assembly automation, per line",
+        "finished_cost": 40000000,
+        "material_cost": 4000000
+      }
+    ]
+  }
+}
