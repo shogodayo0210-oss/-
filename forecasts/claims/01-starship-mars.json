@@ -1,0 +1,51 @@
+{
+  "claim": "An uncrewed Starship departs for Mars",
+  "claimed_by": "Elon Musk",
+  "claimed_on": "2025-05",
+  "target": "late 2026",
+  "resolves_on": "2027-01",
+  "caveat": "Mars transfer windows open about every 26 months, so this schedule is quantised: missing late 2026 does not mean early 2027, it means the window after. Running the engine forward is what exposed this -- its first answer was a band containing no launch window at all, which is not a pessimistic prediction but an impossible one. window_months exists because of this claim.",
+  "sources": [
+    "https://www.aljazeera.com/news/2025/5/30/musk-says-50-50-chance-of-sending-uncrewed-starship-to-mars-by-late-2026"
+  ],
+  "decision": {
+    "decision": "Send an uncrewed Starship to Mars in the 2026 window",
+    "unit": "USD",
+    "estimate": {
+      "months": 18
+    },
+    "phases": [
+      "prototype"
+    ],
+    "requirements": [
+      {
+        "text": "Starship must complete orbital propellant transfer first",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "physics",
+        "questioned": true
+      },
+      {
+        "text": "The vehicle must be ready for the 2026 transfer window",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "physics",
+        "questioned": false
+      }
+    ],
+    "steps": [
+      {
+        "name": "Demonstrate orbital refuelling",
+        "considered_for_deletion": true,
+        "reversible": true
+      },
+      {
+        "name": "Launch into the 2026 window",
+        "considered_for_deletion": true,
+        "reversible": false
+      }
+    ],
+    "components": [],
+    "window_months": 26
+  }
+}

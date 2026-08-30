@@ -1,0 +1,43 @@
+{
+  "claim": "Powerful AI systems emerge (as stated in a policy filing)",
+  "claimed_by": "Anthropic",
+  "claimed_on": "2025-03",
+  "target": "late 2026 or early 2027",
+  "resolves_on": "2027-06",
+  "caveat": "The engine has no vocabulary for this. Its correction assumes the thing is known to be possible and only the schedule is in doubt. Here the uncertainty is about whether the result arrives at all, and about a definition nobody agrees on -- so the band below is close to meaningless and is printed to show where the tool ends.",
+  "sources": [
+    "https://futuresearch.ai/blog/agi-timeline-tracker/"
+  ],
+  "decision": {
+    "decision": "Reach powerful general AI capability",
+    "unit": "USD",
+    "estimate": {
+      "months": 22
+    },
+    "phases": [
+      "prototype"
+    ],
+    "requirements": [
+      {
+        "text": "Capability must be demonstrable on most professional tasks",
+        "owner": null,
+        "authority": "unknown",
+        "grounded_in": "assumption",
+        "questioned": false
+      }
+    ],
+    "steps": [
+      {
+        "name": "Scale training compute",
+        "considered_for_deletion": true,
+        "reversible": true
+      },
+      {
+        "name": "Agree what would count as having arrived",
+        "deleted": true,
+        "reinstated": false
+      }
+    ],
+    "components": []
+  }
+}

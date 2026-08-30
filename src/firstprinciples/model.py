@@ -165,6 +165,12 @@ class Decision:
     #: backtesting: with three days of runway, an audit of deletion ratios is
     #: not merely unhelpful, it is misdirection.
     runway_months: float | None = None
+    #: Spacing, in months, when opportunities to finish only occur at
+    #: intervals — a Mars transfer window every 26 months, a growing season,
+    #: an annual certification cycle. Found by running the engine forward:
+    #: it corrected an uncrewed Mars launch into a band containing no launch
+    #: window at all, which is not a late prediction but an impossible one.
+    window_months: float | None = None
     #: True when this is a deliberate stopgap that can be torn down. The
     #: documented schedule overshoot comes from scale, cost and regulation,
     #: and a stopgap sidesteps all three, so it must not carry the same
@@ -210,6 +216,9 @@ class Decision:
             unit=str(raw.get("unit", "")),
             runway_months=_optional_number(
                 raw.get("runway_months"), "runway_months"
+            ),
+            window_months=_optional_number(
+                raw.get("window_months"), "window_months"
             ),
             stopgap=bool(raw.get("stopgap", False)),
             ruin_risk=bool(raw.get("ruin_risk", False)),

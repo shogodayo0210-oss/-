@@ -325,6 +325,93 @@ def test_no_phase_still_gives_an_honest_default():
     assert "declare phases" in calibration.reason
 
 
+# --- quantised schedules -------------------------------------------------
+# Found by running the engine forward. Aimed at a late-2026 Mars window, it
+# returned March 2027 to May 2028 — a band containing no launch window at all.
+
+
+def test_a_band_lands_on_a_real_opportunity_not_between_two():
+    # Mars windows every 26 months, target at 18. The next one is 18+26=44.
+    decision = Decision(
+        title="d",
+        phases=[Phase.PROTOTYPE],
+        estimate=Estimate(months=18),
+        window_months=26,
+    )
+    calibration = calibrate(decision)
+    assert calibration.months_low == 44
+    assert calibration.months_high == 44
+    assert calibration.window_months == 26
+
+
+def test_a_correction_that_still_fits_keeps_the_original_window():
+    # A stopgap's lower bound is 1.0x, so the earliest case still makes the
+    # window it aimed at and must not be pushed to the next one.
+    decision = Decision(
+        title="d",
+        estimate=Estimate(months=30),
+        window_months=26,
+        stopgap=True,
+    )
+    calibration = calibrate(decision)
+    assert calibration.months_low == 30
+
+
+def test_any_real_slip_costs_you_the_whole_window():
+    """The stark implication, worth pinning: near-misses do not exist here.
+
+    Every band except a stopgap's lower bound starts above the target, so the
+    original window is always missed, and missing it by a week costs the same
+    as missing it by a year.
+    """
+    decision = Decision(
+        title="d",
+        phases=[Phase.PROTOTYPE],
+        estimate=Estimate(months=30),
+        window_months=26,
+    )
+    calibration = calibrate(decision)
+    assert calibration.months_low == 56, "1.2x of 30 is 36, which misses 30"
+
+
+def test_missing_several_windows_snaps_to_the_right_one():
+    # 3x of 12 is 36; with windows at 12, 24, 36 the band lands on 36.
+    decision = Decision(
+        title="d",
+        phases=[Phase.PRODUCTION],
+        estimate=Estimate(months=12),
+        window_months=12,
+    )
+    calibration = calibrate(decision)
+    assert calibration.months_low == 24
+    assert calibration.months_high == 36
+
+
+def test_the_reason_says_the_band_was_moved():
+    reason = calibrate(
+        Decision(
+            title="d",
+            phases=[Phase.PROTOTYPE],
+            estimate=Estimate(months=18),
+            window_months=26,
+        )
+    ).reason
+    assert "every 26 months" in reason
+
+
+@pytest.mark.parametrize("spacing", [None, 0])
+def test_continuous_schedules_are_left_alone(spacing):
+    decision = Decision(
+        title="d",
+        phases=[Phase.PROTOTYPE],
+        estimate=Estimate(months=18),
+        window_months=spacing,
+    )
+    calibration = calibrate(decision)
+    assert calibration.months_low == pytest.approx(21.6)
+    assert calibration.window_months is None
+
+
 def test_no_estimate_means_nothing_to_correct():
     calibration = calibrate(Decision(title="d", phases=[Phase.PRODUCTION]))
     assert calibration.months_low is None

@@ -1,0 +1,50 @@
+{
+  "claim": "Optimus reaches roughly one million units a year",
+  "claimed_by": "Elon Musk",
+  "claimed_on": "2026-01",
+  "target": "2027",
+  "resolves_on": "2028-01",
+  "caveat": "The same programme structure as robotaxi, whose fleet promise went 500 to 60 to 20 in three months. Treat the stated figure as an intention rather than a forecast.",
+  "sources": [
+    "https://af.net/realtime/tesla-confirms-mass-production-timeline-for-optimus-robot-targets-one-million-units-by-2027/"
+  ],
+  "decision": {
+    "decision": "Ramp Optimus to about a million units a year",
+    "unit": "USD",
+    "estimate": {
+      "months": 18
+    },
+    "phases": [
+      "production"
+    ],
+    "requirements": [
+      {
+        "text": "A single line must sustain a million units a year",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "The robot must do useful work unsupervised",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      }
+    ],
+    "steps": [
+      {
+        "name": "Start Gen 3 production",
+        "considered_for_deletion": true,
+        "reversible": true
+      },
+      {
+        "name": "Prove the manual assembly process before automating the line",
+        "considered_for_deletion": true,
+        "reversible": true
+      }
+    ],
+    "components": []
+  }
+}

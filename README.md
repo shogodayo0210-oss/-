@@ -222,6 +222,27 @@ I have looked at" is close to worthless as evidence.
 The full record — which rules survived, which broke, and which is still
 untested — is in [docs/backtest.md](docs/backtest.md).
 
+### And then it was run forwards
+
+Every result above is retrospective: the outcome was public before the case was
+written. So [`forecasts/`](forecasts) does the other half — five dated, public,
+**unresolved** claims, with the engine's answers committed so someone else can
+mark them later.
+
+```console
+$ python3 forecasts/run.py
+```
+
+It broke on the first attempt, which is the argument for doing it. Aimed at the
+late-2026 Mars transfer window, the engine returned a band running March 2027
+to May 2028 — **containing no launch window at all.** Windows open roughly
+every 26 months. That is not a pessimistic prediction; it is an impossible one.
+
+Schedules are not always continuous. `window_months` now moves a corrected band
+onto the next real opportunity, and it makes something stark explicit: **on a
+quantised schedule there are no near-misses.** Missing by a week costs what
+missing by a year costs.
+
 ## Does the screen mean anything?
 
 A screen built only from things that worked will approve of everything. So the

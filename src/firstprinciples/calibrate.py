@@ -11,6 +11,7 @@ So the correction is scaled by the kind of work, not just its size.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from .model import Decision, Phase
@@ -61,6 +62,9 @@ class Calibration:
     months_low: float | None = None
     months_high: float | None = None
     cost_adjusted: float | None = None
+    #: Set when the band was moved onto a real opportunity rather than left
+    #: sitting between two.
+    window_months: float | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -71,6 +75,7 @@ class Calibration:
             "months_low": self.months_low,
             "months_high": self.months_high,
             "cost_adjusted": self.cost_adjusted,
+            "window_months": self.window_months,
         }
 
 
@@ -102,11 +107,45 @@ def calibrate(decision: Decision) -> Calibration:
     if decision.estimate.months is not None:
         calibration.months_low = decision.estimate.months * low
         calibration.months_high = decision.estimate.months * high
+        _snap_to_window(calibration, decision)
 
     if decision.estimate.cost is not None:
         calibration.cost_adjusted = decision.estimate.cost * COST_MULTIPLIER
 
     return calibration
+
+
+def _snap_to_window(calibration: "Calibration", decision: Decision) -> None:
+    """Move a corrected band onto the next real opportunity.
+
+    Some schedules are not continuous. A Mars transfer window opens roughly
+    every 26 months; miss it and the next chance is two years later, not two
+    months. Running the engine forward exposed this: it corrected an uncrewed
+    Mars launch aimed at late 2026 into a band running March 2027 to May 2028,
+    which contains no launch window at all. That is not a pessimistic
+    prediction, it is an impossible one.
+
+    Windows are assumed to fall on the original target and every
+    `window_months` after it.
+    """
+    spacing = decision.window_months
+    target = decision.estimate.months
+    if not spacing or spacing <= 0 or target is None:
+        return
+
+    def next_window(months: float) -> float:
+        if months <= target:
+            return target
+        missed = math.ceil((months - target) / spacing)
+        return target + missed * spacing
+
+    calibration.months_low = next_window(calibration.months_low)
+    calibration.months_high = next_window(calibration.months_high)
+    calibration.window_months = spacing
+    calibration.reason += (
+        f"; and chances come only every {spacing:g} months, so the band is "
+        "moved onto the next one rather than landing between two"
+    )
 
 
 def _dominant_phase(phases: list[Phase]) -> Phase | None:
