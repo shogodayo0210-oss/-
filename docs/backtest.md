@@ -128,7 +128,43 @@ for trying regardless.
 All seven cases now behave as recorded, and the whole backtest runs inside the
 unit suite so a later change cannot quietly undo one of these.
 
-## What the four rounds actually taught
+## Rounds 5–7 — the last three years
+
+The first four rounds used 2008–2022. Three cases from 2024–2026 test whether
+the rules describe the person as he is now.
+
+`colossus-2024` **passed unmodified**, and it is the most useful pass in the
+suite. The stopgap correction and the unowned-requirement rule were both
+written from a tent in a Fremont car park in 2018. Six years later and three
+orders of magnitude larger — a dead appliance factory, temporary gas turbines
+because the grid offered 8MW against a need near 130MW, 100,000 GPUs in 122
+days — they score it correctly with nothing changed. Rules, not curve-fitting.
+
+`doge-2025` **failed**, and produced the only rule here that is not about
+thinking better. Every earlier mistake put the cost where the decision was
+made. This one did not: decided personally and politically, paid for by
+Tesla's shareholders and customers, who had no vote. `cost-lands-elsewhere`
+fires when the decider and the payer differ, and it leads the report, because
+the usual corrective — the people paying say no — is unavailable.
+
+`robotaxi-2025` **failed on schedule**, and the fix is the weakest thing in
+this repository. The engine's largest band, 3–5× for regulated work, gave
+18–30 months against a programme that promised a million vehicles for 2020 and
+was running twenty in 2026. A `safety_critical` phase at 5–10× now covers it:
+where a regulator needs statistical evidence, the schedule is set by how fast
+reality can be sampled.
+
+**That last one is fitted and is labelled as such.** The band was added and the
+case assigned to it by the same hand, in the same sitting. Unlike
+`irreversible-unquestioned`, it has not yet fired correctly on a case it was
+not built for. Treat it as a hypothesis.
+
+One more thing the period forced: the screen now accepts **-1**. `pulls_help`
+was always the mission working as a recruiting instrument. In 2025 it ran
+backwards — European sales down 49% into a market up 34% — and a scale that
+bottoms out at zero cannot express a liability.
+
+## What the seven rounds actually taught
 
 **The engine was built from the good weather.** Every original rule assumed
 time to think. Three of the four additions are about pressure: what to ignore
@@ -150,3 +186,33 @@ pattern, not three, and it is now one rule.
 **And one thing did not move.** Whether to accept a bet that ends everything if
 it loses is not a question a protocol should answer, and this one does not. It
 names it and hands it back.
+
+**He learned one of the two lessons.** The engineering correction took
+completely: nothing in 2024–26 shows him building the perfect automated thing
+before the crude version works. The judgement one did not. Over-automation,
+"funding secured", Twitter, DOGE — irreversible, senior, unchallenged, four
+times across eight years, at rising cost.
+
+**And the rule that made the method self-correcting is the one his own scale
+broke.** Requirements work because you can go and ask the named person why. By
+2026 the named person owns SpaceX, Tesla, xAI, Neuralink, Boring and X, and
+above him at any of them there is nobody to ask.
+
+## Seven cases, ten rules — a summary
+
+| Rule | Came from | Generalised? |
+|---|---|---|
+| `automated-too-early` | stated method | held on 2017 |
+| `requirement-owner` | stated method | held on 2018, held on 2024 |
+| `unquestioned-authority` | stated method | held on 2017, 2018, 2025 |
+| `stopgap` correction | GA4 tent, 2018 | **held on Colossus, 2024** |
+| `runway` / survival mode | Tesla, 2008 | held on the tent |
+| `ruin-risk` | Tesla, 2008 | surfaces, does not resolve |
+| `irreversible-unquestioned` | the 2018 tweet | **held on Twitter, 2022** |
+| `cheaper-to-try` | Falcon 1, 2008 | untested elsewhere |
+| `cost-lands-elsewhere` | DOGE, 2025 | untested elsewhere |
+| `safety_critical` band | robotaxi, 2025 | **fitted — treat as a hypothesis** |
+
+Two rules have fired correctly on cases they were not built for. One is
+explicitly fitted. The rest are untested outside their origin, and saying so is
+worth more than a hit rate.

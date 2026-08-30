@@ -1,0 +1,85 @@
+{
+  "case": "colossus-2024",
+  "date": "2024-06",
+  "situation": "xAI needs a training cluster of 100,000 GPUs and needs it now. Datacentre builders quote 18 to 24 months. Any site with adequate grid power has a multi-year interconnection queue in front of it.",
+  "what_he_actually_did": "Rejected the quoted timeline. Took a shuttered Electrolux appliance factory in Memphis — closed since 2020, 785,000 sq ft — instead of building new. The local grid connection was about 8MW against a need near 130MW, so rather than wait for the interconnect he ran the site on temporary natural-gas turbines and Tesla Megapacks. 100,000 H100s live in 122 days; doubled to 200,000 in a further 92.",
+  "outcome": "SUCCESS",
+  "outcome_detail": "Operational July 2024. Nvidia's CEO called the build 'superhuman'. The approach has since drawn sustained local opposition over the gas turbines' air quality impact in south Memphis — a cost borne by people who were not party to the decision.",
+  "sources": [
+    "https://en.wikipedia.org/wiki/Colossus_(data_center)",
+    "https://newsletter.semianalysis.com/p/xais-colossus-2-first-gigawatt-datacenter",
+    "https://www.cnbc.com/2026/07/16/elon-musk-memphis-ai-colossus-data-center.html"
+  ],
+
+  "expect": {
+    "must_flag": ["requirement-owner"],
+    "months_within": [4.0, 5.5],
+    "notes": "A generalisation check on the 2018 tent rules, six years later and three orders of magnitude larger. Same shape: delete the requirement that the building be new, delete the requirement that power come from the grid, accept something temporary and ugly, move. If the stopgap correction and the unowned-requirement rule were fitted to 2018 rather than real, this is where that shows."
+  },
+
+  "decision": {
+    "decision": "Stand up 100,000 GPUs for training as fast as physically possible",
+    "unit": "USD",
+    "estimate": { "months": 4 },
+    "phases": ["production"],
+    "stopgap": true,
+    "runway_months": 12,
+
+    "requirements": [
+      {
+        "text": "The facility must be a purpose-built datacentre",
+        "owner": null,
+        "authority": "unknown",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "The site must be connected to adequate utility grid power before operating",
+        "owner": null,
+        "authority": "unknown",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "The cluster must train a frontier model this year",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "contract",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Convert a shuttered appliance factory",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Run on temporary gas turbines and Megapacks until the interconnect lands",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Wait for the utility interconnection queue",
+        "deleted": true,
+        "reinstated": false
+      },
+      {
+        "name": "Build a new facility to spec",
+        "deleted": true,
+        "reinstated": false
+      }
+    ],
+
+    "components": [
+      {
+        "name": "Time to first training run, against the industry quote",
+        "finished_cost": 21,
+        "material_cost": 4
+      }
+    ]
+  }
+}

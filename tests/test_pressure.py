@@ -246,6 +246,67 @@ def test_the_stopgap_reason_names_the_mechanism_not_the_optimism():
     assert "scale, cost and regulation" in reason
 
 
+# --- who decides versus who pays -----------------------------------------
+# From 2025. Every earlier mistake in the record put the cost where the
+# decision was made. A personal, political decision whose bill arrived at
+# Tesla's shareholders and customers did not.
+
+
+def test_a_bill_that_lands_somewhere_else_is_a_blocker():
+    decision = Decision(
+        title="d",
+        decided_by="Elon Musk, personally",
+        cost_borne_by="Tesla shareholders and customers",
+    )
+    finding = find(audit(decision), "cost-lands-elsewhere")
+    assert finding.severity is Severity.BLOCKER
+    assert "Tesla shareholders and customers" in finding.action
+
+
+def test_it_leads_the_report_because_no_one_is_positioned_to_stop_it():
+    decision = Decision(
+        title="d",
+        decided_by="A",
+        cost_borne_by="B",
+        steps=[Step(name="s", automated=True)],
+    )
+    assert audit(decision).sorted_findings()[0].rule == "cost-lands-elsewhere"
+
+
+@pytest.mark.parametrize(
+    "decided_by, cost_borne_by",
+    [
+        ("Tesla", "Tesla"),
+        ("Tesla", "  tesla  "),
+        (None, "Tesla"),
+        ("Tesla", None),
+        (None, None),
+    ],
+)
+def test_no_finding_when_the_decider_pays_or_it_was_not_stated(
+    decided_by, cost_borne_by
+):
+    decision = Decision(
+        title="d", decided_by=decided_by, cost_borne_by=cost_borne_by
+    )
+    assert "cost-lands-elsewhere" not in rules(audit(decision))
+
+
+def test_it_is_about_a_missing_veto_not_about_bad_judgement():
+    # The wording matters: nothing in the reasoning has to be wrong for this
+    # to go badly, which is what makes it a different kind of finding.
+    decision = Decision(title="d", decided_by="A", cost_borne_by="B")
+    message = find(audit(decision), "cost-lands-elsewhere").message
+    assert "cannot refuse" in message
+
+
+def test_it_survives_survival_mode():
+    decision = Decision(
+        title="d", decided_by="A", cost_borne_by="B", runway_months=0.1
+    )
+    assert "cost-lands-elsewhere" in rules(audit(decision))
+
+
 # --- the report has to agree with the audit ------------------------------
 
 

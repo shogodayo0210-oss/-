@@ -84,7 +84,10 @@ WHY: dict[Screen, str] = {
         "'Life insurance for the species' is a recruiting instrument as much as "
         "a belief: it buys effort that market rates would not. This is the piece "
         "imitators leave out most often, and it works outside business too — it "
-        "is why some open-source projects attract contributors and others do not."
+        "is why some open-source projects attract contributors and others do not. "
+        "It also runs backwards. In 2025 the same mechanism drove customers away "
+        "from Tesla rather than engineers towards it, which is why this screen "
+        "accepts -1: a framing can be a liability, not merely an absent asset."
     ),
     Screen.REACHABLE_PROOF: (
         "Each venture was funded by the last exit; the pattern needs resources "
@@ -104,7 +107,12 @@ WEIGHTS: dict[Screen, float] = {
     Screen.REACHABLE_PROOF: 1.5,
 }
 
-MAX_SCORE = 2  # per screen: 0 no, 1 partly, 2 yes
+MAX_SCORE = 2
+#: -1 no, 0 no, 1 partly, 2 yes. The negative exists because a screen can be
+#: worse than absent: a framing that repels, a barrier you are on the wrong
+#: side of, a need you have to talk people out of.
+MIN_SCORE = -1
+VALID_SCORES = (-1, 0, 1, 2)
 
 
 class Fit(str, Enum):
@@ -224,7 +232,7 @@ class Assessment:
             if entry is None:
                 raise SpecError(
                     f'opportunity.screens is missing "{screen.value}" — '
-                    f"{QUESTIONS[screen]} Answer 0, 1 or 2."
+                    f"{QUESTIONS[screen]} Answer -1, 0, 1 or 2."
                 )
             if isinstance(entry, dict):
                 score = entry.get("score")
@@ -243,18 +251,19 @@ class Assessment:
 
 
 def _score(value: Any, where: str) -> int:
-    """Parse a screen score, refusing anything that is not exactly 0, 1 or 2.
+    """Parse a screen score, refusing anything that is not exactly -1, 0, 1 or 2.
 
     int(1.5) is 1, and silently rounding a score down would move the total
     without anyone being told. A half-answer means the question has not been
     answered; say so rather than picking a side.
     """
+    allowed = ", ".join(str(s) for s in VALID_SCORES)
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
-        raise SpecError(f"{where} must be 0, 1 or 2, got {value!r}")
+        raise SpecError(f"{where} must be one of {allowed}, got {value!r}")
     try:
         number = float(value)
     except ValueError:
-        raise SpecError(f"{where} must be 0, 1 or 2, got {value!r}") from None
-    if number not in (0.0, 1.0, 2.0):
-        raise SpecError(f"{where} must be 0, 1 or 2, got {value!r}")
+        raise SpecError(f"{where} must be one of {allowed}, got {value!r}") from None
+    if number not in tuple(float(s) for s in VALID_SCORES):
+        raise SpecError(f"{where} must be one of {allowed}, got {value!r}")
     return int(number)

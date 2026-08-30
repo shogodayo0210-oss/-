@@ -288,6 +288,92 @@ increasing cost — and it is now a single rule in the engine.
 See [backtest.md](backtest.md) for the engine being run against each of these
 and getting some of them wrong first.
 
+## The last three years: what he learned, and what he did not
+
+The rules above were derived from 2008–2022. Running the engine against
+2024–2026 answers a sharper question — whether the person described has
+changed. He has, in one direction only, and the split is clean.
+
+### The engineering lesson took
+
+**Colossus, 2024.** Datacentre builders quoted 18 to 24 months. He took a
+shuttered Electrolux factory in Memphis instead of building new, and when the
+grid connection turned out to be about 8MW against a need near 130MW, he ran
+the site on temporary gas turbines and Megapacks rather than join the
+interconnection queue. 100,000 GPUs live in **122 days**, doubled in another
+92.
+
+That is the GA4 tent, six years later and three orders of magnitude larger:
+delete the requirement that the building be new, delete the requirement that
+power come from the grid, accept something temporary and ugly, move. The
+engine's stopgap rules — written from 2018 — score it correctly without
+modification, which is the strongest evidence in this repository that they are
+rules and not curve-fitting.
+
+**Starship, 2024–25.** Catching the booster with the tower's arms removes the
+landing legs *and* the landing infrastructure. That is "the best part is no
+part" applied to a rocket, and it was iterated in flight — Flight 5, then 7,
+then 8 — rather than analysed to completion first.
+
+**The 2018 mistake does not repeat.** Nothing in this period shows him building
+the perfect automated thing before the crude version is proven. On the
+manufacturing axis, the correction held.
+
+### The judgement lesson did not
+
+**Timelines are no better, and on one programme they are far worse.** In
+October 2025 he said Austin would have 500 robotaxis by year end; in November
+the number became about 60. By mid-2026 the unsupervised fleet had peaked at 25
+and sat at 20, availability under 20%, with Dallas and Houston stuck at 3 and 6
+vehicles. This is the same programme that was promised as "over a million
+robotaxis" in 2020.
+
+That is why `safety_critical` exists as a phase, at 5–10×. Where the evidence a
+regulator needs is statistical — miles driven, incidents not had — the schedule
+is set by how fast reality can be sampled, and urgency does not compress it.
+**This is the most fitted change in the repository**: the band was added and
+the case assigned to it by the same hand. It should be treated as a hypothesis
+until it holds on a safety-critical case nobody chose for it.
+
+**The expensive pattern ran a third time.** Over-automation, "funding secured",
+Twitter — irreversible, senior, unchallenged. DOGE in 2025 is the same shape.
+
+### But 2025 was structurally new, and this is the finding
+
+Every earlier mistake put the cost where the decision was made. Tesla decided
+and Tesla paid; the people paying could argue, and eventually did.
+
+DOGE did not work like that. The decision was personal and political. The bill
+arrived at Tesla — Q1 2025 profits down 71%, sales down 20%, European sales
+down 49% in April while the European EV market *grew* 34%, brand value down
+$15.4B across the year. Tesla's shareholders and customers bore that and had no
+vote on it.
+
+The ordinary corrective for a bad decision is not superior judgement or better
+information. **It is that the people who bear a cost push back on the person
+imposing it.** That mechanism is switched off when one person controls both
+sides. Nothing in the reasoning has to be wrong for the outcome to be bad,
+which is what makes `cost-lands-elsewhere` a different kind of rule from every
+other one here — it is about a missing feedback path, not about thinking
+better.
+
+And it compounds with scale. The requirements rule works because you can go and
+ask the named person why. By 2026 the named person owns SpaceX, Tesla, xAI,
+Neuralink, Boring and X, and there is nobody to appeal to above him at any of
+them. **The rule that made the method self-correcting degrades exactly as its
+author's span grows.**
+
+### The mission ran backwards
+
+`pulls_help` — a mission that buys effort market rates would not — is the
+screen most imitators leave out. In 2025 the same lever ran in reverse, driving
+away the demographic most likely to buy an electric car. Europe down 49% into a
+market up 34% is not competition; it is the recruiting instrument with its sign
+flipped.
+
+That is why the screen now accepts **-1**. A framing can be a liability, and a
+scale that bottoms out at zero cannot say so.
+
 ## Sources
 
 - Walter Isaacson, *Elon Musk* (2023) — the Algorithm, the requirements rule,

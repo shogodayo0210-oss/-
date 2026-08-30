@@ -235,10 +235,12 @@ def test_amount_carries_the_unit_when_there_is_one():
         ([Phase.PROTOTYPE], 1.2, 2.0),
         ([Phase.PRODUCTION], 2.0, 3.0),
         ([Phase.REGULATED], 3.0, 5.0),
+        ([Phase.SAFETY_CRITICAL], 5.0, 10.0),
         # The hardest phase sets the correction; work does not finish when
         # its easiest part finishes.
         ([Phase.PROTOTYPE, Phase.REGULATED], 3.0, 5.0),
         ([Phase.PROTOTYPE, Phase.PRODUCTION], 2.0, 3.0),
+        ([Phase.REGULATED, Phase.SAFETY_CRITICAL], 5.0, 10.0),
     ],
 )
 def test_the_hardest_declared_phase_sets_the_correction(phases, low, high):
@@ -246,11 +248,19 @@ def test_the_hardest_declared_phase_sets_the_correction(phases, low, high):
     assert (calibration.low_multiplier, calibration.high_multiplier) == (low, high)
 
 
-def test_the_correction_stays_inside_the_documented_two_to_five_range():
-    for phase in Phase:
+def test_ordinary_work_stays_inside_the_documented_two_to_five_range():
+    for phase in (Phase.PROTOTYPE, Phase.PRODUCTION, Phase.REGULATED):
         calibration = calibrate(Decision(title="d", phases=[phase]))
         assert calibration.high_multiplier <= 5.0
         assert calibration.low_multiplier >= 1.2
+
+
+def test_safety_critical_work_is_the_one_band_that_exceeds_the_record():
+    # Justified by the robotaxi programme specifically: a million promised for
+    # 2020, twenty running in 2026. Nothing else in the record is that far off.
+    calibration = calibrate(Decision(title="d", phases=[Phase.SAFETY_CRITICAL]))
+    assert calibration.high_multiplier == 10.0
+    assert "sampled" in calibration.reason
 
 
 def test_an_estimate_is_widened_not_replaced():

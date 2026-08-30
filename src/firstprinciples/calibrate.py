@@ -15,17 +15,24 @@ from dataclasses import dataclass
 
 from .model import Decision, Phase
 
-#: Low and high multipliers per phase, bounded by the 2×–5× overall finding.
+#: Low and high multipliers per phase. The first three sit inside the
+#: documented 2-5x overall finding; safety-critical work exceeds it, and the
+#: robotaxi record is why.
 PHASE_MULTIPLIERS: dict[Phase, tuple[float, float]] = {
     Phase.PROTOTYPE: (1.2, 2.0),
     Phase.PRODUCTION: (2.0, 3.0),
     Phase.REGULATED: (3.0, 5.0),
+    Phase.SAFETY_CRITICAL: (5.0, 10.0),
 }
 
 PHASE_REASONS: dict[Phase, str] = {
     Phase.PROTOTYPE: "showing it can work at all is the part this method is good at",
     Phase.PRODUCTION: "making it repeatedly, at cost, is where schedules start to slip",
     Phase.REGULATED: "a regulator who has to agree is not an engineering problem",
+    Phase.SAFETY_CRITICAL: (
+        "the evidence needed here is statistical, so the schedule is set by how "
+        "fast reality can be sampled and not by how fast anyone works"
+    ),
 }
 
 #: Used when no phase is declared, so the tool still says something honest.

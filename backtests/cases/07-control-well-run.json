@@ -21,7 +21,8 @@
       "irreversible-unquestioned",
       "no-runway",
       "ruin-risk",
-      "cheaper-to-try"
+      "cheaper-to-try",
+      "cost-lands-elsewhere"
     ],
     "notes": "Silence is the pass condition. Every rule the engine has is listed, so adding a rule that misfires on a healthy decision breaks this case rather than quietly inflating the scores elsewhere."
   },

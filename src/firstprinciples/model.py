@@ -53,6 +53,11 @@ class Phase(str, Enum):
     PROTOTYPE = "prototype"
     PRODUCTION = "production"
     REGULATED = "regulated"
+    #: Where the evidence a regulator needs is statistical — miles driven,
+    #: incidents not had, patients followed. Added after backtesting: a
+    #: million robotaxis were promised for 2020 and twenty were running in
+    #: 2026, which the ordinary regulated band does not begin to cover.
+    SAFETY_CRITICAL = "safety_critical"
 
 
 #: Department names are not people. A requirement owned by one of these has
@@ -165,6 +170,11 @@ class Decision:
     #: the expensive option — the idiot index, applied to learning.
     attempt_cost: float | None = None
     analysis_cost: float | None = None
+    #: Who makes the call, and who gets the bill. When they differ and the
+    #: same person controls both, the ordinary corrective — the people paying
+    #: push back — is switched off.
+    decided_by: str | None = None
+    cost_borne_by: str | None = None
     #: Populated separately by opportunity.Assessment to keep the two halves
     #: of the tool — what to do, and how to do it — independent.
     opportunity: Any = None
@@ -192,6 +202,8 @@ class Decision:
             ruin_risk=bool(raw.get("ruin_risk", False)),
             attempt_cost=_optional_number(raw.get("attempt_cost"), "attempt_cost"),
             analysis_cost=_optional_number(raw.get("analysis_cost"), "analysis_cost"),
+            decided_by=raw.get("decided_by"),
+            cost_borne_by=raw.get("cost_borne_by"),
             estimate=Estimate(
                 months=_optional_number(estimate_raw.get("months"), "estimate.months"),
                 cost=_optional_number(estimate_raw.get("cost"), "estimate.cost"),

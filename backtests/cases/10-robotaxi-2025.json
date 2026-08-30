@@ -1,0 +1,73 @@
+{
+  "case": "robotaxi-2025",
+  "date": "2025-06",
+  "situation": "Launch a driverless ride-hailing service in Austin. The programme is the same one promised as 'over a million robotaxis on the road' in 2020. The remaining work is not making the car drive — it is proving to a regulator, statistically, that it drives more safely than a person.",
+  "what_he_actually_did": "Launched invite-only in Austin on 22 June 2025 with Tesla staff aboard. Said in October 2025 there would be 500 robotaxis in Austin by year end; revised to about 60 in November.",
+  "outcome": "FAILURE",
+  "outcome_detail": "By mid-2026 the unsupervised fleet had peaked at 25 vehicles and sat at 20 active, with availability below 20% and a crash rate reported at around nine times worse than human drivers. Dallas and Houston stayed at 3 and 6 vehicles since launch. NHTSA opened investigations after early rides included wrong-side-of-road driving and drop-offs in intersections. Scaling was deferred to an FSD v15 rewrite, pushing any real ramp to late 2026 or 2027.",
+  "sources": [
+    "https://electrek.co/2026/02/16/tesla-robotaxi-status-check-8-months-in/",
+    "https://electrek.co/2026/06/03/tesla-robotaxi-expands-entire-austin-metro-only-20-vehicles/",
+    "https://en.wikipedia.org/wiki/Tesla_Robotaxi"
+  ],
+
+  "expect": {
+    "must_flag": ["unquestioned-authority"],
+    "months_within": [45, 75],
+    "known_gap": true,
+    "notes": "The engine's largest correction, 3-5x for regulated work, is not enough here and the record says so plainly: a million robotaxis promised for 2020, twenty vehicles running in 2026. This is not the ordinary regulated slip. Where the evidence a regulator needs is statistical -- miles driven, incidents not had -- no amount of urgency compresses it, because the schedule is set by how fast reality can be sampled rather than by how fast anyone works."
+  },
+
+  "decision": {
+    "decision": "Launch an unsupervised robotaxi service in Austin",
+    "unit": "USD",
+    "estimate": { "months": 6 },
+    "phases": ["safety_critical"],
+
+    "requirements": [
+      {
+        "text": "The fleet must reach 500 vehicles in Austin by year end",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "assumption",
+        "questioned": false
+      },
+      {
+        "text": "The service must run without a human in the driver's seat",
+        "owner": "Elon Musk",
+        "authority": "high",
+        "grounded_in": "regulation",
+        "questioned": true
+      },
+      {
+        "text": "Vehicles must demonstrate a lower incident rate than human drivers",
+        "owner": "NHTSA",
+        "authority": "normal",
+        "grounded_in": "regulation",
+        "questioned": true
+      }
+    ],
+
+    "steps": [
+      {
+        "name": "Run invite-only with staff aboard first",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Accumulate the miles the incident-rate claim requires",
+        "considered_for_deletion": true,
+        "deleted": false,
+        "reversible": true
+      },
+      {
+        "name": "Wait for the FSD rewrite before launching at all",
+        "deleted": true,
+        "reinstated": true
+      }
+    ],
+
+    "components": []
+  }
+}

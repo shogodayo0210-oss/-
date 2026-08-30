@@ -116,6 +116,7 @@ def audit(decision: Decision) -> AuditResult:
     result.findings.extend(_check_order(decision.steps))
     result.findings.extend(_check_reversibility(decision))
     result.findings.extend(_check_learning_cost(decision))
+    result.findings.extend(_check_who_pays(decision))
 
     ratio, deletion_findings = _check_deletion(decision.steps)
     result.reinstatement_ratio = ratio
@@ -229,6 +230,47 @@ def _ruin_finding() -> Finding:
             "to risk everything, and this one is not going to."
         ),
     )
+
+
+def _check_who_pays(decision: Decision) -> list[Finding]:
+    """The decision is made in one place and the bill arrives in another.
+
+    Added after backtesting 2025. Every earlier mistake in the record put the
+    cost where the decision was made: Tesla decided, Tesla paid, and the
+    people paying could argue. A personal, political decision whose cost
+    landed on Tesla's shareholders and customers breaks that. The ordinary
+    corrective is not judgement or information — it is that the people bearing
+    a cost push back on the person imposing it, and that mechanism is switched
+    off when one person controls both sides.
+
+    It is the only rule here that is not about thinking better. It is about a
+    missing feedback path.
+    """
+    decider, payer = decision.decided_by, decision.cost_borne_by
+    if not decider or not payer:
+        return []
+    if decider.strip().lower() == payer.strip().lower():
+        return []
+
+    return [
+        Finding(
+            rule="cost-lands-elsewhere",
+            severity=Severity.BLOCKER,
+            subject=f"{decider} decides, {payer} pays",
+            message=(
+                "Whoever bears the cost of this cannot refuse it, and the usual "
+                "way a bad call gets stopped — the people paying for it saying "
+                "no — is unavailable here. Nothing in the reasoning has to be "
+                "wrong for this to go badly."
+            ),
+            action=(
+                f"Give {payer} a real veto, or move the decision to where the "
+                "cost lands. Absent that, assume no one will stop this and "
+                "price it accordingly."
+            ),
+            priority=-1,
+        )
+    ]
 
 
 def _check_learning_cost(decision: Decision) -> list[Finding]:

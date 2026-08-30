@@ -85,20 +85,44 @@ def test_the_weakest_screens_come_back_worst_first():
     assert weakest[1].screen is Screen.ABSORBABLE
 
 
-def test_a_missing_screen_names_itself_and_asks_the_question():
-    partial = {s.value: 2 for s in Screen if s is not Screen.SOFT_BARRIER}
-    with pytest.raises(SpecError, match="soft_barrier"):
-        Assessment.from_dict({"subject": "x", "screens": partial})
+@pytest.mark.parametrize("value", [None, "absent"])
+def test_a_missing_screen_names_itself_and_asks_the_question(value):
+    # null reads as unanswered rather than as a score, which is right: the
+    # question has to be answered, and refusing to guess is the whole point.
+    screens = {s.value: 2 for s in Screen}
+    if value is None:
+        del screens[Screen.SOFT_BARRIER.value]
+    else:
+        screens[Screen.SOFT_BARRIER.value] = None
+
+    with pytest.raises(SpecError, match="soft_barrier") as exc:
+        Assessment.from_dict({"subject": "x", "screens": screens})
+    assert "-1, 0, 1 or 2" in str(exc.value)
 
 
-@pytest.mark.parametrize("bad", [3, -1, "yes", None, 1.5, True, [2], {"x": 2}])
-def test_scores_outside_zero_to_two_are_rejected(bad):
+@pytest.mark.parametrize("bad", [3, -2, "yes", 1.5, True, [2], {"x": 2}])
+def test_scores_outside_the_allowed_set_are_rejected(bad):
     # 1.5 and True both survive int() as 1. A score that quietly moves is
     # worse than one that is refused.
     screens = {s.value: 2 for s in Screen}
     screens[Screen.ABSORBABLE.value] = bad
-    with pytest.raises(SpecError, match="0, 1 or 2"):
+    with pytest.raises(SpecError, match=r"-1, 0, 1, 2"):
         Assessment.from_dict({"subject": "x", "screens": screens})
+
+
+def test_a_screen_can_score_negative_when_it_actively_works_against_you():
+    # 2025: the mission-as-recruiting-instrument mechanism ran in reverse,
+    # driving customers away rather than pulling engineers in. A framing can
+    # be a liability, and 0 cannot express that.
+    liability = build(pulls_help=-1)
+    absent = build(pulls_help=0)
+    assert liability.score < absent.score
+    assert liability.results[4].score == -1
+
+
+def test_a_liability_costs_more_than_the_asset_was_worth():
+    full = build()
+    assert full.score - build(pulls_help=-1).score == 3 * WEIGHTS[Screen.PULLS_HELP]
 
 
 def test_evidence_is_optional_and_preserved():

@@ -145,8 +145,29 @@ Three of the additions are about **pressure**, and none of them appear in how
 this method is usually described — including by him. But all of them appear in
 what he did.
 
-The full record, including what the backtest is *not* evidence of, is in
-[docs/backtest.md](docs/backtest.md).
+### Then it was run against the last three years
+
+Three more cases, 2024–2026, asking whether the rules still describe him.
+
+**They do, on engineering.** Colossus — a dead appliance factory, temporary gas
+turbines, 100,000 GPUs in 122 days against an 18–24 month quote — scores
+correctly on stopgap rules written from a tent in 2018, six years earlier and
+three orders of magnitude smaller. That is the strongest evidence here that
+these are rules and not curve-fitting.
+
+**They did not, on judgement**, and 2025 was structurally new. Every earlier
+mistake put the cost where the decision was made. DOGE did not: decided
+personally, paid for by Tesla — profits down 71%, European sales down 49% into
+a market up 34%, brand value down $15.4B — by people with no vote on it.
+
+That produced `cost-lands-elsewhere`, the one rule here that is not about
+thinking better. The ordinary corrective for a bad decision isn't judgement; it
+is that the people bearing the cost push back. That is switched off when one
+person controls both sides — and it compounds, because the requirements rule
+works only while there is a named person you can go and ask why.
+
+The full record, including which rules are fitted and which have generalised,
+is in [docs/backtest.md](docs/backtest.md).
 
 ## Does the screen mean anything?
 
