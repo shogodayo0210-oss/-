@@ -131,7 +131,7 @@ def load(name: str) -> Assessment:
     [
         ("tesla-2004.json", Fit.STRONG),
         ("x-2022.json", Fit.OFF_PATTERN),
-        ("falsify-v1.json", Fit.STRONG),
+        ("dev-tool.json", Fit.STRONG),
         ("weekly-report.json", Fit.STRONG),
     ],
 )

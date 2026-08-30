@@ -3,21 +3,26 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "falsify"
+name = "firstprinciples"
 version = "0.1.0"
-description = "Red before green, or it didn't happen. Prove a change's tests would have caught the bug it fixes."
+description = "A first-principles decision protocol, with its own error bars. Analyses a decision; does not speak in anyone's voice."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
-keywords = ["testing", "code-review", "ai", "verification", "git", "ci"]
+keywords = [
+    "decision-making",
+    "first-principles",
+    "estimation",
+    "calibration",
+    "process",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Topic :: Software Development :: Quality Assurance",
-    "Topic :: Software Development :: Testing",
+    "Topic :: Office/Business",
 ]
 dependencies = []
 
@@ -25,7 +30,6 @@ dependencies = []
 dev = ["pytest>=7"]
 
 [project.scripts]
-falsify = "falsify.cli:main"
 fp = "firstprinciples.cli:main"
 
 [tool.setuptools.packages.find]

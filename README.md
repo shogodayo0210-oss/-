@@ -1,234 +1,176 @@
-# falsify
+# fp
 
-**Red before green, or it didn't happen.**
+**A first-principles decision protocol, with its own error bars.**
 
-A test that passes against the code it was written to police is not evidence of
-anything. `falsify` checks the one thing that makes a test meaningful: that it
-fails without the fix.
+This repository is an attempt to reproduce Elon Musk's decision-making — as a
+method you can run, not a personality you can imitate.
 
----
+It contains two things: [an analysis](docs/analysis.md) of his documented
+working method, with sources and with the places it demonstrably fails, and
+`fp`, a tool that runs that method against a decision of your own.
 
-## The problem
+It analyses. **It does not speak in anyone's voice.**
 
-Your agent hands you a change. It says it fixed a bug. It added a test. The
-test is green.
+## Why not a voice
 
-So is a test that asserts nothing.
+The obvious version of this is a chatbot answering in the first person as him.
+That version is worse, and the first reason matters more than the second.
 
-Every tool in the pipeline — CI, coverage, the review bot — looks at the code
-*after* the change and reports green. None of them ask the only question that
-matters: **would this test have caught the bug?** Answering it means running the
-test against the broken code, and nobody does that, because by the time anyone
-looks the broken code is gone.
+**It doesn't work.** Cadence is the easy part and the useless part. A
+convincing imitation of how someone talks tells you nothing about how they
+decide. The thing worth having is the decision procedure — and that part is
+documented, checkable, and reusable by anyone.
 
-That gap is where "almost right, but not quite" lives. It is the single most
-common complaint about agent-written code, and it is invisible to a green
-checkmark.
+**And fabricated first-person statements from a living, market-moving person
+are a problem regardless of intent.** So this is built the other way round:
+every rule traces to a source, and the output is an assessment of *your*
+decision rather than a performance of someone else's personality.
 
-## The trick
+## Quick start
 
-`falsify` reconstructs the state nobody keeps around:
-
-```
-   your change  =  [ source edits ]  +  [ test edits ]
-
-   counterfactual  =  old source  +  NEW tests     ← run this
-```
-
-It checks the base commit out into a scratch worktree, applies **only** your
-test changes there, and runs them. They must go **red**. Then it runs the same
-tests in your real worktree, where they must go **green**.
-
-Red without the fix, green with it. Anything else is not evidence.
-
-Your own working tree is never modified.
-
-## See it
-
-```console
-$ ./examples/demo.sh
-```
-
-The demo builds a throwaway repo with a real bug — a `clamp()` that forgets its
-upper bound — and shows the same genuine fix twice.
-
-First, shipped with a test that only exercises the half that already worked.
-This is what every other tool calls green:
-
-```
-FAIL NO_EVIDENCE — the test passes even without the fix, so it proves nothing
-
-  base      38e087d52219  (uncommitted changes present; comparing against HEAD)
-  command   python -m pytest -q tests/test_calc.py
-  changed   1 source, 1 test
-
-  evidence
-    without the fix    green                exit 0  (want red)
-    with the fix       green                exit 0  (want green)
-
-  The tests pass against the code from before this change. Whatever this
-  change fixes, this test would not have caught it.
-
-Exit code: 1 — CI stops here.
-```
-
-Then the same fix, with a test that actually pins the bug:
-
-```
-PASS PROVEN — the test fails without the fix and passes with it
-
-  evidence
-    without the fix    red                  exit 1  (want red)
-    with the fix       green                exit 0  (want green)
-
-Exit code: 0 — CI carries on.
-```
-
-Same source diff both times. The only thing that changed is whether the test
-was ever capable of failing.
-
-## It checks itself
-
-`falsify` found a real bug in `falsify`, and the counterfactual is the proof.
-
-A `--setup` step like `pip install -e .` depends on the changed source, so it
-*always* fails in the counterfactual — and that failure was being read as "the
-test went red". A change whose tests never ran at all would have come back
-`PROVEN`. The fix, and the test that pins it, produce this:
-
-```
-PASS PROVEN — the test fails without the fix and passes with it
-
-  evidence
-    without the fix    red                  exit 1  (want red)
-    with the fix       green                exit 0  (want green)
-```
-
-And `-v` shows *why* the counterfactual went red — not a crash, not an unrelated
-test, but the assertion that names the bug:
-
-```
-E       AssertionError: assert <Verdict.PROVEN> is <Verdict.INCONCLUSIVE>
-```
-
-That is what evidence looks like: the old code reached the wrong verdict, in
-writing, before anyone was asked to believe the new code reaches the right one.
-
-## Install
-
-Python 3.9+ and git. No dependencies.
+Python 3.9+. No dependencies.
 
 ```console
 $ pip install -e .
+$ fp examples/weekly-report.json
 ```
 
-Or run it straight out of the tree, with nothing installed at all:
+Or straight out of the tree:
 
 ```console
-$ PYTHONPATH=src python3 -m falsify
+$ PYTHONPATH=src python3 -m firstprinciples examples/weekly-report.json
 ```
+
+## Not just business
+
+The screen was derived from a venture history, but the questions survive
+translation. "Price" becomes whatever a thing currently costs — money, hours,
+attention. "Incumbent" becomes whatever occupies the ground now.
+
+The example that makes the point best is a weekly status report:
+
+```
+Index 12.0× — 6.00 hours spent on 0.50 hours of irreducible content.
+You are paying for process, not for substance.
+  →  At 3× this would be 1.50 hours each, 216 hours across 48.
+```
+
+Six hours a week producing thirty minutes of information nobody already had.
+Same machinery as a $1,500 door latch, different unit.
+
+## Two halves
+
+### Where to point effort
+
+Six screens, one of which is a gate.
+
+| Screen | Question |
+|---|---|
+| `cost_detached` | Is what this costs set by habit rather than by a real limit? |
+| `absorbable` | Is the expensive part something you could take on directly? |
+| `soft_barrier` | Is the barrier capital, regulation or convention rather than a technical wall? |
+| `existing_need` | Does the need already exist, so you never have to manufacture it? |
+| `pulls_help` | Would the honest framing pull in people you could not otherwise get? |
+| `reachable_proof` | Can you reach a convincing proof point with what you already control? |
+
+`cost_detached` is a **gate**, not just a heavy weight. If nothing here costs
+more than it must, the verdict is `OFF_PATTERN` however well everything else
+scores — because every other rule in the tool is machinery for closing a gap,
+and there is no gap. Conviction is not a substitute for one.
+
+### How you are running it
+
+- A requirement with no **named person** behind it is a blocker. A department
+  cannot be asked why.
+- A requirement from a **senior** person that nobody has questioned is raised
+  in severity, **not lowered**. This is the inversion worth having:
+  requirements from smart people survive longest precisely because nobody
+  challenges them.
+- A step **automated or optimised before being considered for deletion** is
+  flagged. Automating a step that should not exist makes the waste permanent
+  and fast.
+- Deleting things and **never putting any back** means you stopped early. The
+  floor is 10%.
+
+## The error bars
+
+The part most treatments of this method leave out. Independent trackers put
+its timeline overshoot at roughly **2× to 5×**.
+
+A flat multiplier would be easy and slightly wrong. The documented mechanism is
+specific: the technical problem usually does get solved, and the slip is
+between a working solution and deployment at scale, at cost, under a regulator.
+So the correction scales with the kind of work:
+
+| Phase | Correction |
+|---|---|
+| `prototype` | 1.2–2.0× |
+| `production` | 2.0–3.0× |
+| `regulated` | 3.0–5.0× |
+
+The hardest declared phase sets it. Work does not finish when its easiest part
+finishes.
+
+Every report also carries one standing line: this method's throughput came
+alongside high attrition and organisational churn, and that cost is not counted
+anywhere in the numbers above.
+
+**A model that reproduces only the wins is not a model.** It is fan fiction
+with footnotes.
+
+## Does the screen mean anything?
+
+A screen built only from things that worked will approve of everything. So the
+repository ships a counter-example.
+
+```console
+$ fp examples/tesla-2004.json   # STRONG      93%
+$ fp examples/x-2022.json       # OFF_PATTERN 30%
+```
+
+The rejection comes from the **gate**, not from a low total: there was no
+thesis that running a social network costs more than it must, so there was no
+gap to close. A test asserts exactly that, so the claim cannot quietly stop
+being true.
+
+**This is a consistency check, not independent evidence.** Those scores are one
+reading of the public record, assigned by the author, after the outcomes were
+known. It shows the screen *can* reject something. It does not show the screen
+is right.
 
 ## Use
 
 ```console
-$ falsify                              # check what's in your working tree
-$ falsify --base main                  # check a whole branch
-$ falsify --test-cmd 'pytest {files}'  # say how to run the tests
-$ falsify --json | jq .verdict         # for CI
-$ falsify -v                           # include the captured test output
+$ fp decision.json                # report
+$ fp decision.json --explain      # why each screen is there
+$ fp decision.json --json         # machine-readable
+$ fp decision.json --fail-on high # exit non-zero at HIGH and above
+$ cat decision.json | fp          # reads stdin
 ```
 
-With no arguments it compares against `HEAD` if you have uncommitted changes,
-and against the merge base with your default branch otherwise. It guesses your
-test runner from the project layout and says so in the report — when it guesses
-wrong, pass `--test-cmd`.
+Input is plain JSON so the file a team argues over stays diffable. Everything
+in `examples/` is a working template:
 
-`{files}` in a test command is replaced with the test files your change
-touched. Use it. Without it the whole suite runs in the counterfactual, and an
-unrelated failing test looks exactly like evidence.
-
-| Flag | |
+| File | |
 |---|---|
-| `--base REF` | what to compare against |
-| `--test-cmd CMD` | how to run the tests; `{files}` is substituted |
-| `--test-glob PAT` | also treat paths matching `PAT` as tests (repeatable) |
-| `--setup CMD` | run before the tests in each checkout (installs, codegen) |
-| `--timeout SEC` | per-run timeout, default 600 |
-| `--json` | machine-readable output |
-| `-v` | include captured test output |
+| `weekly-report.json` | an internal process, counted in hours |
+| `dev-tool.json` | an open-source project, no money involved |
+| `tesla-2004.json` | the control — the pattern the screen came from |
+| `x-2022.json` | the counter-example the gate rejects |
 
-## Verdicts
-
-| Verdict | Exit | Meaning |
-|---|---|---|
-| `PROVEN` | 0 | Red without the fix, green with it. The test earns its place. |
-| `VACUOUS` | 0 | Only tests changed. Nothing to falsify — adding tests is never blocked. |
-| `EMPTY` | 0 | Nothing changed. |
-| `NO_EVIDENCE` | 1 | The test passes against the broken code. **This is the one.** |
-| `NO_TESTS` | 1 | Source changed and nothing would fail if it were wrong. |
-| `BROKEN` | 1 | The test fails without the fix *and* with it. The change doesn't work. |
-| `INCONCLUSIVE` | 1 | The counterfactual broke instead of failing. Red for the wrong reason. |
-
-`INCONCLUSIVE` matters more than it looks. If the new test can't even import
-against the older code, it went red for a reason that has nothing to do with
-the fix — and calling that evidence would be the exact mistake this tool
-exists to prevent. So it refuses to.
-
-## In CI
-
-```yaml
-- name: Tests must be capable of failing
-  run: |
-    pip install -e .
-    falsify --base "origin/${{ github.base_ref }}" \
-            --test-cmd 'pytest -q {files}'
-```
+Exit codes: `0` clean, `1` findings at or above `--fail-on` (default
+`blocker`), `2` bad input.
 
 ## What it does not do
 
-Being clear about this matters more than the feature list.
-
-- **It does not judge whether the fix is correct.** It only establishes that
-  the test could have caught something. A test can be red for the wrong reason
-  and still pass this gate.
-- **It needs a runner that can be pointed at specific files** to be precise.
-  `cargo test` and `go test ./...` run everything, and `falsify` warns you when
-  the command it's using can't be narrowed.
-- **It cannot see untracked files.** A brand new test file git has never heard
-  of is invisible to `git diff`, so `falsify` looks for them and warns loudly
-  rather than waving the change through. `git add -N` is enough.
-- **It cannot prove a brand new module.** If the code under test did not exist
-  at the base commit, its tests cannot import there, so the counterfactual goes
-  red for the wrong reason. The honest verdict is `INCONCLUSIVE`, and that is
-  what you get. New modules are proved by their *second* change, not their
-  first.
-- **An editable install defeats it, silently.** `pip install -e .` puts your
-  working tree on the import path, so a scratch checkout that imports by
-  package name gets the *changed* code. This produced a wrong `PROVEN` on this
-  very repository. `falsify` now detects it and warns; run tests against the
-  checkout (`PYTHONPATH=src`) when it does.
-- **It runs your tests twice.** On a slow suite, scope the command with
-  `{files}`.
-- **It is not mutation testing.** Mutation testing invents synthetic breakage
-  to score a suite. This checks the one real counterfactual you actually care
-  about: the code as it was, five minutes ago.
-
-## Why this, and why now
-
-Generating code got cheap. Checking it didn't. Every number points the same
-way: the top complaint about coding agents is output that is *almost* right;
-curl shut down its bug bounty after AI-assisted reports drove the valid rate to
-roughly one in thirty; enterprise agent fleets doubled in four months while the
-monitoring around them barely moved.
-
-The industry's answer has been to make claims more persuasive — better
-summaries, confidence scores, tidier reports. But a better-argued claim is
-still a claim. The scarce thing now is **evidence**: a record that something
-was actually run and actually came back the way it should have.
-
-This tool is one small, boring instance of that. It produces four lines of
-evidence and refuses to produce them when it can't. If that norm spreads
-further than this program does, that's the better outcome.
+- **It does not decide.** It produces findings and an adjusted estimate. Every
+  score is a judgement you make, and the tool faithfully reports whatever you
+  tell it.
+- **It cannot check your evidence.** Writing `"cost_detached": 2` with no basis
+  produces a confident, worthless report. The `evidence` field exists so a
+  reader can catch you. Nothing catches you automatically.
+- **It is not a portrait.** See [docs/analysis.md](docs/analysis.md) for what
+  he actually knows, where every rule comes from, and where the method fails.
 
 ## Development
 
@@ -236,20 +178,6 @@ further than this program does, that's the better outcome.
 $ pip install -e '.[dev]'
 $ pytest
 ```
-
-`falsify` is subject to its own gate. If you send a patch, it should pass.
-
-## Also in this repository
-
-**[`fp`](docs/fp.md)** — a first-principles decision protocol with its own
-error bars. Takes a decision (a project, a process, a research direction) and
-checks whether requirements have named owners, whether anything was automated
-before it was deleted, and what you are paying for process versus substance —
-then widens your estimate by the correction the work actually earns.
-[Where every rule comes from](docs/analysis.md).
-
-The two tools share a premise: a claim is worth less than a record of
-something having been checked.
 
 ## License
 
