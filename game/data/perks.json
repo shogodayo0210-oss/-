@@ -30,9 +30,9 @@
       "params": { "tier_shift": 1 } },
     { "id": "reserve",     "name": "予備兵",     "category": "draft",          "cost": 3, "resolves_in": "draft",  "visible_to_opponent": true,
       "params": { "team_size": 9, "chosen_slots": 6, "random_slots": 3 } },
-    { "id": "immortal",    "name": "不動",       "category": "combat_active",  "cost": 6, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 1, "invuln_sec": 2.0, "can_attack_during": false, "cleanses_stun": false, "telegraph_sec": 0.3 },
-      "note": "2秒残すなら攻撃不可は必須。攻撃も通すなら1.2秒まで下げる" },
+    { "id": "parry",       "name": "見切り",     "category": "combat_active",  "cost": 3, "resolves_in": "battle", "visible_to_opponent": true,
+      "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "recovery_sec": 0.35, "gauge_on_success": 25 },
+      "note": "合わせて防ぐための窓。startup 0 でないと原理的に合わせられない。外した時の後隙が読み合いの本体" },
     { "id": "escape",      "name": "緊急離脱",   "category": "combat_active",  "cost": 5, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "charges": 2, "invuln_sec": 0.8, "dash_back": true } },
     { "id": "last_stand",  "name": "起死回生",   "category": "combat_passive", "cost": 4, "resolves_in": "battle", "visible_to_opponent": true,
@@ -40,7 +40,8 @@
     { "id": "head_start",  "name": "先手",       "category": "tempo",          "cost": 3, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "start_gauge": 30 } },
     { "id": "quick_cast",  "name": "詠唱短縮",   "category": "tempo",          "cost": 5, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "cast_time_mult": 0.7 } },
+      "params": { "cast_time_mult": 0.7 },
+      "note": "詠唱の下限は match.json の readability.min_cast_sec。短縮しても床は割らない（見切りで覆えなくなるため）" },
     { "id": "recall",      "name": "追憶",       "category": "tempo",          "cost": 7, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "reuse_spent_card": 1, "cost_mult": 2.0 } }
   ]

@@ -28,6 +28,12 @@
     "max_deck_cost": 170,
     "opponent_sees": "count_only"
   },
+  "readability": {
+    "_comment": "見切り(0.3秒)を成立させるための床。詠唱短縮などの修正後もここを下回らない",
+    "human_reaction_sec": 0.25,
+    "min_charge_windup_sec": 0.6,
+    "min_cast_sec": 0.35
+  },
   "gauge": {
     "max": 100,
     "regen_per_sec": 8,

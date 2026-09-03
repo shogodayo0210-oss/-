@@ -95,6 +95,55 @@ def check_cards(cards, match, errors):
         errors.append("cards: カード名が重複（同名不可ルールと衝突）")
 
 
+def check_readability(perks, cards, match, errors):
+    """反応して防げるか。見切りのような「合わせる」特典が成立する条件を検査する。
+
+    0.3秒の窓は、相手の予備動作が見えて、反応が間に合って、窓が当たりを
+    覆えて初めて機能する。他の特典（詠唱短縮など）がこの条件を壊しやすいので、
+    数字を動かしたら必ずここで落ちるようにしておく。
+    """
+    rules = match.get("readability")
+    if not rules:
+        return
+
+    reactive = [
+        p for p in perks["perks"]
+        if p["category"] == "combat_active"
+        and p["params"].get("startup_sec") == 0.0
+        and "invuln_sec" in p["params"]
+    ]
+    if not reactive:
+        return
+
+    mults = [
+        p["params"]["cast_time_mult"] for p in perks["perks"]
+        if "cast_time_mult" in p["params"]
+    ]
+    fastest = min(mults, default=1.0)
+    floor = rules["min_cast_sec"]
+    eps = 1e-9
+
+    for perk in reactive:
+        window = perk["params"]["invuln_sec"]
+
+        needed = rules["human_reaction_sec"] + window
+        if rules["min_charge_windup_sec"] + eps < needed:
+            errors.append(
+                f"readability: ため攻撃の予備動作 {rules['min_charge_windup_sec']}秒 では"
+                f"「{perk['name']}」({window}秒) に合わせられない。"
+                f"反応 {rules['human_reaction_sec']}秒＋窓で {needed:.2f}秒 が要る"
+            )
+
+        for card in cards["cards"]:
+            effective = max(card["cast_sec"] * fastest, floor)
+            if effective + eps < window:
+                errors.append(
+                    f"readability: {card['name']} の詠唱が短縮後 {effective:.2f}秒 になり、"
+                    f"「{perk['name']}」({window}秒) で覆えない。"
+                    f"min_cast_sec の床を上げるか短縮率を緩める"
+                )
+
+
 def check_match(match, errors):
     fmt = match["format"]
     slots = fmt["chosen_slots"] + fmt["random_slots"]
@@ -118,6 +167,7 @@ def main():
     check_perks(perks, errors)
     rows = check_avatars(perks, avatars, errors)
     check_cards(cards, match, errors)
+    check_readability(perks, cards, match, errors)
     check_match(match, errors)
 
     width = max((len(name) for name, _, _ in rows), default=0)
