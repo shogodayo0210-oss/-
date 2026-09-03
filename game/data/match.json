@@ -1,0 +1,38 @@
+{
+  "_comment": "試合フォーマットの調整値。すべて仮置き。",
+  "format": {
+    "players": 2,
+    "team_size": 8,
+    "chosen_slots": 6,
+    "random_slots": 2,
+    "ko_to_win": 4,
+    "deploy_order": "choose_on_ko",
+    "deploy_order_visible_to_opponent": false
+  },
+  "phases": [
+    { "id": "avatar_reveal", "seconds": 5,   "note": "アバターと保有特典を相互公開" },
+    { "id": "draft",         "seconds": 45,  "note": "6体選択＋デッキ3枚。互いに非公開" },
+    { "id": "lock_commit",   "seconds": 2,   "note": "commit提出→共通シード→ランダム枠確定" },
+    { "id": "intel",         "seconds": 12,  "note": "情報系特典の解決。出撃順の決定" },
+    { "id": "battle",        "seconds": 300, "note": "時間切れは残KO数、同数なら残HP合計" }
+  ],
+  "random_slot_draw": {
+    "mirrored_tier_templates": [ ["A", "B"], ["A", "A"], ["S", "B"] ],
+    "exclude_chosen": true,
+    "lend_from_common_pool_if_short": true,
+    "seed": "sha256(commitA || commitB || matchId)"
+  },
+  "cards": {
+    "deck_size": 3,
+    "unique_names": true,
+    "max_deck_cost": 170,
+    "opponent_sees": "count_only"
+  },
+  "gauge": {
+    "max": 100,
+    "regen_per_sec": 8,
+    "per_100_damage_dealt": 6,
+    "on_ally_ko": 20,
+    "start": 0
+  }
+}

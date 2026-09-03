@@ -1,0 +1,11 @@
+{
+  "_comment": "呪文カードのサンプル。中身は非公開、残枚数のみ公開。",
+  "cards": [
+    { "id": "pillar_of_fire", "name": "火柱",     "school": "fire",   "cost": 50, "cast_sec": 0.6, "effect": "前方に炎柱。中ダメージ" },
+    { "id": "healing_light",  "name": "治癒の光", "school": "light",  "cost": 40, "cast_sec": 0.8, "effect": "自身のHPを最大値の30%回復" },
+    { "id": "time_bind",      "name": "時縛",     "school": "arcane", "cost": 70, "cast_sec": 0.7, "effect": "相手を1.2秒足止め" },
+    { "id": "shadow_clone",   "name": "影分身",   "school": "shadow", "cost": 60, "cast_sec": 0.5, "effect": "分身1体を8秒間生成" },
+    { "id": "mirror_wall",    "name": "反射壁",   "school": "arcane", "cost": 55, "cast_sec": 0.4, "effect": "2秒間、投射物を反射" },
+    { "id": "recall_fallen",  "name": "呼び戻し", "school": "light",  "cost": 80, "cast_sec": 1.0, "effect": "KOされた味方1体をHP40%で復帰" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "_comment": "アバターは特典の束。予算・カテゴリ上限は perks.json の budget に従う。tools/validate.py で検査。",
+  "avatars": [
+    { "id": "scout",      "name": "斥候",   "concept": "相手を見てから組み立てる",   "perks": ["scout_1", "gauge_sight", "head_start"] },
+    { "id": "strategist", "name": "軍師",   "concept": "カード読みと編成の微調整",   "perks": ["mind_read", "gauge_sight", "reroll"] },
+    { "id": "marshal",    "name": "統率",   "concept": "事故を減らす構築寄り",       "perks": ["pick_plus", "head_start"] },
+    { "id": "bulwark",    "name": "不動",   "concept": "詰めの一回を耐える",         "perks": ["immortal", "last_stand"] },
+    { "id": "gale",       "name": "疾風",   "concept": "手数と回避",                 "perks": ["escape", "quick_cast"] },
+    { "id": "gambler",    "name": "賭博師", "concept": "分散を上げて殴る",           "perks": ["promote", "reserve", "head_start"] },
+    { "id": "caster",     "name": "術師",   "concept": "カード中心",                 "perks": ["recall", "head_start"] }
+  ]
+}
