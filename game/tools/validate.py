@@ -371,6 +371,28 @@ def check_economy(economy, chars, cards, trumps, errors):
             f"economy: 初期上限 {levels[0]['max']} では最安の {cheapest} すら出せない"
         )
 
+    # コストはそのユニットの個性なので、解禁が最終レベルだと個性が試合に出ない。
+    for unit in chars["characters"]:
+        unlock = next((lv["level"] for lv in levels if lv["max"] >= unit["cost"]), None)
+        if unlock == levels[-1]["level"]:
+            errors.append(
+                f"{unit['name']}: 解禁が最終レベル({unlock})だけ。"
+                "そこまで行く試合が少ないと、このユニットの個性は出てこない"
+            )
+
+
+def unlock_table(economy, chars):
+    """どのレベルで誰が使えるようになるか。"""
+    levels = economy["growth"]["levels"]
+    rows = []
+    for level in levels:
+        newly = [u["name"] for u in chars["characters"]
+                 if u["cost"] <= level["max"]
+                 and not any(u["cost"] <= lower["max"] for lower in levels
+                             if lower["level"] < level["level"])]
+        rows.append((level["level"], level["max"], newly))
+    return rows
+
 
 def check_trumps(trumps, match, errors):
     """切り札。1試合1回しか出せないので、出せないまま終わる設定は事故。"""
@@ -421,6 +443,11 @@ def main():
         for error in errors:
             print(f"NG  {error}")
         return 1
+
+    print()
+    for level, ceiling, newly in unlock_table(match["economy"], chars):
+        if newly:
+            print(f"Lv{level} 上限{ceiling:>5}  {'・'.join(newly)}")
 
     print(f"\nOK  アバター {len(rows)} / 特典 {len(perks['perks'])} / "
           f"カード {len(cards['cards'])} / ユニット {len(chars['characters'])} / "
