@@ -8,6 +8,7 @@
 """
 
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -166,23 +167,149 @@ def check_readability(perks, cards, match, errors):
 
 
 def check_match(match, errors):
-    fmt = match["format"]
-    slots = fmt["chosen_slots"] + fmt["random_slots"]
-    if slots != fmt["team_size"]:
+    roster = match["roster"]
+    slots = roster["chosen_slots"] + roster["random_slots"]
+    if slots != roster["slots"]:
         errors.append(
-            f"match: {fmt['chosen_slots']}+{fmt['random_slots']} が "
-            f"team_size {fmt['team_size']} と合わない"
+            f"match: {roster['chosen_slots']}+{roster['random_slots']} が "
+            f"出撃枠 {roster['slots']} と合わない"
         )
-    if fmt["ko_to_win"] >= fmt["team_size"]:
+
+
+def check_characters(chars, match, errors):
+    """ユニットの数字。DPS は 攻撃力÷攻撃間隔 の導出値として毎回ここで計算する。"""
+    units = chars["characters"]
+    roster = match["roster"]
+    lo, hi = roster["unit_cost_range"]
+    cd_lo, cd_hi = roster["unit_cooldown_range_sec"]
+
+    seen = set()
+    for unit in units:
+        if unit["id"] in seen:
+            errors.append(f"characters: id が重複 {unit['id']}")
+        seen.add(unit["id"])
+        if not lo <= unit["cost"] <= hi:
+            errors.append(
+                f"{unit['name']}: コスト {unit['cost']} が {lo}〜{hi} の外"
+            )
+        if not cd_lo <= unit["cooldown_sec"] <= cd_hi:
+            errors.append(
+                f"{unit['name']}: 再出撃CD {unit['cooldown_sec']}秒 が "
+                f"{cd_lo}〜{cd_hi}秒 の外"
+            )
+        # 高コストほど連打できない、という関係が崩れていないか
+        expected = unit["cost"] / 25
+        if not 0.4 <= unit["cooldown_sec"] / expected <= 1.6:
+            errors.append(
+                f"{unit['name']}: 再出撃CD {unit['cooldown_sec']}秒 が"
+                f"コスト {unit['cost']} に対して外れすぎ（目安 {expected:.0f}秒）"
+            )
+
+    dps = {u["id"]: u["attack"] / u["attack_interval_sec"] for u in units}
+    hp_median = statistics.median(u["hp"] for u in units)
+    dps_median = statistics.median(dps.values())
+    speed_median = statistics.median(u["speed_mps"] for u in units)
+    FAR = 50  # ここを超えたら遠距離扱い
+
+    for unit in units:
+        near, far = unit["attack_band_m"]
+        if near < 0 or near >= far:
+            errors.append(
+                f"{unit['name']}: 攻撃範囲 [{near}, {far}] が帯になっていない"
+            )
+            continue
+
+        # 死角を持つのは「相手の前線を飛び越えて後ろを叩く」ための兵器。
+        # 単体攻撃だと役割が立たないうえ、近づかれた時の弱さだけが残る。
+        if near > 0 and unit["target"] != "area":
+            errors.append(
+                f"{unit['name']}: 死角 {near}m を持つのに単体攻撃。"
+                "後方範囲は範囲攻撃で成立させる"
+            )
+
+        if far <= FAR:
+            continue
+
+        # 遠距離の縛り。次のどれかは必ず空けること。
+        #   死角がある / 体力が中央値以下 / 手数が中央値以下
+        # 全部埋まると「近づいても倒せない遠距離」になって詰む。
+        outs = []
+        if near > 0:
+            outs.append(f"死角{near}m")
+        if unit["hp"] <= hp_median:
+            outs.append("体力が中央値以下")
+        if dps[unit["id"]] <= dps_median:
+            outs.append("手数が中央値以下")
+        if not outs:
+            errors.append(
+                f"{unit['name']}: 射程 {far}m で死角なし・体力も手数も上位"
+                f"（HP {unit['hp']} > {hp_median:.0f}、"
+                f"DPS {dps[unit['id']]:.0f} > {dps_median:.0f}）。"
+                "死角・体力・手数のどれかを空ける"
+            )
+
+        # 速い遠距離は、安全な位置を保ったまま前線を押し上げてしまう。
+        if unit["speed_mps"] > speed_median:
+            errors.append(
+                f"{unit['name']}: 射程 {far}m で速度 {unit['speed_mps']} は"
+                f"中央値 {speed_median:.1f} 超え。遠距離は足を遅くする"
+            )
+
+    # ティアはランダム枠の鏡像抽選の土台。コスト帯が重なっていると意味を失う。
+    by_tier = {}
+    for unit in units:
+        by_tier.setdefault(unit["tier"], []).append(unit["cost"])
+    order = sorted(by_tier, key=lambda t: min(by_tier[t]))
+    for lower, upper in zip(order, order[1:]):
+        if max(by_tier[lower]) >= min(by_tier[upper]):
+            errors.append(
+                f"characters: ティア {lower} と {upper} のコスト帯が重なっている"
+                f"（{max(by_tier[lower])} ≥ {min(by_tier[upper])}）"
+            )
+
+    # 抽選テンプレートが参照するティアに、実際にユニットがあるか
+    needed = {t for tpl in match["random_slot_draw"]["mirrored_tier_templates"]
+              for t in tpl}
+    for tier in sorted(needed - set(by_tier)):
         errors.append(
-            f"match: ko_to_win {fmt['ko_to_win']} が編成数以上。"
-            "全員出撃になり「出さない選択」が消える"
+            f"characters: 抽選テンプレートが参照するティア {tier} のユニットが無い"
         )
+
+    return dps
+
+
+def check_trumps(trumps, match, errors):
+    """切り札。1試合1回しか出せないので、出せないまま終わる設定は事故。"""
+    rules = match["trump"]
+    economy = match["economy"]
+    unlock = rules["unlock_at_sec"]
+    reachable = economy["start"] + economy["per_sec"] * unlock
+
+    for trump in trumps["trumps"]:
+        if trump["cost"] > economy["max"]:
+            errors.append(
+                f"{trump['name']}: コスト {trump['cost']} が資金上限 "
+                f"{economy['max']} を超えていて、永久に出せない"
+            )
+        if trump["cost"] > reachable:
+            errors.append(
+                f"{trump['name']}: 解禁の {unlock}秒 時点で貯まる "
+                f"{reachable:.0f} では出せない。解禁時刻かコストを見直す"
+            )
+        # 召喚演出は相手が見て対応するための時間。反応より短いと不意打ちになる。
+        if trump["summon_sec"] < match["readability"]["human_reaction_sec"]:
+            errors.append(
+                f"{trump['name']}: 召喚 {trump['summon_sec']}秒 は反応 "
+                f"{match['readability']['human_reaction_sec']}秒 より短く、対応できない"
+            )
+        if trump["lifespan_sec"] <= 0:
+            errors.append(f"{trump['name']}: 寿命が設定されていない")
 
 
 def main():
     perks, avatars = load("perks"), load("avatars")
     cards, match = load("cards"), load("match")
+    chars, trumps = load("characters"), load("trumps")
 
     errors = []
     check_perks(perks, errors)
@@ -190,6 +317,8 @@ def main():
     check_cards(cards, match, errors)
     check_readability(perks, cards, match, errors)
     check_match(match, errors)
+    check_characters(chars, match, errors)
+    check_trumps(trumps, match, errors)
 
     width = max((len(name) for name, _, _, _ in rows), default=0)
     sig_width = max((len(sig) for _, _, sig, _ in rows), default=0)
@@ -204,7 +333,8 @@ def main():
         return 1
 
     print(f"\nOK  アバター {len(rows)} / 特典 {len(perks['perks'])} / "
-          f"カード {len(cards['cards'])}")
+          f"カード {len(cards['cards'])} / ユニット {len(chars['characters'])} / "
+          f"切り札 {len(trumps['trumps'])}")
     return 0
 
 

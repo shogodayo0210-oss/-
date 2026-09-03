@@ -1,0 +1,11 @@
+{
+  "_comment": "切り札。出撃8枠とは別枠で1体だけ選び、1試合に1回だけ出せる。強いが寿命で退場する。中身は召喚まで非公開だが、召喚には3秒の演出があり相手は見てから対応できる。",
+  "trumps": [
+    { "id": "colossus",  "name": "巨神",     "cost": 800, "lifespan_sec": 20, "summon_sec": 3.0,
+      "role": "前線を押し切る", "profile": { "hp": "超高", "speed": "低", "attack": "範囲・高" } },
+    { "id": "gale_edge", "name": "疾風の刃", "cost": 700, "lifespan_sec": 15, "summon_sec": 2.5,
+      "role": "拠点に直行する", "profile": { "hp": "低", "speed": "超高", "attack": "単体・高速" } },
+    { "id": "archmage",  "name": "大呪術師", "cost": 750, "lifespan_sec": 18, "summon_sec": 3.0,
+      "role": "後方から拠点を叩く", "profile": { "hp": "中", "speed": "極低", "attack": "超遠距離・拠点特効" } }
+  ]
+}

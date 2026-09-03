@@ -1,0 +1,60 @@
+{
+  "_comment": "出撃ユニット。能力は 体力 / 攻撃力 / 攻撃間隔 / 攻撃範囲 / 移動速度 / コスト / 再出撃CD で決める。DPS は 攻撃力÷攻撃間隔 の導出値なので持たせない。",
+  "stat_model": {
+    "hp": "体力。ユニット自身の耐久",
+    "attack": "1発の攻撃力",
+    "attack_interval_sec": "攻撃間隔。短いほど手数が多い（攻撃頻度）",
+    "attack_band_m": "攻撃が当たる帯 [手前, 奥]。手前が0なら足元から、0より大きければ そこまでが死角＝近づかれると何もできない",
+    "target": "single=単体 / area=範囲",
+    "speed_mps": "前進速度。前線がどこで作られるかを決める",
+    "cost": "出撃に払う資金",
+    "cooldown_sec": "同じユニットを再度出せるまでの時間",
+    "tier": "S/A/B。ランダム枠の鏡像抽選はこのティアで揃える"
+  },
+  "characters": [
+    { "id": "grunt",   "name": "兵卒",     "tier": "B", "cost":  60, "cooldown_sec":  3,
+      "hp":  400, "attack":  60, "attack_interval_sec": 1.2,
+      "attack_band_m": [0, 12], "target": "single", "speed_mps": 8,
+      "role": "数で押す。単体では何もできないが、壁として一番安い" },
+
+    { "id": "spear",   "name": "槍兵",     "tier": "B", "cost": 120, "cooldown_sec":  5,
+      "hp":  700, "attack": 110, "attack_interval_sec": 1.4,
+      "attack_band_m": [0, 25], "target": "single", "speed_mps": 7,
+      "role": "接近戦の一歩外から刺す。兵卒の後ろに置く" },
+
+    { "id": "archer",  "name": "弓手",     "tier": "A", "cost": 200, "cooldown_sec":  8,
+      "hp":  450, "attack": 130, "attack_interval_sec": 1.7,
+      "attack_band_m": [0, 90], "target": "single", "speed_mps": 4,
+      "role": "遠距離の単体。前に壁がないと即溶ける" },
+
+    { "id": "shield",  "name": "重装",     "tier": "A", "cost": 260, "cooldown_sec": 10,
+      "hp": 3000, "attack":  70, "attack_interval_sec": 2.0,
+      "attack_band_m": [0, 14], "target": "single", "speed_mps": 4,
+      "role": "壁役。攻撃力は捨てて、後ろの遠距離を守る時間を買う" },
+
+    { "id": "twin",    "name": "双剣",     "tier": "A", "cost": 300, "cooldown_sec": 12,
+      "hp":  900, "attack": 200, "attack_interval_sec": 0.8,
+      "attack_band_m": [0, 13], "target": "single", "speed_mps": 9,
+      "role": "接近戦で最も手数が多い。硬い相手を溶かす代わりに紙" },
+
+    { "id": "sweeper", "name": "薙ぎ払い", "tier": "A", "cost": 340, "cooldown_sec": 14,
+      "hp": 1200, "attack": 180, "attack_interval_sec": 2.0,
+      "attack_band_m": [0, 45], "target": "area", "speed_mps": 5,
+      "role": "前線範囲。足元から45mまでを薙ぐので、群れてきた安いユニットに強い" },
+
+    { "id": "mortar",  "name": "臼砲",     "tier": "S", "cost": 400, "cooldown_sec": 16,
+      "hp":  500, "attack": 480, "attack_interval_sec": 3.2,
+      "attack_band_m": [70, 150], "target": "area", "speed_mps": 3,
+      "role": "後方範囲。手前70mが死角で、相手の前線を飛び越えて後衛を叩く。懐に入られたら何もできない" },
+
+    { "id": "cannon",  "name": "砲手",     "tier": "S", "cost": 420, "cooldown_sec": 18,
+      "hp":  600, "attack": 480, "attack_interval_sec": 3.5,
+      "attack_band_m": [0, 130], "target": "area", "speed_mps": 3,
+      "role": "死角のない遠距離範囲。そのぶん体力は低い。撃った直後が狙い目" },
+
+    { "id": "titan",   "name": "巨兵",     "tier": "S", "cost": 600, "cooldown_sec": 25,
+      "hp": 6000, "attack": 350, "attack_interval_sec": 2.4,
+      "attack_band_m": [0, 20], "target": "area", "speed_mps": 3,
+      "role": "体力も攻撃力も最上位。ただし遅く、出したら資金が空になる" }
+  ]
+}

@@ -27,12 +27,13 @@
 
     { "id": "gauge_sight", "name": "検算", "category": "info", "cost": 2,
       "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "show": "opponent_gauge", "duration": "always" } },
+      "params": { "show": "opponent_money", "duration": "always" },
+      "note": "相手の資金が見える＝次に何を出せるか／切り札を出せるかが読める" },
 
     { "id": "pick_plus", "name": "選抜+1", "category": "draft", "cost": 6,
       "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
       "params": { "chosen_slots": 7, "random_slots": 1 },
-      "note": "6→8 は編成システムそのものを消すので +1 に留める" },
+      "note": "出撃できるユニットの種類が7になる。6→8 は編成システムそのものを消すので +1 に留める" },
 
     { "id": "reroll", "name": "引き直し", "category": "draft", "cost": 4,
       "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
@@ -59,20 +60,28 @@
 
     { "id": "parry", "name": "見切り", "category": "combat_active", "cost": 3,
       "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "recovery_sec": 0.35, "gauge_on_success": 25 },
-      "note": "合わせて防ぐための窓。startup 0 でないと原理的に合わせられない。外した時の後隙が読み合いの本体" },
+      "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "scope": "own_units_and_base",
+                  "deploy_lock_sec": 1.0, "money_on_success": 200 },
+      "note": "相手のカード／切り札の発動に合わせて押す。自軍と拠点が0.3秒だけ無敵。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない" },
 
-    { "id": "escape", "name": "緊急離脱", "category": "combat_active", "cost": 5,
+    { "id": "surge", "name": "突撃", "category": "combat_active", "cost": 5,
       "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 2, "invuln_sec": 0.8, "dash_back": true } },
+      "params": { "charges": 2, "duration_sec": 5, "speed_mult": 1.5 },
+      "note": "自軍全ユニットの前進速度+50%を5秒。相手の遠距離ユニットに詰めるための択" },
+
+    { "id": "bunker", "name": "防壁", "category": "combat_active", "cost": 5,
+      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
+      "params": { "charges": 2, "duration_sec": 2, "blocks": "enemy_units" },
+      "note": "自拠点の前に2秒だけ壁。切り札の到達を遅らせる用途" },
 
     { "id": "last_stand", "name": "起死回生", "category": "combat_passive", "cost": 4,
       "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "trigger": "last_character", "max_hp_bonus": 0.2, "once": true } },
+      "params": { "trigger": "own_base_hp_below", "threshold": 0.3, "money_gain": 600, "once": true },
+      "note": "拠点HPが3割を切った時に1回だけ資金600。負けている側だけが使える立て直し" },
 
     { "id": "head_start", "name": "先手", "category": "tempo", "cost": 3,
       "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "start_gauge": 30 } },
+      "params": { "start_money": 300 } },
 
     { "id": "quick_cast", "name": "詠唱短縮", "category": "tempo", "cost": 5,
       "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
