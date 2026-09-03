@@ -180,6 +180,7 @@ def check_characters(chars, match, errors):
     """ユニットの数字。DPS は 攻撃力÷攻撃間隔 の導出値として毎回ここで計算する。"""
     units = chars["characters"]
     roster = match["roster"]
+    rules = match["readability"]
     lo, hi = roster["unit_cost_range"]
     cd_lo, cd_hi = roster["unit_cooldown_range_sec"]
 
@@ -221,10 +222,39 @@ def check_characters(chars, match, errors):
 
         # 死角を持つのは「相手の前線を飛び越えて後ろを叩く」ための兵器。
         # 単体攻撃だと役割が立たないうえ、近づかれた時の弱さだけが残る。
-        if near > 0 and unit["target"] != "area":
+        if near > 0 and unit["pierce"] < 2:
             errors.append(
-                f"{unit['name']}: 死角 {near}m を持つのに単体攻撃。"
+                f"{unit['name']}: 死角 {near}m を持つのに貫通 {unit['pierce']}。"
                 "後方範囲は範囲攻撃で成立させる"
+            )
+
+        # 攻撃発生。振り始めが見えないと、見切りもカードも合わせられない。
+        if unit["attack_windup_sec"] >= unit["attack_interval_sec"]:
+            errors.append(
+                f"{unit['name']}: 攻撃発生 {unit['attack_windup_sec']}秒 が"
+                f"攻撃間隔 {unit['attack_interval_sec']}秒 以上"
+            )
+        if (unit["attack"] > rules["big_hit_threshold"]
+                and unit["attack_windup_sec"] < rules["min_charge_windup_sec"]):
+            errors.append(
+                f"{unit['name']}: 1発 {unit['attack']} の大きい一撃なのに発生 "
+                f"{unit['attack_windup_sec']}秒。{rules['min_charge_windup_sec']}秒 以上にして"
+                "、見てから動けるようにする"
+            )
+
+        # ノックバック1回あたりの耐久。細かすぎると押されっぱなしで機能しない。
+        per_kb = unit["hp"] / unit["knockback"]
+        if per_kb < roster["min_hp_per_knockback"]:
+            errors.append(
+                f"{unit['name']}: ノックバック{unit['knockback']}回で1回あたり "
+                f"{per_kb:.0f} しか耐えられない"
+                f"（下限 {roster['min_hp_per_knockback']}）"
+            )
+
+        s_lo, s_hi = roster["siege_mult_range"]
+        if not s_lo <= unit["siege_mult"] <= s_hi:
+            errors.append(
+                f"{unit['name']}: 対拠点倍率 {unit['siege_mult']} が {s_lo}〜{s_hi} の外"
             )
 
         if far <= FAR:
@@ -278,19 +308,78 @@ def check_characters(chars, match, errors):
     return dps
 
 
+def money_at(economy, seconds):
+    """t秒時点で到達しうる所持額。
+
+    「レベルiまで上げて、そこで止めて貯める」筋を全部試して最大を取る。
+    上げ続ける筋だけを見ると、上げた直後は所持金0なので実態より低く出る。
+    """
+    levels = economy["growth"]["levels"]
+    best = 0.0
+    money, t = economy["start"], 0.0
+
+    for i, level in enumerate(levels):
+        if t > seconds:
+            break
+        # ここで止めた場合、残り時間ぶん貯められる
+        best = max(best, min(level["max"],
+                             money + level["per_sec"] * (seconds - t)))
+        if "upgrade_cost" not in level:
+            break
+        cost = level["upgrade_cost"]
+        if money < cost:
+            t += (cost - money) / level["per_sec"]
+            money = cost
+        money -= cost
+
+    return best
+
+
+def check_economy(economy, chars, cards, trumps, errors):
+    """資金の成長。上限が足りないと、そのユニットは永久に出せない。"""
+    levels = economy["growth"]["levels"]
+
+    for lower, upper in zip(levels, levels[1:]):
+        if upper["max"] <= lower["max"] or upper["per_sec"] <= lower["per_sec"]:
+            errors.append(
+                f"economy: レベル{upper['level']} が レベル{lower['level']} より"
+                "強くなっていない"
+            )
+    for level in levels[:-1]:
+        if "upgrade_cost" not in level:
+            errors.append(f"economy: レベル{level['level']} に upgrade_cost が無い")
+        elif level["upgrade_cost"] > level["max"]:
+            errors.append(
+                f"economy: レベル{level['level']} の強化費用 {level['upgrade_cost']} が"
+                f"そのレベルの上限 {level['max']} を超えていて、永久に払えない"
+            )
+
+    ceiling = levels[-1]["max"]
+    priced = ([(u["name"], u["cost"]) for u in chars["characters"]]
+              + [(c["name"], c["cost"]) for c in cards["cards"]]
+              + [(t["name"], t["cost"]) for t in trumps["trumps"]])
+    for name, cost in priced:
+        if cost > ceiling:
+            errors.append(
+                f"{name}: コスト {cost} が最終レベルの上限 {ceiling} を超えていて、"
+                "永久に出せない"
+            )
+
+    cheapest = min(u["cost"] for u in chars["characters"])
+    if cheapest > levels[0]["max"]:
+        errors.append(
+            f"economy: 初期上限 {levels[0]['max']} では最安の {cheapest} すら出せない"
+        )
+
+
 def check_trumps(trumps, match, errors):
     """切り札。1試合1回しか出せないので、出せないまま終わる設定は事故。"""
     rules = match["trump"]
     economy = match["economy"]
     unlock = rules["unlock_at_sec"]
-    reachable = economy["start"] + economy["per_sec"] * unlock
+    reachable = money_at(economy, unlock)
 
     for trump in trumps["trumps"]:
-        if trump["cost"] > economy["max"]:
-            errors.append(
-                f"{trump['name']}: コスト {trump['cost']} が資金上限 "
-                f"{economy['max']} を超えていて、永久に出せない"
-            )
         if trump["cost"] > reachable:
             errors.append(
                 f"{trump['name']}: 解禁の {unlock}秒 時点で貯まる "
@@ -318,6 +407,7 @@ def main():
     check_readability(perks, cards, match, errors)
     check_match(match, errors)
     check_characters(chars, match, errors)
+    check_economy(match["economy"], chars, cards, trumps, errors)
     check_trumps(trumps, match, errors)
 
     width = max((len(name) for name, _, _, _ in rows), default=0)
