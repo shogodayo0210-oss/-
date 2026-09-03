@@ -31,33 +31,47 @@ def check_perks(perks, errors):
             errors.append(f"perks: cost が 1 未満 {perk['id']}")
 
 
-def check_mains(perks, mains, errors):
+def check_avatars(perks, avatars, errors):
     budget = perks["budget"]
     by_id = {p["id"]: p for p in perks["perks"]}
     rows = []
 
-    for main in mains["mains"]:
-        refs = main["perks"]
+    for avatar in avatars["avatars"]:
+        refs = avatar["perks"]
         if len(refs) != len(set(refs)):
-            errors.append(f"{main['id']}: 同じ特典を二重に持っている")
+            errors.append(f"{avatar['id']}: 同じ特典を二重に持っている")
 
         unknown = [r for r in refs if r not in by_id]
         for ref in unknown:
-            errors.append(f"{main['id']}: 未定義の特典 {ref}")
+            errors.append(f"{avatar['id']}: 未定義の特典 {ref}")
         if unknown:
             continue
 
         # 看板の特典。これ1つで覚えてもらうので、必ず手持ちの中から1つ選ぶ。
-        if main["signature"] not in refs:
+        if avatar["signature"] not in refs:
             errors.append(
-                f"{main['id']}: signature {main['signature']} を持っていない"
+                f"{avatar['id']}: signature {avatar['signature']} を持っていない"
             )
+        elif not by_id[avatar["signature"]]["changes_flow"]:
+            errors.append(
+                f"{avatar['id']}: 看板の {by_id[avatar['signature']]['name']} は"
+                "数字が変わるだけの特典。手順が変わるもの（changes_flow）を看板にする"
+            )
+
+        # 同居を禁じた組み合わせ（例：索敵で見てから枠を埋める＝カウンターピック）
+        for perk in (by_id[r] for r in refs):
+            banned = set(perk.get("exclusive_with", [])) & set(refs)
+            for other in sorted(banned):
+                errors.append(
+                    f"{avatar['id']}: {perk['name']} と {by_id[other]['name']} は"
+                    "同時に持てない"
+                )
 
         held = [by_id[r] for r in refs]
         total = sum(p["cost"] for p in held)
         if not budget["min_total"] <= total <= budget["max_total"]:
             errors.append(
-                f"{main['id']}: 合計 {total}pt が予算 "
+                f"{avatar['id']}: 合計 {total}pt が予算 "
                 f"{budget['min_total']}〜{budget['max_total']}pt の外"
             )
 
@@ -68,11 +82,11 @@ def check_mains(perks, mains, errors):
             cap = budget["category_caps"][category]
             if count > cap:
                 errors.append(
-                    f"{main['id']}: {category} が {count} 個（上限 {cap}）"
+                    f"{avatar['id']}: {category} が {count} 個（上限 {cap}）"
                 )
 
-        others = [p["name"] for p in held if p["id"] != main["signature"]]
-        rows.append((main["name"], total, by_id[main["signature"]]["name"], others))
+        others = [p["name"] for p in held if p["id"] != avatar["signature"]]
+        rows.append((avatar["name"], total, by_id[avatar["signature"]]["name"], others))
 
     return rows
 
@@ -167,12 +181,12 @@ def check_match(match, errors):
 
 
 def main():
-    perks, mains = load("perks"), load("mains")
+    perks, avatars = load("perks"), load("avatars")
     cards, match = load("cards"), load("match")
 
     errors = []
     check_perks(perks, errors)
-    rows = check_mains(perks, mains, errors)
+    rows = check_avatars(perks, avatars, errors)
     check_cards(cards, match, errors)
     check_readability(perks, cards, match, errors)
     check_match(match, errors)
@@ -189,7 +203,7 @@ def main():
             print(f"NG  {error}")
         return 1
 
-    print(f"\nOK  メイン {len(rows)} / 特典 {len(perks['perks'])} / "
+    print(f"\nOK  アバター {len(rows)} / 特典 {len(perks['perks'])} / "
           f"カード {len(cards['cards'])}")
     return 0
 

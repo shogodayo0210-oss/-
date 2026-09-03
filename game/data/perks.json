@@ -1,5 +1,5 @@
 {
-  "_comment": "メインキャラクターが持つ特典のカタログ。cost は勝率への寄与で後から動かす前提の仮価格。",
+  "_comment": "アバターが持つ特典のカタログ。cost は勝率への寄与で後から動かす前提の仮価格。changes_flow=true は「手順が増える／画面が変わる」特典で、看板(signature)はここから選ぶ。",
   "budget": {
     "max_total": 10,
     "min_total": 9,
@@ -12,37 +12,80 @@
     }
   },
   "perks": [
-    { "id": "scout_1",     "name": "索敵Ⅰ",     "category": "info",           "cost": 5, "resolves_in": "intel",  "visible_to_opponent": true,
+    { "id": "scout_1", "name": "索敵Ⅰ", "category": "info", "cost": 5,
+      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
       "params": { "reveal_from": "opponent_chosen", "count": 3, "selection": "random" },
       "note": "公開は両者ロック後。ロック前に見えるとカウンターピック機になる" },
-    { "id": "scout_2",     "name": "索敵Ⅱ",     "category": "info",           "cost": 3, "resolves_in": "intel",  "visible_to_opponent": true,
+
+    { "id": "scout_2", "name": "索敵Ⅱ", "category": "info", "cost": 3,
+      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
       "params": { "reveal_from": "opponent_random", "count": 2, "selection": "all" } },
-    { "id": "mind_read",   "name": "読心",       "category": "info",           "cost": 4, "resolves_in": "intel",  "visible_to_opponent": true,
+
+    { "id": "mind_read", "name": "読心", "category": "info", "cost": 4,
+      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
       "params": { "reveal_from": "opponent_deck", "count": 1, "granularity": "school_only" } },
-    { "id": "gauge_sight", "name": "検算",       "category": "info",           "cost": 2, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "gauge_sight", "name": "検算", "category": "info", "cost": 2,
+      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "show": "opponent_gauge", "duration": "always" } },
-    { "id": "pick_plus",   "name": "選抜+1",     "category": "draft",          "cost": 6, "resolves_in": "draft",  "visible_to_opponent": true,
+
+    { "id": "pick_plus", "name": "選抜+1", "category": "draft", "cost": 6,
+      "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
       "params": { "chosen_slots": 7, "random_slots": 1 },
       "note": "6→8 は編成システムそのものを消すので +1 に留める" },
-    { "id": "reroll",      "name": "引き直し",   "category": "draft",          "cost": 4, "resolves_in": "draft",  "visible_to_opponent": true,
+
+    { "id": "reroll", "name": "引き直し", "category": "draft", "cost": 4,
+      "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
       "params": { "reroll_random_slots": 1 } },
-    { "id": "promote",     "name": "抜擢",       "category": "draft",          "cost": 4, "resolves_in": "draft",  "visible_to_opponent": true,
+
+    { "id": "promote", "name": "抜擢", "category": "draft", "cost": 4,
+      "changes_flow": false, "resolves_in": "draft", "visible_to_opponent": true,
       "params": { "tier_shift": 1 } },
-    { "id": "reserve",     "name": "予備兵",     "category": "draft",          "cost": 3, "resolves_in": "draft",  "visible_to_opponent": true,
+
+    { "id": "reserve", "name": "予備兵", "category": "draft", "cost": 3,
+      "changes_flow": false, "resolves_in": "draft", "visible_to_opponent": true,
       "params": { "team_size": 9, "chosen_slots": 6, "random_slots": 3 } },
-    { "id": "parry",       "name": "見切り",     "category": "combat_active",  "cost": 3, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "pocket", "name": "隠し玉", "category": "draft", "cost": 3,
+      "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
+      "params": { "deck_size": 4, "revealed_at_start": 1 },
+      "note": "4枚目の代償に1枚を晒す。晒す1枚をどれにするかが構築の駆け引きになる" },
+
+    { "id": "late_pick", "name": "後出し", "category": "draft", "cost": 4,
+      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
+      "params": { "held_chosen_slots": 1 },
+      "exclusive_with": ["scout_1", "scout_2", "mind_read"],
+      "note": "情報を見てから枠を埋めるのは事実上のカウンターピック。索敵系との同居は禁止" },
+
+    { "id": "parry", "name": "見切り", "category": "combat_active", "cost": 3,
+      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "recovery_sec": 0.35, "gauge_on_success": 25 },
       "note": "合わせて防ぐための窓。startup 0 でないと原理的に合わせられない。外した時の後隙が読み合いの本体" },
-    { "id": "escape",      "name": "緊急離脱",   "category": "combat_active",  "cost": 5, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "escape", "name": "緊急離脱", "category": "combat_active", "cost": 5,
+      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "charges": 2, "invuln_sec": 0.8, "dash_back": true } },
-    { "id": "last_stand",  "name": "起死回生",   "category": "combat_passive", "cost": 4, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "last_stand", "name": "起死回生", "category": "combat_passive", "cost": 4,
+      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "trigger": "last_character", "max_hp_bonus": 0.2, "once": true } },
-    { "id": "head_start",  "name": "先手",       "category": "tempo",          "cost": 3, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "head_start", "name": "先手", "category": "tempo", "cost": 3,
+      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "start_gauge": 30 } },
-    { "id": "quick_cast",  "name": "詠唱短縮",   "category": "tempo",          "cost": 5, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "quick_cast", "name": "詠唱短縮", "category": "tempo", "cost": 5,
+      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "cast_time_mult": 0.7 },
       "note": "詠唱の下限は match.json の readability.min_cast_sec。短縮しても床は割らない（見切りで覆えなくなるため）" },
-    { "id": "recall",      "name": "追憶",       "category": "tempo",          "cost": 7, "resolves_in": "battle", "visible_to_opponent": true,
+
+    { "id": "feint", "name": "空撃ち", "category": "tempo", "cost": 3,
+      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
+      "params": { "cooldown_sec": 8, "gauge_cost": 0 },
+      "note": "詠唱モーションだけを出す。見切りやカード対策を釣るための択。相手が見切り持ちだと価値が上がる" },
+
+    { "id": "recall", "name": "追憶", "category": "tempo", "cost": 7,
+      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
       "params": { "reuse_spent_card": 1, "cost_mult": 2.0 } }
   ]
 }

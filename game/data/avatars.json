@@ -1,0 +1,12 @@
+{
+  "_comment": "アバターは1人1体。編成8体とは別枠で、戦場には出ず特典だけを持ち込む。signature は看板の特典で、必ず changes_flow=true のものから選ぶ。予算・カテゴリ上限は perks.json の budget に従う。",
+  "avatars": [
+    { "id": "scout",      "name": "斥候",   "concept": "相手を見てから組み立てる", "signature": "scout_1",   "perks": ["scout_1", "gauge_sight", "feint"] },
+    { "id": "strategist", "name": "軍師",   "concept": "カード読みと編成の微調整", "signature": "mind_read", "perks": ["mind_read", "gauge_sight", "reroll"] },
+    { "id": "marshal",    "name": "統率",   "concept": "事故を減らす構築寄り",     "signature": "pick_plus", "perks": ["pick_plus", "head_start"] },
+    { "id": "bulwark",    "name": "不動",   "concept": "大技に合わせて防ぐ",       "signature": "parry",     "perks": ["parry", "last_stand", "gauge_sight"] },
+    { "id": "gale",       "name": "疾風",   "concept": "手数と回避",               "signature": "escape",    "perks": ["escape", "quick_cast"] },
+    { "id": "gambler",    "name": "賭博師", "concept": "リスクを取って上振れる",   "signature": "pocket",    "perks": ["pocket", "promote", "head_start"] },
+    { "id": "caster",     "name": "術師",   "concept": "カード中心",               "signature": "recall",    "perks": ["recall", "feint"] }
+  ]
+}
