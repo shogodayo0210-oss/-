@@ -31,27 +31,33 @@ def check_perks(perks, errors):
             errors.append(f"perks: cost が 1 未満 {perk['id']}")
 
 
-def check_avatars(perks, avatars, errors):
+def check_mains(perks, mains, errors):
     budget = perks["budget"]
     by_id = {p["id"]: p for p in perks["perks"]}
     rows = []
 
-    for avatar in avatars["avatars"]:
-        refs = avatar["perks"]
+    for main in mains["mains"]:
+        refs = main["perks"]
         if len(refs) != len(set(refs)):
-            errors.append(f"{avatar['id']}: 同じ特典を二重に持っている")
+            errors.append(f"{main['id']}: 同じ特典を二重に持っている")
 
         unknown = [r for r in refs if r not in by_id]
         for ref in unknown:
-            errors.append(f"{avatar['id']}: 未定義の特典 {ref}")
+            errors.append(f"{main['id']}: 未定義の特典 {ref}")
         if unknown:
             continue
+
+        # 看板の特典。これ1つで覚えてもらうので、必ず手持ちの中から1つ選ぶ。
+        if main["signature"] not in refs:
+            errors.append(
+                f"{main['id']}: signature {main['signature']} を持っていない"
+            )
 
         held = [by_id[r] for r in refs]
         total = sum(p["cost"] for p in held)
         if not budget["min_total"] <= total <= budget["max_total"]:
             errors.append(
-                f"{avatar['id']}: 合計 {total}pt が予算 "
+                f"{main['id']}: 合計 {total}pt が予算 "
                 f"{budget['min_total']}〜{budget['max_total']}pt の外"
             )
 
@@ -62,10 +68,11 @@ def check_avatars(perks, avatars, errors):
             cap = budget["category_caps"][category]
             if count > cap:
                 errors.append(
-                    f"{avatar['id']}: {category} が {count} 個（上限 {cap}）"
+                    f"{main['id']}: {category} が {count} 個（上限 {cap}）"
                 )
 
-        rows.append((avatar["name"], total, "/".join(p["name"] for p in held)))
+        others = [p["name"] for p in held if p["id"] != main["signature"]]
+        rows.append((main["name"], total, by_id[main["signature"]]["name"], others))
 
     return rows
 
@@ -160,19 +167,21 @@ def check_match(match, errors):
 
 
 def main():
-    perks, avatars = load("perks"), load("avatars")
+    perks, mains = load("perks"), load("mains")
     cards, match = load("cards"), load("match")
 
     errors = []
     check_perks(perks, errors)
-    rows = check_avatars(perks, avatars, errors)
+    rows = check_mains(perks, mains, errors)
     check_cards(cards, match, errors)
     check_readability(perks, cards, match, errors)
     check_match(match, errors)
 
-    width = max((len(name) for name, _, _ in rows), default=0)
-    for name, total, detail in rows:
-        print(f"{name:<{width}}  {total:>2}pt  {detail}")
+    width = max((len(name) for name, _, _, _ in rows), default=0)
+    sig_width = max((len(sig) for _, _, sig, _ in rows), default=0)
+    for name, total, signature, others in rows:
+        print(f"{name:<{width}}  {total:>2}pt  {signature:<{sig_width}}"
+              f"  + {'/'.join(others) if others else '—'}")
 
     if errors:
         print()
@@ -180,7 +189,7 @@ def main():
             print(f"NG  {error}")
         return 1
 
-    print(f"\nOK  アバター {len(rows)} / 特典 {len(perks['perks'])} / "
+    print(f"\nOK  メイン {len(rows)} / 特典 {len(perks['perks'])} / "
           f"カード {len(cards['cards'])}")
     return 0
 

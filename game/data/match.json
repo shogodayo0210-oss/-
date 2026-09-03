@@ -1,5 +1,13 @@
 {
   "_comment": "試合フォーマットの調整値。すべて仮置き。",
+  "main_character": {
+    "_comment": "編成8体とは別枠。戦場には出ないが、アリーナ端に控えて特典発動時に反応する",
+    "per_player": 1,
+    "separate_from_team": true,
+    "fights": false,
+    "revealed": "match_start",
+    "changeable_between_matches": true
+  },
   "format": {
     "players": 2,
     "team_size": 8,
@@ -10,7 +18,7 @@
     "deploy_order_visible_to_opponent": false
   },
   "phases": [
-    { "id": "avatar_reveal", "seconds": 5,   "note": "アバターと保有特典を相互公開" },
+    { "id": "main_reveal",   "seconds": 5,   "note": "メインキャラクターと保有特典を相互公開" },
     { "id": "draft",         "seconds": 45,  "note": "6体選択＋デッキ3枚。互いに非公開" },
     { "id": "lock_commit",   "seconds": 2,   "note": "commit提出→共通シード→ランダム枠確定" },
     { "id": "intel",         "seconds": 12,  "note": "情報系特典の解決。出撃順の決定" },
