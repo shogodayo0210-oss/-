@@ -93,28 +93,65 @@ def check_avatars(perks, avatars, errors):
 
 
 def check_cards(cards, match, errors):
-    pool = sorted(c["cost"] for c in cards["cards"])
-    size = match["cards"]["deck_size"]
-    limit = match["cards"]["max_deck_cost"]
+    """カードは資金ではなく時間で回す。効いている時間の割合（占有率）で釣り合いを見る。"""
+    rules = match["cards"]
+    gcd = rules["global_cooldown_sec"]
+    lo, hi = rules["uptime_range"]
+    pool = cards["cards"]
 
-    if len(pool) < size:
-        errors.append(f"cards: プールが {len(pool)} 枚。デッキ {size} 枚を組めない")
-        return
-
-    if sum(pool[:size]) > limit:
+    if len(pool) < rules["deck_size"]:
         errors.append(
-            f"cards: 最安 {size} 枚でも {sum(pool[:size])} で上限 {limit} を超える"
-            "（合法なデッキが存在しない）"
-        )
-    if sum(pool[-size:]) <= limit:
-        errors.append(
-            f"cards: 最高 {size} 枚でも {sum(pool[-size:])} で上限 {limit} 以内"
-            "（構築制限が何も縛っていない）"
+            f"cards: プールが {len(pool)} 枚。デッキ {rules['deck_size']} 枚を組めない"
         )
 
-    names = [c["name"] for c in cards["cards"]]
+    names = [c["name"] for c in pool]
     if len(names) != len(set(names)):
         errors.append("cards: カード名が重複（同名不可ルールと衝突）")
+
+    uptimes = []
+    for card in pool:
+        if card["duration_sec"] >= card["cooldown_sec"]:
+            errors.append(
+                f"{card['name']}: 継続 {card['duration_sec']}秒 が"
+                f"クールタイム {card['cooldown_sec']}秒 以上。常時かかったままになる"
+            )
+        # 個別CTが共通CTより短いと、個別CTが何も縛らない
+        if card["cooldown_sec"] < gcd:
+            errors.append(
+                f"{card['name']}: 個別クールタイム {card['cooldown_sec']}秒 が"
+                f"共通クールタイム {gcd}秒 より短く、意味がない"
+            )
+        uptime = card["duration_sec"] / card["cooldown_sec"]
+        uptimes.append((uptime, card["name"]))
+        if not lo <= uptime <= hi:
+            errors.append(
+                f"{card['name']}: 占有率 {uptime:.0%}"
+                f"（継続{card['duration_sec']}秒 / CT{card['cooldown_sec']}秒）が"
+                f"{lo:.0%}〜{hi:.0%} の外"
+            )
+
+    # 一番濃いデッキでも、効きっぱなしにはならないこと
+    top = sorted(uptimes, reverse=True)[:rules["deck_size"]]
+    total = sum(u for u, _ in top)
+    if total > rules["max_deck_uptime"]:
+        combo = "・".join(name for _, name in top)
+        errors.append(
+            f"cards: 最も濃いデッキ（{combo}）の占有率合計が {total:.0%} で、"
+            f"上限 {rules['max_deck_uptime']:.0%} を超える"
+        )
+
+    # 読心が公開するのは系統だけ。系統が偏っていると情報の価値が消える。
+    families = {c["family"] for c in pool}
+    if len(families) < 3:
+        errors.append(
+            f"cards: 系統が {len(families)} 種類しかない。読心で見えても意味が薄い"
+        )
+    for side in ("own", "enemy"):
+        n = sum(1 for c in pool if c["target"] == side)
+        if n < 2:
+            errors.append(
+                f"cards: {'補助' if side == 'own' else '妨害'} が {n} 枚しかない"
+            )
 
 
 def check_readability(perks, cards, match, errors):
@@ -335,7 +372,7 @@ def money_at(economy, seconds):
     return best
 
 
-def check_economy(economy, chars, cards, trumps, errors):
+def check_economy(economy, chars, trumps, errors):
     """資金の成長。上限が足りないと、そのユニットは永久に出せない。"""
     levels = economy["growth"]["levels"]
 
@@ -356,7 +393,6 @@ def check_economy(economy, chars, cards, trumps, errors):
 
     ceiling = levels[-1]["max"]
     priced = ([(u["name"], u["cost"]) for u in chars["characters"]]
-              + [(c["name"], c["cost"]) for c in cards["cards"]]
               + [(t["name"], t["cost"]) for t in trumps["trumps"]])
     for name, cost in priced:
         if cost > ceiling:
@@ -429,7 +465,7 @@ def main():
     check_readability(perks, cards, match, errors)
     check_match(match, errors)
     check_characters(chars, match, errors)
-    check_economy(match["economy"], chars, cards, trumps, errors)
+    check_economy(match["economy"], chars, trumps, errors)
     check_trumps(trumps, match, errors)
 
     width = max((len(name) for name, _, _, _ in rows), default=0)

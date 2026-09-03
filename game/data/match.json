@@ -78,10 +78,14 @@
     "seed": "sha256(commitA || commitB || matchId)"
   },
   "cards": {
+    "_comment": "資金は使わない。1枚使うと共通クールタイムが入り、そのカード自身は個別クールタイムで戻る。使い切りではない",
     "deck_size": 3,
     "unique_names": true,
-    "max_deck_cost": 1000,
-    "opponent_sees": "count_only"
+    "uses_money": false,
+    "global_cooldown_sec": 12,
+    "max_deck_uptime": 0.75,
+    "uptime_range": [0.15, 0.30],
+    "opponent_sees": "unrevealed_count_and_cooldowns"
   },
   "readability": {
     "_comment": "見切り(0.3秒)を成立させるための床。詠唱短縮などの修正後もここを下回らない",

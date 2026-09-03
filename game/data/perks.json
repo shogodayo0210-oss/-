@@ -95,6 +95,7 @@
 
     { "id": "recall", "name": "追憶", "category": "tempo", "cost": 7,
       "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "reuse_spent_card": 1, "cost_mult": 2.0 } }
+      "params": { "reset_card_cooldown": 1, "includes_global_cooldown": true },
+      "note": "カードのクールタイムを1回だけ即座に戻す。同じ札を続けて重ねられる唯一の手段" }
   ]
 }

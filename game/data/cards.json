@@ -1,11 +1,51 @@
 {
-  "_comment": "呪文カードのサンプル。中身は非公開、残枚数のみ公開。資金は出撃と共用。",
+  "_comment": "呪文カードは戦術の道具。資金は使わず、クールタイムだけで回す。使い切りではなく、時間で戻ってくる。中身は最初に使うまで非公開。詠唱の予兆は必ず残す（見切りが合わせる相手なので）。",
+  "stat_model": {
+    "family": "系統。攻撃 / 機動 / 経済 / 耐久。読心が公開するのはここだけ",
+    "target": "own=自軍にかける / enemy=敵軍にかける（補助か妨害か）",
+    "duration_sec": "効果の継続時間",
+    "cooldown_sec": "そのカード個別の再使用まで",
+    "cast_sec": "詠唱。予兆が出て、見切りで合わせられる"
+  },
   "cards": [
-    { "id": "pillar_of_fire", "name": "火柱",     "school": "fire",   "cost": 250, "cast_sec": 0.6, "effect": "指定地点に炎柱。範囲中ダメージ" },
-    { "id": "healing_light",  "name": "治癒の光", "school": "light",  "cost": 200, "cast_sec": 0.8, "effect": "自拠点のHPを最大値の10%回復" },
-    { "id": "time_bind",      "name": "時縛",     "school": "arcane", "cost": 400, "cast_sec": 0.7, "effect": "敵ユニット全体を1.2秒停止" },
-    { "id": "shadow_clone",   "name": "影分身",   "school": "shadow", "cost": 300, "cast_sec": 0.5, "effect": "自軍最前列ユニットの分身を8秒間生成" },
-    { "id": "mirror_wall",    "name": "反射壁",   "school": "arcane", "cost": 275, "cast_sec": 0.4, "effect": "自陣前方に2秒間の反射壁。飛び道具を返す" },
-    { "id": "blitz",          "name": "総攻撃",   "school": "light",  "cost": 450, "cast_sec": 1.0, "effect": "自軍全ユニットの攻撃力+50%を8秒" }
+    { "id": "warcry",   "name": "鬨の声", "family": "攻撃", "target": "own",
+      "duration_sec": 10, "cooldown_sec": 40, "cast_sec": 0.7,
+      "effect": "自軍の攻撃力 +40%" },
+
+    { "id": "advance",  "name": "進軍",   "family": "機動", "target": "own",
+      "duration_sec": 8,  "cooldown_sec": 35, "cast_sec": 0.5,
+      "effect": "自軍の移動速度 +50%。前線を押し上げる" },
+
+    { "id": "levy",     "name": "徴発",   "family": "経済", "target": "own",
+      "duration_sec": 12, "cooldown_sec": 50, "cast_sec": 0.8,
+      "effect": "出撃コスト −30%。厚く並べたい時間に合わせる" },
+
+    { "id": "rally",    "name": "号令",   "family": "経済", "target": "own",
+      "duration_sec": 12, "cooldown_sec": 50, "cast_sec": 0.8,
+      "effect": "自軍の再出撃クールタイム −50%" },
+
+    { "id": "bulwark",  "name": "堅陣",   "family": "耐久", "target": "own",
+      "duration_sec": 8,  "cooldown_sec": 50, "cast_sec": 0.9,
+      "effect": "自軍がノックバックしなくなる。線を保つ" },
+
+    { "id": "mire",     "name": "泥濘",   "family": "機動", "target": "enemy",
+      "duration_sec": 8,  "cooldown_sec": 35, "cast_sec": 0.6,
+      "effect": "敵ユニットの移動速度 −50%" },
+
+    { "id": "rust",     "name": "錆",     "family": "攻撃", "target": "enemy",
+      "duration_sec": 10, "cooldown_sec": 40, "cast_sec": 0.7,
+      "effect": "敵ユニットの攻撃力 −30%" },
+
+    { "id": "dull",     "name": "鈍化",   "family": "攻撃", "target": "enemy",
+      "duration_sec": 8,  "cooldown_sec": 40, "cast_sec": 0.6,
+      "effect": "敵ユニットの攻撃間隔 +50%。手数を落とす" },
+
+    { "id": "blight",   "name": "枯渇",   "family": "経済", "target": "enemy",
+      "duration_sec": 8,  "cooldown_sec": 45, "cast_sec": 0.9,
+      "effect": "敵の資金の増え方 −50%。育てている相手に刺す" },
+
+    { "id": "brittle",  "name": "脆化",   "family": "耐久", "target": "enemy",
+      "duration_sec": 8,  "cooldown_sec": 45, "cast_sec": 0.7,
+      "effect": "敵ユニットのノックバック回数 +2。押し戻しやすくする" }
   ]
 }
