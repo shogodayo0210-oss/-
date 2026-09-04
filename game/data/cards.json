@@ -9,54 +9,455 @@
     "apply": "効果の中身。scope=誰に / stat=どの数字を / mult か add で。stat はユニットが持っている項目そのもの（attack / speed / attack_interval / knockback）"
   },
   "cards": [
-    { "id": "warcry",   "name": "鬨の声", "family": "攻撃", "target": "own",
-      "duration_sec": 10, "cooldown_sec": 40, "cast_sec": 0.7,
-      "apply": { "scope": "own_units", "stat": "attack", "mult": 1.4 },
-      "effect": "自軍の攻撃力 +40%" },
-
-    { "id": "advance",  "name": "進軍",   "family": "機動", "target": "own",
-      "duration_sec": 8,  "cooldown_sec": 35, "cast_sec": 0.5,
-      "apply": { "scope": "own_units", "stat": "speed", "mult": 1.5 },
-      "effect": "自軍の移動速度 +50%。前線を押し上げる" },
-
-    { "id": "levy",     "name": "徴発",   "family": "経済", "target": "own",
-      "duration_sec": 12, "cooldown_sec": 50, "cast_sec": 0.8,
-      "apply": { "scope": "own_deploy", "stat": "cost", "mult": 0.7 },
-      "effect": "出撃コスト −30%。厚く並べたい時間に合わせる" },
-
-    { "id": "rally",    "name": "号令",   "family": "経済", "target": "own",
-      "duration_sec": 12, "cooldown_sec": 50, "cast_sec": 0.8,
-      "apply": { "scope": "own_deploy", "stat": "deploy_cooldown", "mult": 0.5 },
-      "effect": "自軍の再出撃クールタイム −50%" },
-
-    { "id": "bulwark",  "name": "堅陣",   "family": "耐久", "target": "own",
-      "duration_sec": 8,  "cooldown_sec": 50, "cast_sec": 0.9,
-      "apply": { "scope": "own_units", "stat": "knockback", "mult": 0.0 },
-      "effect": "自軍がノックバックしなくなる。線を保つ" },
-
-    { "id": "mire",     "name": "泥濘",   "family": "機動", "target": "enemy",
-      "duration_sec": 8,  "cooldown_sec": 35, "cast_sec": 0.6,
-      "apply": { "scope": "enemy_units", "stat": "speed", "mult": 0.5 },
-      "effect": "敵ユニットの移動速度 −50%" },
-
-    { "id": "rust",     "name": "錆",     "family": "攻撃", "target": "enemy",
-      "duration_sec": 10, "cooldown_sec": 40, "cast_sec": 0.7,
-      "apply": { "scope": "enemy_units", "stat": "attack", "mult": 0.7 },
-      "effect": "敵ユニットの攻撃力 −30%" },
-
-    { "id": "dull",     "name": "鈍化",   "family": "攻撃", "target": "enemy",
-      "duration_sec": 8,  "cooldown_sec": 40, "cast_sec": 0.6,
-      "apply": { "scope": "enemy_units", "stat": "attack_interval", "mult": 1.5 },
-      "effect": "敵ユニットの攻撃間隔 +50%。手数を落とす" },
-
-    { "id": "blight",   "name": "枯渇",   "family": "経済", "target": "enemy",
-      "duration_sec": 8,  "cooldown_sec": 45, "cast_sec": 0.9,
-      "apply": { "scope": "enemy_economy", "stat": "income", "mult": 0.5 },
-      "effect": "敵の資金の増え方 −50%。育てている相手に刺す" },
-
-    { "id": "brittle",  "name": "脆化",   "family": "耐久", "target": "enemy",
-      "duration_sec": 8,  "cooldown_sec": 45, "cast_sec": 0.7,
-      "apply": { "scope": "enemy_units", "stat": "knockback", "add": 2 },
-      "effect": "敵ユニットのノックバック回数 +2。押し戻しやすくする" }
+    {
+      "id": "warcry",
+      "name": "鬨の声",
+      "family": "攻撃",
+      "target": "own",
+      "duration_sec": 10,
+      "cooldown_sec": 41,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack",
+        "mult": 1.4
+      },
+      "effect": "自軍の攻撃力 +40%"
+    },
+    {
+      "id": "morale",
+      "name": "士気",
+      "family": "攻撃",
+      "target": "own",
+      "duration_sec": 12,
+      "cooldown_sec": 50,
+      "cast_sec": 0.6,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack",
+        "mult": 1.2
+      },
+      "effect": "自軍の攻撃力 +20%。長く薄くかける"
+    },
+    {
+      "id": "lastcharge",
+      "name": "決死",
+      "family": "攻撃",
+      "target": "own",
+      "duration_sec": 6,
+      "cooldown_sec": 38,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack",
+        "mult": 1.8
+      },
+      "effect": "自軍の攻撃力 +80%。短く、決めに行く時だけ"
+    },
+    {
+      "id": "rust",
+      "name": "錆",
+      "family": "攻撃",
+      "target": "enemy",
+      "duration_sec": 10,
+      "cooldown_sec": 41,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "attack",
+        "mult": 0.7
+      },
+      "effect": "敵の攻撃力 −30%"
+    },
+    {
+      "id": "corrode",
+      "name": "腐食",
+      "family": "攻撃",
+      "target": "enemy",
+      "duration_sec": 7,
+      "cooldown_sec": 44,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "attack",
+        "mult": 0.5
+      },
+      "effect": "敵の攻撃力 −50%。相手の大型を無力化する"
+    },
+    {
+      "id": "quickhand",
+      "name": "早撃ち",
+      "family": "攻撃",
+      "target": "own",
+      "duration_sec": 8,
+      "cooldown_sec": 36,
+      "cast_sec": 0.5,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack_interval",
+        "mult": 0.8
+      },
+      "effect": "自軍の攻撃間隔 −20%"
+    },
+    {
+      "id": "frenzy",
+      "name": "猛攻",
+      "family": "攻撃",
+      "target": "own",
+      "duration_sec": 6,
+      "cooldown_sec": 38,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack_interval",
+        "mult": 0.6
+      },
+      "effect": "自軍の攻撃間隔 −40%"
+    },
+    {
+      "id": "dull",
+      "name": "鈍化",
+      "family": "攻撃",
+      "target": "enemy",
+      "duration_sec": 8,
+      "cooldown_sec": 40,
+      "cast_sec": 0.6,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "attack_interval",
+        "mult": 1.5
+      },
+      "effect": "敵の攻撃間隔 +50%。手数を落とす"
+    },
+    {
+      "id": "stagnate",
+      "name": "停滞",
+      "family": "攻撃",
+      "target": "enemy",
+      "duration_sec": 6,
+      "cooldown_sec": 38,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "attack_interval",
+        "mult": 2.0
+      },
+      "effect": "敵の攻撃間隔 +100%。ほぼ止める"
+    },
+    {
+      "id": "advance",
+      "name": "進軍",
+      "family": "機動",
+      "target": "own",
+      "duration_sec": 8,
+      "cooldown_sec": 35,
+      "cast_sec": 0.5,
+      "apply": {
+        "scope": "own_units",
+        "stat": "speed",
+        "mult": 1.5
+      },
+      "effect": "自軍の移動速度 +50%。前線を押し上げる"
+    },
+    {
+      "id": "sprint",
+      "name": "疾駆",
+      "family": "機動",
+      "target": "own",
+      "duration_sec": 5,
+      "cooldown_sec": 32,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "own_units",
+        "stat": "speed",
+        "mult": 2.0
+      },
+      "effect": "自軍の移動速度 +100%。一気に間合いを詰める"
+    },
+    {
+      "id": "mire",
+      "name": "泥濘",
+      "family": "機動",
+      "target": "enemy",
+      "duration_sec": 8,
+      "cooldown_sec": 35,
+      "cast_sec": 0.6,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "speed",
+        "mult": 0.5
+      },
+      "effect": "敵の移動速度 −50%"
+    },
+    {
+      "id": "freeze",
+      "name": "氷結",
+      "family": "機動",
+      "target": "enemy",
+      "duration_sec": 5,
+      "cooldown_sec": 32,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "speed",
+        "mult": 0.25
+      },
+      "effect": "敵の移動速度 −75%。押し返しを止める"
+    },
+    {
+      "id": "rally",
+      "name": "号令",
+      "family": "機動",
+      "target": "own",
+      "duration_sec": 12,
+      "cooldown_sec": 50,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_deploy",
+        "stat": "deploy_cooldown",
+        "mult": 0.5
+      },
+      "effect": "自軍の再出撃クールタイム −50%"
+    },
+    {
+      "id": "mobilize",
+      "name": "総動員",
+      "family": "機動",
+      "target": "own",
+      "duration_sec": 8,
+      "cooldown_sec": 45,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "own_deploy",
+        "stat": "deploy_cooldown",
+        "mult": 0.25
+      },
+      "effect": "自軍の再出撃クールタイム −75%"
+    },
+    {
+      "id": "confuse",
+      "name": "混乱",
+      "family": "機動",
+      "target": "enemy",
+      "duration_sec": 10,
+      "cooldown_sec": 45,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "enemy_deploy",
+        "stat": "deploy_cooldown",
+        "mult": 1.5
+      },
+      "effect": "敵の再出撃クールタイム +50%"
+    },
+    {
+      "id": "sever",
+      "name": "分断",
+      "family": "機動",
+      "target": "enemy",
+      "duration_sec": 7,
+      "cooldown_sec": 44,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "enemy_deploy",
+        "stat": "deploy_cooldown",
+        "mult": 2.0
+      },
+      "effect": "敵の再出撃クールタイム +100%。増援を断つ"
+    },
+    {
+      "id": "bulwark",
+      "name": "堅陣",
+      "family": "耐久",
+      "target": "own",
+      "duration_sec": 8,
+      "cooldown_sec": 50,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "own_units",
+        "stat": "knockback",
+        "mult": 0.0
+      },
+      "effect": "自軍がノックバックしなくなる。線を保つ"
+    },
+    {
+      "id": "brace",
+      "name": "踏ん張り",
+      "family": "耐久",
+      "target": "own",
+      "duration_sec": 10,
+      "cooldown_sec": 45,
+      "cast_sec": 0.6,
+      "apply": {
+        "scope": "own_units",
+        "stat": "knockback",
+        "mult": 0.5
+      },
+      "effect": "自軍のノックバック回数を半分に"
+    },
+    {
+      "id": "waver",
+      "name": "動揺",
+      "family": "耐久",
+      "target": "enemy",
+      "duration_sec": 10,
+      "cooldown_sec": 42,
+      "cast_sec": 0.5,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "knockback",
+        "add": 1
+      },
+      "effect": "敵のノックバック回数 +1。押し戻しやすくする"
+    },
+    {
+      "id": "brittle",
+      "name": "脆化",
+      "family": "耐久",
+      "target": "enemy",
+      "duration_sec": 8,
+      "cooldown_sec": 45,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "enemy_units",
+        "stat": "knockback",
+        "add": 2
+      },
+      "effect": "敵のノックバック回数 +2。前線を大きく下げさせる"
+    },
+    {
+      "id": "nodrop",
+      "name": "不退転",
+      "family": "耐久",
+      "target": "own",
+      "duration_sec": 9,
+      "cooldown_sec": 45,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "knockback",
+        "mult": 0.25
+      },
+      "effect": "自軍のノックバック回数を1/4に"
+    },
+    {
+      "id": "levy",
+      "name": "徴発",
+      "family": "経済",
+      "target": "own",
+      "duration_sec": 12,
+      "cooldown_sec": 50,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_deploy",
+        "stat": "cost",
+        "mult": 0.7
+      },
+      "effect": "出撃コスト −30%。厚く並べたい時間に合わせる"
+    },
+    {
+      "id": "largesse",
+      "name": "大盤振る舞い",
+      "family": "経済",
+      "target": "own",
+      "duration_sec": 8,
+      "cooldown_sec": 45,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "own_deploy",
+        "stat": "cost",
+        "mult": 0.5
+      },
+      "effect": "出撃コスト −50%。一気に数を出す"
+    },
+    {
+      "id": "tax",
+      "name": "増税",
+      "family": "経済",
+      "target": "enemy",
+      "duration_sec": 10,
+      "cooldown_sec": 44,
+      "cast_sec": 0.6,
+      "apply": {
+        "scope": "enemy_deploy",
+        "stat": "cost",
+        "mult": 1.3
+      },
+      "effect": "敵の出撃コスト +30%"
+    },
+    {
+      "id": "embargo",
+      "name": "封鎖",
+      "family": "経済",
+      "target": "enemy",
+      "duration_sec": 7,
+      "cooldown_sec": 44,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "enemy_deploy",
+        "stat": "cost",
+        "mult": 1.6
+      },
+      "effect": "敵の出撃コスト +60%。押し込む直前に刺す"
+    },
+    {
+      "id": "boom",
+      "name": "増収",
+      "family": "経済",
+      "target": "own",
+      "duration_sec": 10,
+      "cooldown_sec": 45,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "own_economy",
+        "stat": "income",
+        "mult": 1.5
+      },
+      "effect": "自軍の資金の増え方 +50%"
+    },
+    {
+      "id": "lode",
+      "name": "金脈",
+      "family": "経済",
+      "target": "own",
+      "duration_sec": 6,
+      "cooldown_sec": 38,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "own_economy",
+        "stat": "income",
+        "mult": 2.0
+      },
+      "effect": "自軍の資金の増え方 +100%"
+    },
+    {
+      "id": "blight",
+      "name": "枯渇",
+      "family": "経済",
+      "target": "enemy",
+      "duration_sec": 8,
+      "cooldown_sec": 45,
+      "cast_sec": 0.9,
+      "apply": {
+        "scope": "enemy_economy",
+        "stat": "income",
+        "mult": 0.5
+      },
+      "effect": "敵の資金の増え方 −50%。育てている相手に刺す"
+    },
+    {
+      "id": "famine",
+      "name": "断絶",
+      "family": "経済",
+      "target": "enemy",
+      "duration_sec": 5,
+      "cooldown_sec": 32,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "enemy_economy",
+        "stat": "income",
+        "mult": 0.25
+      },
+      "effect": "敵の資金の増え方 −75%"
+    }
   ]
 }

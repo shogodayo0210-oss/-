@@ -12,90 +12,371 @@
     }
   },
   "perks": [
-    { "id": "scout_1", "name": "索敵Ⅰ", "category": "info", "cost": 5,
-      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
-      "params": { "reveal_from": "opponent_chosen", "count": 3, "selection": "random" },
-      "note": "公開は両者ロック後。ロック前に見えるとカウンターピック機になる" },
-
-    { "id": "scout_2", "name": "索敵Ⅱ", "category": "info", "cost": 3,
-      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
-      "params": { "reveal_from": "opponent_random", "count": 2, "selection": "all" } },
-
-    { "id": "mind_read", "name": "読心", "category": "info", "cost": 4,
-      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
-      "params": { "reveal_from": "opponent_deck", "count": 1, "granularity": "school_only" } },
-
-    { "id": "gauge_sight", "name": "検算", "category": "info", "cost": 2,
-      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "show": "opponent_money", "duration": "always" },
-      "note": "相手の資金が見える＝次に何を出せるか／切り札を出せるかが読める" },
-
-    { "id": "pick_plus", "name": "選抜+1", "category": "draft", "cost": 6,
-      "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
-      "params": { "chosen_slots": 7, "random_slots": 1 },
-      "note": "出撃できるユニットの種類が7になる。6→8 は編成システムそのものを消すので +1 に留める" },
-
-    { "id": "reroll", "name": "引き直し", "category": "draft", "cost": 4,
-      "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
-      "params": { "reroll_random_slots": 1 } },
-
-    { "id": "promote", "name": "抜擢", "category": "draft", "cost": 4,
-      "changes_flow": false, "resolves_in": "draft", "visible_to_opponent": true,
-      "params": { "tier_shift": 1 } },
-
-    { "id": "reserve", "name": "予備兵", "category": "draft", "cost": 3,
-      "changes_flow": false, "resolves_in": "draft", "visible_to_opponent": true,
-      "params": { "team_size": 9, "chosen_slots": 6, "random_slots": 3 } },
-
-    { "id": "pocket", "name": "隠し玉", "category": "draft", "cost": 3,
-      "changes_flow": true, "resolves_in": "draft", "visible_to_opponent": true,
-      "params": { "deck_size": 4, "revealed_at_start": 1 },
-      "note": "4枚目の代償に1枚を晒す。晒す1枚をどれにするかが構築の駆け引きになる" },
-
-    { "id": "late_pick", "name": "後出し", "category": "draft", "cost": 4,
-      "changes_flow": true, "resolves_in": "intel", "visible_to_opponent": true,
-      "params": { "held_chosen_slots": 1 },
-      "exclusive_with": ["scout_1", "scout_2", "mind_read"],
-      "note": "情報を見てから枠を埋めるのは事実上のカウンターピック。索敵系との同居は禁止" },
-
-    { "id": "parry", "name": "見切り", "category": "combat_active", "cost": 3,
-      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "scope": "cancel_enemy_cast",
-                  "deploy_lock_sec": 1.0, "money_on_success": 200 },
-      "note": "相手のカードの詠唱に合わせて押す。0.3秒の窓が詠唱の完了を覆えば、そのカードは不発（クールタイムだけ払わせる）。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない" },
-
-    { "id": "surge", "name": "突撃", "category": "combat_active", "cost": 5,
-      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 2, "duration_sec": 5, "speed_mult": 1.5 },
-      "note": "自軍全ユニットの前進速度+50%を5秒。相手の遠距離ユニットに詰めるための択" },
-
-    { "id": "bunker", "name": "防壁", "category": "combat_active", "cost": 5,
-      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 2, "duration_sec": 2, "blocks": "enemy_units" },
-      "note": "自拠点の前に2秒だけ壁。切り札の到達を遅らせる用途" },
-
-    { "id": "last_stand", "name": "起死回生", "category": "combat_passive", "cost": 4,
-      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "trigger": "own_base_hp_below", "threshold": 0.3, "money_gain": 600, "once": true },
-      "note": "拠点HPが3割を切った時に1回だけ資金600。負けている側だけが使える立て直し" },
-
-    { "id": "head_start", "name": "先手", "category": "tempo", "cost": 3,
-      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "start_money": 300 } },
-
-    { "id": "quick_cast", "name": "詠唱短縮", "category": "tempo", "cost": 5,
-      "changes_flow": false, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "cast_time_mult": 0.7 },
-      "note": "詠唱の下限は match.json の readability.min_cast_sec。短縮しても床は割らない（見切りで覆えなくなるため）" },
-
-    { "id": "feint", "name": "空撃ち", "category": "tempo", "cost": 3,
-      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "cooldown_sec": 8, "gauge_cost": 0 },
-      "note": "詠唱モーションだけを出す。見切りやカード対策を釣るための択。相手が見切り持ちだと価値が上がる" },
-
-    { "id": "recall", "name": "追憶", "category": "tempo", "cost": 7,
-      "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "reset_card_cooldown": 1, "includes_global_cooldown": true },
-      "note": "カードのクールタイムを1回だけ即座に戻す。同じ札を続けて重ねられる唯一の手段" }
+    {
+      "id": "scout_1",
+      "name": "索敵Ⅰ",
+      "category": "info",
+      "cost": 5,
+      "changes_flow": true,
+      "resolves_in": "intel",
+      "visible_to_opponent": true,
+      "params": {
+        "reveal_from": "opponent_chosen",
+        "count": 3,
+        "selection": "random"
+      },
+      "note": "公開は両者ロック後。ロック前に見えるとカウンターピック機になる"
+    },
+    {
+      "id": "scout_2",
+      "name": "索敵Ⅱ",
+      "category": "info",
+      "cost": 3,
+      "changes_flow": true,
+      "resolves_in": "intel",
+      "visible_to_opponent": true,
+      "params": {
+        "reveal_from": "opponent_random",
+        "count": 2,
+        "selection": "all"
+      }
+    },
+    {
+      "id": "mind_read",
+      "name": "読心",
+      "category": "info",
+      "cost": 4,
+      "changes_flow": true,
+      "resolves_in": "intel",
+      "visible_to_opponent": true,
+      "params": {
+        "reveal_from": "opponent_deck",
+        "count": 1,
+        "granularity": "school_only"
+      }
+    },
+    {
+      "id": "gauge_sight",
+      "name": "検算",
+      "category": "info",
+      "cost": 2,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "show": "opponent_money",
+        "duration": "always"
+      },
+      "note": "相手の資金が見える＝次に何を出せるか／切り札を出せるかが読める"
+    },
+    {
+      "id": "pick_plus",
+      "name": "選抜+1",
+      "category": "draft",
+      "cost": 6,
+      "changes_flow": true,
+      "resolves_in": "draft",
+      "visible_to_opponent": true,
+      "params": {
+        "chosen_slots": 7,
+        "random_slots": 1
+      },
+      "note": "出撃できるユニットの種類が7になる。6→8 は編成システムそのものを消すので +1 に留める"
+    },
+    {
+      "id": "reroll",
+      "name": "引き直し",
+      "category": "draft",
+      "cost": 4,
+      "changes_flow": true,
+      "resolves_in": "draft",
+      "visible_to_opponent": true,
+      "params": {
+        "reroll_random_slots": 1
+      }
+    },
+    {
+      "id": "promote",
+      "name": "抜擢",
+      "category": "draft",
+      "cost": 4,
+      "changes_flow": false,
+      "resolves_in": "draft",
+      "visible_to_opponent": true,
+      "params": {
+        "tier_shift": 1
+      }
+    },
+    {
+      "id": "reserve",
+      "name": "予備兵",
+      "category": "draft",
+      "cost": 3,
+      "changes_flow": false,
+      "resolves_in": "draft",
+      "visible_to_opponent": true,
+      "params": {
+        "team_size": 9,
+        "chosen_slots": 6,
+        "random_slots": 3
+      }
+    },
+    {
+      "id": "pocket",
+      "name": "隠し玉",
+      "category": "draft",
+      "cost": 3,
+      "changes_flow": true,
+      "resolves_in": "draft",
+      "visible_to_opponent": true,
+      "params": {
+        "deck_size": 4,
+        "revealed_at_start": 1
+      },
+      "note": "4枚目の代償に1枚を晒す。晒す1枚をどれにするかが構築の駆け引きになる"
+    },
+    {
+      "id": "late_pick",
+      "name": "後出し",
+      "category": "draft",
+      "cost": 4,
+      "changes_flow": true,
+      "resolves_in": "intel",
+      "visible_to_opponent": true,
+      "params": {
+        "held_chosen_slots": 1
+      },
+      "exclusive_with": [
+        "scout_1",
+        "scout_2",
+        "mind_read"
+      ],
+      "note": "情報を見てから枠を埋めるのは事実上のカウンターピック。索敵系との同居は禁止"
+    },
+    {
+      "id": "parry",
+      "name": "見切り",
+      "category": "combat_active",
+      "cost": 3,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "charges": 1,
+        "invuln_sec": 0.3,
+        "startup_sec": 0.0,
+        "scope": "cancel_enemy_cast",
+        "deploy_lock_sec": 1.0,
+        "money_on_success": 200
+      },
+      "note": "相手のカードの詠唱に合わせて押す。0.3秒の窓が詠唱の完了を覆えば、そのカードは不発（クールタイムだけ払わせる）。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない"
+    },
+    {
+      "id": "surge",
+      "name": "突撃",
+      "category": "combat_active",
+      "cost": 5,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "charges": 2,
+        "duration_sec": 5,
+        "speed_mult": 1.5
+      },
+      "note": "自軍全ユニットの前進速度+50%を5秒。相手の遠距離ユニットに詰めるための択"
+    },
+    {
+      "id": "bunker",
+      "name": "防壁",
+      "category": "combat_active",
+      "cost": 5,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "charges": 2,
+        "duration_sec": 2,
+        "blocks": "enemy_units"
+      },
+      "note": "自拠点の前に2秒だけ壁。切り札の到達を遅らせる用途"
+    },
+    {
+      "id": "last_stand",
+      "name": "起死回生",
+      "category": "combat_passive",
+      "cost": 4,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "trigger": "own_base_hp_below",
+        "threshold": 0.3,
+        "money_gain": 600,
+        "once": true
+      },
+      "note": "拠点HPが3割を切った時に1回だけ資金600。負けている側だけが使える立て直し"
+    },
+    {
+      "id": "head_start",
+      "name": "先手",
+      "category": "tempo",
+      "cost": 3,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "start_money": 300
+      }
+    },
+    {
+      "id": "quick_cast",
+      "name": "詠唱短縮",
+      "category": "tempo",
+      "cost": 5,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "cast_time_mult": 0.7
+      },
+      "note": "詠唱の下限は match.json の readability.min_cast_sec。短縮しても床は割らない（見切りで覆えなくなるため）"
+    },
+    {
+      "id": "feint",
+      "name": "空撃ち",
+      "category": "tempo",
+      "cost": 3,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "cooldown_sec": 8,
+        "gauge_cost": 0
+      },
+      "note": "詠唱モーションだけを出す。見切りやカード対策を釣るための択。相手が見切り持ちだと価値が上がる"
+    },
+    {
+      "id": "recall",
+      "name": "追憶",
+      "category": "tempo",
+      "cost": 7,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "reset_card_cooldown": 1,
+        "includes_global_cooldown": true
+      },
+      "note": "カードのクールタイムを1回だけ即座に戻す。同じ札を続けて重ねられる唯一の手段"
+    },
+    {
+      "id": "intel_net",
+      "name": "情報網",
+      "category": "info",
+      "cost": 4,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "notify": "enemy_upgrade_start"
+      },
+      "note": "相手がレベルアップを始めた瞬間に分かる。育てている6秒を殴りに行くための特典"
+    },
+    {
+      "id": "card_watch",
+      "name": "手札読み",
+      "category": "info",
+      "cost": 3,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "show": "opponent_card_cooldowns"
+      },
+      "note": "相手のカードの残りクールタイムが見える。次がいつ来るかが読める"
+    },
+    {
+      "id": "overdrive",
+      "name": "総力戦",
+      "category": "combat_active",
+      "cost": 6,
+      "changes_flow": true,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "charges": 1,
+        "duration_sec": 8,
+        "deploy_cooldown_mult": 0.0
+      },
+      "note": "8秒だけ再出撃クールタイムが消える。1回きり。資金が続く限り出し切る"
+    },
+    {
+      "id": "siege_order",
+      "name": "攻城指揮",
+      "category": "combat_passive",
+      "cost": 4,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "siege_mult_add": 0.2
+      },
+      "note": "自軍の対拠点倍率 +0.2。同じ押し合いでも拠点が速く落ちる"
+    },
+    {
+      "id": "breach_order",
+      "name": "破城指揮",
+      "category": "combat_passive",
+      "cost": 4,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "anti_wall_mult_add": 0.4
+      },
+      "note": "自軍の対壁倍率 +0.4。壁の連鎖を正面から崩す"
+    },
+    {
+      "id": "warchest",
+      "name": "兵站",
+      "category": "tempo",
+      "cost": 4,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "money_cap_mult": 1.25
+      },
+      "note": "資金の上限 +25%。1つ上のレベルのユニットに早く手が届く"
+    },
+    {
+      "id": "swift_start",
+      "name": "速攻",
+      "category": "tempo",
+      "cost": 4,
+      "changes_flow": false,
+      "resolves_in": "battle",
+      "visible_to_opponent": true,
+      "params": {
+        "until_sec": 45,
+        "deploy_cooldown_mult": 0.7
+      },
+      "note": "最初の45秒だけ再出撃クールタイム −30%。序盤の圧を作る"
+    },
+    {
+      "id": "veteran",
+      "name": "精鋭",
+      "category": "draft",
+      "cost": 5,
+      "changes_flow": true,
+      "resolves_in": "draft",
+      "visible_to_opponent": true,
+      "params": {
+        "discount_units": 1,
+        "cost_mult": 0.75
+      },
+      "note": "固定枠から1種を選び、その出撃コストを −25%。軸を決めて回す編成になる"
+    }
   ]
 }

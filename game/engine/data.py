@@ -30,6 +30,7 @@ class Unit:
     speed_mps: float
     siege_mult: float
     anti_wall_mult: float = 1.0
+    family: str = "人"          # 見た目の区分。数字にも戦闘にも影響しない
     role: str = ""
 
     @property
@@ -110,6 +111,7 @@ class Avatar:
     id: str
     name: str
     concept: str
+    look: str
     signature: str
     perks: tuple[str, ...]
 
@@ -193,7 +195,8 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             attack_band_m=tuple(u["attack_band_m"]),
             pierce=u["pierce"], knockback=u["knockback"],
             speed_mps=u["speed_mps"], siege_mult=u["siege_mult"],
-            anti_wall_mult=u["anti_wall_mult"], role=u.get("role", ""),
+            anti_wall_mult=u["anti_wall_mult"], family=u.get("family", "人"),
+            role=u.get("role", ""),
         )
 
     cards = {}
@@ -232,6 +235,7 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
         )
 
     avatars = {a["id"]: Avatar(id=a["id"], name=a["name"], concept=a["concept"],
+                               look=a.get("look", ""),
                                signature=a["signature"], perks=tuple(a["perks"]))
                for a in raw_avatars}
 

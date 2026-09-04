@@ -29,6 +29,8 @@ NOT_SIMULATED = {
     "scout_1", "scout_2", "mind_read", "gauge_sight",
     "pick_plus", "reroll", "promote", "reserve", "pocket", "late_pick",
     "bunker", "feint", "recall",
+    "intel_net", "card_watch", "overdrive", "siege_order", "breach_order",
+    "warchest", "swift_start", "veteran",
 }
 
 
