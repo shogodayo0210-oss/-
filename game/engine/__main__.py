@@ -10,29 +10,11 @@ from __future__ import annotations
 import argparse
 import collections
 
-from .battle import NOT_SIMULATED, Battle, Loadout
+from .battle import NOT_SIMULATED, Battle
 from .data import load
-from .draft import commit, draw_random_slots, match_seed, pick_template
+from .draft import commit, match_seed
 from .policy import POLICIES
-
-# 見本ぶんしかユニットが無いので、編成はここで決め打ちにしてある。
-PRESETS = {
-    "rush":     ("scout",   ["grunt", "spear", "twin", "archer", "shield", "sweeper"],
-                 ["advance", "warcry", "mire"], "gale_edge"),
-    "balanced": ("marshal", ["grunt", "spear", "shield", "archer", "sweeper", "cannon"],
-                 ["warcry", "rust", "levy"], "colossus"),
-    "greed":    ("bulwark", ["grunt", "shield", "archer", "cannon", "mortar", "titan"],
-                 ["bulwark", "rally", "blight"], "archmage"),
-}
-
-
-def build(game, name: str, seed: str, side: str) -> Loadout:
-    avatar, chosen, deck, trump = PRESETS[name]
-    template = pick_template(game, seed)
-    owned = list(game.units)
-    drawn = draw_random_slots(game, seed, side, owned, tuple(chosen), template)
-    return Loadout(avatar=avatar, roster=tuple(chosen) + tuple(drawn),
-                   deck=tuple(deck), trump=trump)
+from .presets import PRESETS, build
 
 
 def one_match(game, a: str, b: str, match_id: str, verbose: bool = False):
