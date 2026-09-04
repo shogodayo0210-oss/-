@@ -205,7 +205,7 @@ class TestSpells(unittest.TestCase):
         self.assertAlmostEqual(side.money, before - cost)
 
     def test_too_poor_to_cast(self):
-        bt = battle(loadout(brought="bulwark"), loadout(), money=10)
+        bt = battle(loadout(brought="bulwark"), loadout(), money=0)
         side = bt.sides[0]
         self.assertFalse(bt.start_cast(side, ("brought", 0)))
         self.assertIsNone(side.casting)
@@ -256,15 +256,55 @@ class TestWallet(unittest.TestCase):
             self.assertGreater(side.money_cap, cap)
             self.assertGreater(side.income, rate)
 
-    def test_every_level_unlocks_something(self):
-        """どのレベルにも「これが出せるようになる」がある。
-        上げても何も増えない段があると、育てる理由がその段だけ消える。"""
+    def test_no_dead_step_before_the_top_unlock(self):
+        """一番高いユニットが解禁されるまで、育てても何も増えない段が無いこと。
+
+        そこから先（上限だけが伸びる段）は死に段ではない ―― コストが1〜10に
+        なったので、上限の余りは「大型を1体持ったまま呪文も抱える」ための枠になる。
+        """
         costs = sorted(u.cost for u in GAME.units.values())
+        top = max(costs)
         seen = 0
-        for level in GAME.levels[:-1]:
+        for level in GAME.levels:
             now = sum(1 for c in costs if c <= level["max"])
-            self.assertGreater(now, seen, f"レベル{level['level']} で何も解禁されない")
+            if seen < len(costs):
+                self.assertGreater(now, seen,
+                                   f"レベル{level['level']} で何も解禁されない")
             seen = now
+            if level["max"] >= top:
+                break
+        else:
+            self.fail("最も高いユニットがどのレベルでも解禁されない")
+
+    def test_headroom_above_the_priciest_unit(self):
+        """最終上限は最も高いユニットより広いこと。
+        ぴったりだと、大型を出す資金を貯めている間は呪文が一切撃てなくなる。"""
+        top = max(u.cost for u in GAME.units.values())
+        self.assertGreater(GAME.levels[-1]["max"], top)
+
+    def test_income_arrives_in_steps(self):
+        """資金は連続ではなく刻みで入る（あなたの指定）。
+
+        方針を止めて測る ―― 動かしたままだと、同じtickの出撃で減ったぶんと
+        混ざって「刻み」が見えなくなる。
+        """
+        idle = lambda battle, side: None            # noqa: E731
+        bt = Battle(GAME, loadout(), loadout(), idle, idle)
+        side = bt.sides[0]
+        side.money = 0.0
+        every = GAME.levels[0]["income_every_sec"]
+        amount = GAME.levels[0]["income_amount"]
+        seen = []
+        for _ in range(int(every * 3 / bt.tick)):
+            bt.step()
+            seen.append(side.money)
+        steps = [(a, b) for a, b in zip(seen, seen[1:]) if b > a]
+        self.assertTrue(steps, "資金が一度も増えていない")
+        for before, after in steps:
+            # 上限で切られた最後の1回だけは、刻みより小さくてよい
+            clipped = abs(after - side.money_cap) < 1e-9
+            self.assertTrue(abs(after - before - amount) < 1e-6 or clipped,
+                            f"刻みではなく連続で増えている（{before} → {after}）")
 
     def test_upgrade_blocks_everything(self):
         """育てている間は何も出せない（設計書4.3）。"""

@@ -27,30 +27,37 @@ from ..engine.battle import Battle, Loadout
 from ..engine.data import load
 from ..engine.draft import commit, match_seed
 from ..engine.policy import POLICIES
-from ..engine.presets import PRESETS, build
+from ..engine.presets import PRESETS, build, trial_six
 from .human import Controller
-
-# 特典が戦闘に効かないアバターを選んである。この段階で見たいのは
-# 戦闘そのものなので、拠点側から効く隠し味を入れない。
-PLAYER_AVATAR = "scout"
-PLAYER_TRUMP = "colossus"          # 出せないが Loadout に要る
 
 
 def make_battle(game, unit_ids: tuple[str, ...], enemy: str, match_id: str,
-                brought: str = "warcry"):
-    """人が side 0、engine の方針が side 1。"""
+                brought: str, avatar: str, trump: str, mirror: bool):
+    """人が side 0、engine の方針が side 1。
+
+    `mirror` のとき、相手は**まったく同じ持ち物**で戦う（工程表 塊A-3）。
+    違うのはストックの並びだけ ―― 相手だけ8種＋切り札という状態では、
+    負けても何が悪いのか分からないので、まず同じ条件で測る。
+    """
     seed = match_seed(
-        commit(unit_ids, (brought,), PLAYER_TRUMP, f"{match_id}:a"),
+        commit(unit_ids, (brought,), trump, f"{match_id}:a"),
         commit(tuple(PRESETS[enemy][1]), (PRESETS[enemy][2],),
                PRESETS[enemy][3], f"{match_id}:b"),
         match_id)
 
-    player = Loadout(avatar=PLAYER_AVATAR, roster=unit_ids, brought=brought,
-                     trump=PLAYER_TRUMP, stock_seed=f"{seed}:a")
+    def side_of(salt: str) -> Loadout:
+        return Loadout(avatar=avatar, roster=unit_ids, brought=brought,
+                       trump=trump, stock_seed=f"{seed}:{salt}")
+
+    player = side_of("a")
+    foe = side_of("b") if mirror else build(game, enemy, seed, "b")
     controller = Controller()
-    battle = Battle(game, player, build(game, enemy, seed, "b"),
-                    controller, POLICIES[enemy])
+    battle = Battle(game, player, foe, controller, POLICIES[enemy])
     return battle, controller
+
+
+def _setup(args) -> tuple[str, str, str, bool]:
+    return args.brought, args.avatar, args.trump, args.enemy_roster == "same"
 
 
 def _send(controller, action) -> None:
@@ -82,7 +89,7 @@ def run_capture(game, args, unit_ids) -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     marks = sorted(float(s) for s in args.at.split(",") if s.strip())
-    battle, controller = make_battle(game, unit_ids, args.enemy, args.match_id, args.brought)
+    battle, controller = make_battle(game, unit_ids, args.enemy, args.match_id, *_setup(args))
     written = []
     for mark in marks:
         while battle.t < mark and not battle.finished():
@@ -144,7 +151,7 @@ def run_game(game, args, unit_ids) -> int:
 
     match = 0
     battle, controller = make_battle(game, unit_ids, args.enemy,
-                                     f"{args.match_id}-{match}", args.brought)
+                                     f"{args.match_id}-{match}", *_setup(args))
     tick = game.combat["tick_sec"]
     accumulator = 0.0
     paused = False
@@ -167,7 +174,7 @@ def run_game(game, args, unit_ids) -> int:
                     match += 1
                     battle, controller = make_battle(
                         game, unit_ids, args.enemy,
-                        f"{args.match_id}-{match}", args.brought)
+                        f"{args.match_id}-{match}", *_setup(args))
                     accumulator, paused = 0.0, False
                 else:
                     _send(controller, view.action_for_key(event.key))
@@ -189,10 +196,17 @@ def run_game(game, args, unit_ids) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="game.play")
-    parser.add_argument("--unit", default="grunt",
-                        help="出撃ボタンにするユニット（カンマ区切り）")
-    parser.add_argument("--brought", default="warcry",
+    trial = trial_six()
+    parser.add_argument("--unit", default=",".join(u["id"] for u in trial["roster"]),
+                        help="出撃ボタンにするユニット（カンマ区切り）。"
+                             "既定は data/preset_six.json の6種")
+    parser.add_argument("--brought", default=trial["brought"],
                         help="持ち込む呪文1枚")
+    parser.add_argument("--avatar", default=trial["avatar"])
+    parser.add_argument("--trump", default=trial["trump"])
+    parser.add_argument("--enemy-roster", default="same", choices=("same", "full"),
+                        dest="enemy_roster",
+                        help="same＝相手も同じ6種（既定）／full＝相手は8枠の見本編成")
     parser.add_argument("--enemy", default="balanced", choices=sorted(POLICIES))
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--fps", type=int, default=60)

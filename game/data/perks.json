@@ -167,7 +167,7 @@
         "startup_sec": 0.0,
         "scope": "cancel_enemy_cast",
         "deploy_lock_sec": 1.0,
-        "money_on_success": 200
+        "money_on_success": 2
       },
       "note": "相手のカードの詠唱に合わせて押す。0.3秒の窓が詠唱の完了を覆えば、そのカードは不発（クールタイムだけ払わせる）。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない"
     },
@@ -212,7 +212,7 @@
       "params": {
         "trigger": "own_base_hp_below",
         "threshold": 0.3,
-        "money_gain": 600,
+        "money_gain": 5,
         "once": true
       },
       "note": "拠点HPが3割を切った時に1回だけ資金600。負けている側だけが使える立て直し"
@@ -226,7 +226,7 @@
       "resolves_in": "battle",
       "visible_to_opponent": true,
       "params": {
-        "start_money": 300
+        "start_money": 3
       }
     },
     {

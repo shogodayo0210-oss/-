@@ -107,6 +107,11 @@ class Side:
         self.base_hp = float(game.base_hp)
         self.level = 1
         self.money = float(game.economy["start"])
+        # 資金は連続では増えない。**何秒かごとに +2** という刻みで貯まる。
+        # 棒が滑らかに伸びるのではなく段で上がるので、「あと1回ぶんで出せる」が
+        # 目で数えられる（コストが1〜10しかないのはそのため）。
+        # 素の間隔を使う ―― この時点ではまだ効果がひとつも乗っていない。
+        self.income_left = float(self.level_row["income_every_sec"])
 
         self.fighters: list[Fighter] = []
         self.deploy_cd: dict[str, float] = {}
@@ -208,8 +213,27 @@ class Side:
         return self.level_row["max"]
 
     @property
+    def income_amount(self) -> float:
+        return self.level_row["income_amount"]
+
+    @property
+    def income_every(self) -> float:
+        """次に資金が入るまでの秒数。増収などのカードはここを縮める。"""
+        return self.level_row["income_every_sec"] / max(self.stat("income", 1.0), 1e-6)
+
+    @property
     def income(self) -> float:
-        return self.stat("income", self.level_row["per_sec"])
+        """表示と検算のための実効値（毎秒いくら）。刻みの実体は上の2つ。"""
+        return self.income_amount / self.income_every
+
+    def tick_income(self, dt: float) -> bool:
+        """時間を進めて、刻みが来ていれば資金を足す。上限は超えない。"""
+        self.income_left -= dt
+        if self.income_left > 0:
+            return False
+        self.money = min(self.money + self.income_amount, self.money_cap)
+        self.income_left += self.income_every
+        return True
 
     @property
     def upgrade_cost(self) -> float | None:
@@ -228,6 +252,8 @@ class Side:
         self.money -= self.upgrade_cost
         self.level += 1
         self.upgrading_left = self.game.economy["growth"]["upgrade_sec"]
+        # 刻みが速くなるので、次の1回までを新しい間隔で測り直す
+        self.income_left = min(self.income_left, self.income_every)
 
     def unit_cost(self, spec: Unit) -> float:
         return self.stat("cost", spec.cost)
@@ -250,6 +276,8 @@ class Battle:
         self.kb_stun = game.combat["knockback_stun_sec"]
         self.max_units = game.match["field"]["max_units_per_side"]
         self.t = 0.0
+        self.drops = list(game.economy.get("milestones", []))
+        self._next_drop = 0
         # そのtickの世界の見え方。全員が同じ盤面を見て動くので、
         # 「先に処理された側が先に殴れる」という順番の有利が出ない。
         self._snap: list[list[tuple[float, Fighter]]] = [[], []]
@@ -507,8 +535,15 @@ class Battle:
         # 同じtickの相手の判断に見えてしまい、後手だけが得をする。
         self.snapshot()
 
+        # 時間の節目の配布。左右対称の試合が割れないよう、互角なら誰にも入らない。
+        while (self._next_drop < len(self.drops)
+               and self.t >= self.drops[self._next_drop]["at_sec"]):
+            drop = self.drops[self._next_drop]
+            self._next_drop += 1
+            self.pay_drop(drop)
+
         for side in self.sides:
-            side.money = min(side.money + side.income * dt, side.money_cap)
+            side.tick_income(dt)
             side.effects = [e for e in side.effects if e.until > self.t]
             side.gcd_left = max(0.0, side.gcd_left - dt)
             side.deploy_lock_left = max(0.0, side.deploy_lock_left - dt)
@@ -571,6 +606,48 @@ class Battle:
             side.fighters = survivors
 
         self.t += dt
+
+    def advance_of(self, side: Side) -> float:
+        """自陣からどれだけ前に出ているか。押し込んでいる側を決める物差し。"""
+        return max((abs(f.x - side.base_x)
+                    for f in side.fighters if f.alive and f.ready), default=0.0)
+
+    def leader(self) -> Side | None:
+        """いま押し込んでいる側。互角なら None。"""
+        reach = [self.advance_of(s) for s in self.sides]
+        if abs(reach[0] - reach[1]) <= EPS:
+            return None
+        return self.sides[0] if reach[0] > reach[1] else self.sides[1]
+
+    def pay_drop(self, drop: dict) -> None:
+        amount, at = drop["amount"], drop["at_sec"]
+        if drop.get("to") == "leader":
+            # **押し込んでいる側だけ**に入る。安いユニットを早く出して線を
+            # 上げることが、そのまま資金として返ってくる。何も出さずに
+            # 財布だけ育てる側は、ここを取り逃す。
+            winner = self.leader()
+            if winner is None:
+                self.note(0, f"{at:.0f}秒の陣地ボーナス — 互角なので配布なし")
+                return
+            winner.money = min(winner.money + amount, winner.money_cap)
+            self.note(winner.index,
+                      f"{at:.0f}秒の陣地ボーナス — 押し込んでいるので +{amount}")
+            return
+        for side in self.sides:
+            side.money = min(side.money + amount, side.money_cap)
+        self.note(0, f"{at:.0f}秒の配布 — 両者に +{amount}")
+
+    def next_drop(self) -> tuple[float, int] | None:
+        """次の配布（残り秒, 額）。画面で読ませるために要る。"""
+        if self._next_drop >= len(self.drops):
+            return None
+        drop = self.drops[self._next_drop]
+        return max(0.0, drop["at_sec"] - self.t), drop["amount"]
+
+    def next_drop_is_contested(self) -> bool:
+        if self._next_drop >= len(self.drops):
+            return False
+        return self.drops[self._next_drop].get("to") == "leader"
 
     def finished(self) -> bool:
         return (self.t >= self.game.time_limit

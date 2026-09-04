@@ -31,8 +31,8 @@
     "chosen_slots": 6,
     "random_slots": 2,
     "unit_cost_range": [
-      75,
-      2500
+      1,
+      10
     ],
     "unit_cooldown_range_sec": [
       2,
@@ -79,64 +79,115 @@
   },
   "economy": {
     "_comment": "資金は出撃・呪文・切り札で共用。今出すか、呪文を撃つか、貯めて大技か、財布を育てるか ―― すべて同じ1本の資金を奪い合う",
-    "start": 300,
+    "start": 3,
     "_kill_reward": "撃破しても資金は入らない。この仕組みは将来、特定キャラの特性として使う予定なので全体ルールからは外してある",
     "kill_reward_ratio": 0.0,
     "growth": {
-      "_comment": "にゃんこ大戦争の働きネコ。1段上げるたびに、貯まる上限と貯まる速度の両方が少しずつ上がる。上限は「どのユニットを出せるか」を決め、毎秒は「その中でどれだけ回せるか」を決める",
+      "_comment": "にゃんこ大戦争の働きネコ。**コストは1〜10**で、資金は時間で刻んで貯まる（何秒かごとに +2）。1段上げると、貯まる上限と刻みの速さの両方が少しずつ上がる。上限が「どのユニットを出せるか」を決める",
       "player_controlled": true,
       "upgrade_sec": 6.0,
       "max_level": 8,
       "levels": [
         {
           "level": 1,
-          "max": 500,
-          "per_sec": 60,
-          "upgrade_cost": 400
+          "max": 5,
+          "income_every_sec": 3.0,
+          "income_amount": 2,
+          "upgrade_cost": 4
         },
         {
           "level": 2,
-          "max": 700,
-          "per_sec": 72,
-          "upgrade_cost": 600
+          "max": 6,
+          "income_every_sec": 2.7,
+          "income_amount": 2,
+          "upgrade_cost": 5
         },
         {
           "level": 3,
-          "max": 950,
-          "per_sec": 88,
-          "upgrade_cost": 800
+          "max": 7,
+          "income_every_sec": 2.4,
+          "income_amount": 2,
+          "upgrade_cost": 6
         },
         {
           "level": 4,
-          "max": 1250,
-          "per_sec": 105,
-          "upgrade_cost": 1100
+          "max": 8,
+          "income_every_sec": 2.2,
+          "income_amount": 2,
+          "upgrade_cost": 7
         },
         {
           "level": 5,
-          "max": 1600,
-          "per_sec": 128,
-          "upgrade_cost": 1400
+          "max": 9,
+          "income_every_sec": 2.0,
+          "income_amount": 2,
+          "upgrade_cost": 8
         },
         {
           "level": 6,
-          "max": 2000,
-          "per_sec": 155,
-          "upgrade_cost": 1800
+          "max": 10,
+          "income_every_sec": 1.8,
+          "income_amount": 2,
+          "upgrade_cost": 9
         },
         {
           "level": 7,
-          "max": 2500,
-          "per_sec": 185,
-          "upgrade_cost": 2300
+          "max": 12,
+          "income_every_sec": 1.6,
+          "income_amount": 2,
+          "upgrade_cost": 11
         },
         {
           "level": 8,
-          "max": 3100,
-          "per_sec": 225
+          "max": 14,
+          "income_every_sec": 1.4,
+          "income_amount": 2
         }
       ]
-    }
+    },
+    "milestones": [
+      {
+        "at_sec": 10,
+        "amount": 3,
+        "to": "both"
+      },
+      {
+        "at_sec": 15,
+        "amount": 4,
+        "to": "leader"
+      },
+      {
+        "at_sec": 45,
+        "amount": 5,
+        "to": "leader"
+      },
+      {
+        "at_sec": 60,
+        "amount": 5,
+        "to": "both"
+      },
+      {
+        "at_sec": 100,
+        "amount": 6,
+        "to": "leader"
+      },
+      {
+        "at_sec": 120,
+        "amount": 6,
+        "to": "both"
+      },
+      {
+        "at_sec": 150,
+        "amount": 7,
+        "to": "leader"
+      },
+      {
+        "at_sec": 180,
+        "amount": 8,
+        "to": "both"
+      }
+    ],
+    "_milestones_note": "時間の節目の配布。刻みで貯まるのとは別枠で、試合の速度を上げるためのもの。to=both は両者に同額。to=leader は**そのとき前線を押し込んでいる側だけ**に入る（互角なら誰にも入らない）。leader があるおかげで、序盤に安いユニットを出して線を押し上げることが資金として返ってくる ―― これが無いと、何も出さずに財布だけ育てるのが常に正解になる。"
   },
   "phases": [
     {
@@ -198,16 +249,16 @@
     },
     "cost_bands": {
       "軽": [
-        225,
-        375
+        1,
+        2
       ],
       "中": [
-        600,
-        900
+        3,
+        5
       ],
       "重": [
-        1350,
-        2100
+        8,
+        10
       ]
     },
     "power_bands": {
@@ -226,12 +277,14 @@
     },
     "cooldown_by_band": {
       "軽": 18.0,
-      "中": 22.0,
-      "重": 30.0
+      "中": 20.0,
+      "重": 24.0
     },
     "max_uptime": 0.6,
     "heavy_min_cast_sec": 0.8,
-    "opponent_sees": "stock_bands_and_brought_cooldown"
+    "opponent_sees": "stock_bands_and_brought_cooldown",
+    "upkeep_ratio_min": 3.0,
+    "_upkeep_note": "重の維持費は軽の3倍以上。収入に対する割合ではなく倍率で縛るのは、コストの尺度を変えても規則が壊れないため"
   },
   "combat": {
     "_comment": "シミュレータの刻み幅とノックバックの挙動。全ユニット共通",

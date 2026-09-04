@@ -338,8 +338,29 @@ class View:
 
         left = max(0.0, battle.game.time_limit - battle.t)
         self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
-                   (W // 2, 34), center=True)
-        self._text("残り", self.f_small, MUTED, (W // 2, 55), center=True)
+                   (W // 2, 26), center=True)
+
+        # 次の配布。陣地ボーナスは**いま押し込んでいる側だけ**に入るので、
+        # 誰が取りそうかを出す ―― これが見えないと、取りに行く判断ができない。
+        drop = battle.next_drop()
+        if drop is None:
+            self._text("残り", self.f_small, MUTED, (W // 2, 50), center=True)
+            return
+        seconds, amount = drop
+        if battle.next_drop_is_contested():
+            lead = battle.leader()
+            if lead is None:
+                who, tint = "互角", MUTED
+            elif lead.index == player:
+                who, tint = "自分が優勢", GREEN
+            else:
+                who, tint = "相手が優勢", RED
+            self._text(f"陣地 +{amount}  あと{seconds:.0f}秒", self.f_small, GOLD,
+                       (W // 2, 48), center=True)
+            self._text(who, self.f_small, tint, (W // 2, 64), center=True)
+        else:
+            self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small, MUTED,
+                       (W // 2, 52), center=True)
 
     # ---------------------------------------------------------- 操作盤：呪文
     def _spells(self, battle: Battle, side: Side) -> None:
@@ -420,25 +441,28 @@ class View:
 
     # ------------------------------------------------------ 操作盤：資金と召喚
     def _summon(self, battle: Battle, side: Side) -> None:
-        cap = side.money_cap
-        bar = pygame.Rect(24, SUMMON_Y, 520, 26)
-        self._bar(bar, side.money / cap, GOLD, border=RULE)
+        # 資金は1〜14の整数なので、**マス目で数えられる**ように描く。
+        # 棒が滑らかに伸びるのではなく1マスずつ点くので、
+        # 「あと2マスで臼砲」が目で分かる。
+        cap = int(side.money_cap)
+        have = int(side.money)
+        cell, gap = 26, 4
+        for i in range(cap):
+            box = pygame.Rect(24 + i * (cell + gap), SUMMON_Y, cell, 26)
+            if i < have:
+                pygame.draw.rect(self.surface, GOLD, box)
+            else:
+                pygame.draw.rect(self.surface, (30, 38, 47), box)
+            pygame.draw.rect(self.surface, RULE, box, 1)
 
-        # 出せる線。ここを越えたら押せる、が棒の上で分かる。
-        for button in self.buttons:
-            cost = side.unit_cost(button.spec)
-            if cost <= cap:
-                x = bar.x + int(bar.w * cost / cap)
-                pygame.draw.line(self.surface, (120, 136, 152),
-                                 (x, bar.y), (x, bar.bottom))
-
-        self._text(f"{side.money:,.0f} / {cap:,.0f}", self.f_num, INK,
-                   (bar.right + 16, bar.centery))
-        self._text(f"財布 Lv{side.level}   毎秒 +{side.income:.0f}",
-                   self.f_small, MUTED, (bar.right + 210, bar.centery))
+        right = 24 + cap * (cell + gap)
+        self._text(f"{have} / {cap}", self.f_num, INK, (right + 12, SUMMON_Y + 13))
+        self._text(f"財布 Lv{side.level}   {side.income_amount:.0f} / "
+                   f"{side.income_every:.1f}秒",
+                   self.f_small, MUTED, (right + 88, SUMMON_Y + 13))
         if side.busy:
             self._text(f"育成中 {side.upgrading_left:.1f}秒 — 何も出せない",
-                       self.f_small, RED, (bar.right + 380, bar.centery))
+                       self.f_small, RED, (right + 250, SUMMON_Y + 13))
 
         self._upgrade(side)
         for button in self.buttons:

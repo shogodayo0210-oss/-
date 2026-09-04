@@ -98,7 +98,8 @@ def check_cards(game: GameData, report: Report) -> None:
     pool = list(game.cards.values())
     bands = rules["cost_bands"]
     powers = rules["power_bands"]
-    income1 = game.levels[0]["per_sec"]
+    first = game.levels[0]
+    income1 = first["income_amount"] / first["income_every_sec"]
 
     report.check(len(pool) >= rules["stock_slots"] + rules["brought"],
                  f"cards: プールが {len(pool)} 枚。"
@@ -159,13 +160,19 @@ def check_cards(game: GameData, report: Report) -> None:
                      f"{worst.name}: 維持費 {worst.upkeep:.1f}/秒 が"
                      f"Lv1収入 {income1}/秒 の40%を超え、序盤に撃てない")
 
-    # 一番重い帯は、育てないと維持できないこと。差が出ないなら帯を分ける意味がない。
+    # 一番重い帯は、一番軽い帯より桁違いに重いこと。
+    # 収入に対する割合ではなく**軽の何倍**で縛る ―― コストの尺度を
+    # 75〜2500 から 1〜10 に変えても、この規則は壊れない。
     heavy = [c for c in pool if c.band == "重"]
-    if heavy:
+    if heavy and light:
+        ratio_min = rules.get("upkeep_ratio_min", 3.0)
         cheapest_heavy = min(heavy, key=lambda c: c.upkeep)
-        report.check(cheapest_heavy.upkeep > income1 * 0.6,
-                     f"{cheapest_heavy.name}: 維持費 {cheapest_heavy.upkeep:.1f}/秒 が"
-                     f"Lv1収入の60%以下。育てる理由にならない")
+        dearest_light = max(light, key=lambda c: c.upkeep)
+        ratio = cheapest_heavy.upkeep / max(dearest_light.upkeep, 1e-9)
+        report.check(ratio >= ratio_min,
+                     f"cards: 一番安い重（{cheapest_heavy.name}）の維持費が"
+                     f"一番高い軽（{dearest_light.name}）の {ratio:.1f}倍しかない。"
+                     f"{ratio_min}倍以上ないと帯を分ける意味がない")
         for card in heavy:
             report.check(card.cast_sec >= rules["heavy_min_cast_sec"],
                          f"{card.name}: 重い呪文なのに詠唱 {card.cast_sec}秒。"
@@ -290,8 +297,10 @@ def check_characters(game: GameData, report: Report) -> None:
     # 「安い壁を並べるだけで前線が保たれる」か「壁が意味を持たない」に倒れる。
     # 強いキャラほど再出撃までが長い ―― 比ではなく**順序**で縛る。
     # コスト帯が 75〜2500 と3桁ぶん広いので、ひとつの係数では表せない。
-    by_cost = sorted(units, key=lambda u: u.cost)
+    by_cost = sorted(units, key=lambda u: (u.cost, u.cooldown_sec))
     for cheap, dear in zip(by_cost, by_cost[1:]):
+        if cheap.cost == dear.cost:
+            continue      # 同額どうしは比べない。同じ値段で役割が違うのは正しい
         report.check(cheap.cooldown_sec <= dear.cooldown_sec,
                      f"{dear.name}（{dear.cost}）は {cheap.name}（{cheap.cost}）より"
                      f"高いのに再出撃が早い（{dear.cooldown_sec}秒 < "
@@ -333,16 +342,19 @@ def money_at(game: GameData, seconds: float) -> float:
     best = 0.0
     money, t = float(game.economy["start"]), 0.0
 
+    def per_sec(level: dict) -> float:
+        return level["income_amount"] / level["income_every_sec"]
+
     for level in levels:
         if t > seconds:
             break
         best = max(best, min(level["max"],
-                             money + level["per_sec"] * (seconds - t)))
+                             money + per_sec(level) * (seconds - t)))
         if "upgrade_cost" not in level:
             break
         cost = level["upgrade_cost"]
         if money < cost:
-            t += (cost - money) / level["per_sec"]
+            t += (cost - money) / per_sec(level)
             money = cost
         money -= cost
         t += upgrade_sec
@@ -378,13 +390,57 @@ def check_field(game: GameData, report: Report) -> None:
                  f"{spacing}m では {fits}体しか並べない")
 
 
+def check_milestones(game: GameData, report: Report) -> None:
+    """時間の節目の配布。刻みで貯まるのとは別枠の、速度を上げる仕組み。"""
+    drops = game.economy.get("milestones", [])
+    if not drops:
+        return
+    limit = game.time_limit
+    first_cap = game.levels[0]["max"]
+
+    for a, b in zip(drops, drops[1:]):
+        report.check(a["at_sec"] < b["at_sec"],
+                     f"milestones: {a['at_sec']}秒 と {b['at_sec']}秒 の順序が逆")
+    for drop in drops:
+        report.check(0 < drop["at_sec"] < limit,
+                     f"milestones: {drop['at_sec']}秒 は試合時間 {limit:.0f}秒 の外")
+        report.check(drop.get("to", "both") in ("both", "leader"),
+                     f"milestones: {drop['at_sec']}秒 の to が both / leader でない")
+        report.check(drop["amount"] <= game.levels[-1]["max"],
+                     f"milestones: {drop['at_sec']}秒 の +{drop['amount']} が"
+                     f"最終の上限 {game.levels[-1]['max']} を超え、誰も受け取れない")
+
+    # 最初の配布だけは、育てていなくても受け取りきれること。
+    # 後半の配布が大きいのは意図的（そのころには上限が育っている）。
+    report.check(drops[0]["amount"] <= first_cap,
+                 f"milestones: 最初の配布 +{drops[0]['amount']} が Lv1の上限 "
+                 f"{first_cap} を超える。開始直後は受け取りきれない")
+    for a, b in zip(drops, drops[1:]):
+        report.check(a["amount"] <= b["amount"],
+                     f"milestones: {b['at_sec']}秒 の +{b['amount']} が "
+                     f"{a['at_sec']}秒 の +{a['amount']} より小さい。"
+                     "後になるほど大きい、が崩れている")
+
+    # 押し込んでいる側にだけ入る配布が、序盤に少なくとも1回あること。
+    # これが無いと「何も出さずに財布だけ育てる」が常に正解になる。
+    early = [d for d in drops
+             if d.get("to") == "leader" and d["at_sec"] <= limit * 0.25]
+    report.check(bool(early),
+                 "milestones: 試合の序盤に陣地ボーナス（to=leader）が無い。"
+                 "安いユニットを早く出す理由が生まれない")
+
+
 def check_economy(game: GameData, report: Report) -> None:
     levels = game.levels
 
+    def per_sec(level: dict) -> float:
+        return level["income_amount"] / level["income_every_sec"]
+
     for lower, upper in zip(levels, levels[1:]):
-        report.check(upper["max"] > lower["max"] and upper["per_sec"] > lower["per_sec"],
-                     f"economy: レベル{upper['level']} が レベル{lower['level']} より"
-                     "強くなっていない")
+        report.check(upper["max"] > lower["max"],
+                     f"economy: レベル{upper['level']} の上限が上がっていない")
+        report.check(per_sec(upper) > per_sec(lower),
+                     f"economy: レベル{upper['level']} の貯まる速さが上がっていない")
     for level in levels[:-1]:
         if not report.check("upgrade_cost" in level,
                             f"economy: レベル{level['level']} に upgrade_cost が無い"):
@@ -484,6 +540,7 @@ def main() -> int:
     check_cards(game, report)
     check_characters(game, report)
     check_field(game, report)
+    check_milestones(game, report)
     check_economy(game, report)
     check_trumps(game, report)
     check_readability(game, report)
