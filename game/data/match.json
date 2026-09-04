@@ -51,6 +51,7 @@
     "growth": {
       "_comment": "にゃんこ大戦争の働きネコに当たる仕組み。資金を払ってレベルを上げると上限と増加速度が上がる。上げている間は何も出せないので、序盤の択になる",
       "player_controlled": true,
+      "upgrade_sec": 3.0,
       "max_level": 8,
       "levels": [
         { "level": 1, "max":  300, "per_sec":  30, "upgrade_cost":  150 },
@@ -86,6 +87,13 @@
     "max_deck_uptime": 0.75,
     "uptime_range": [0.15, 0.30],
     "opponent_sees": "unrevealed_count_and_cooldowns"
+  },
+  "combat": {
+    "_comment": "シミュレータの刻み幅とノックバックの挙動。全ユニット共通",
+    "tick_sec": 0.05,
+    "unit_spacing_m": 6,
+    "knockback_distance_m": 12,
+    "knockback_stun_sec": 0.4
   },
   "readability": {
     "_comment": "見切り(0.3秒)を成立させるための床。詠唱短縮などの修正後もここを下回らない",

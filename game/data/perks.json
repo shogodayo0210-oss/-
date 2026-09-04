@@ -60,9 +60,9 @@
 
     { "id": "parry", "name": "見切り", "category": "combat_active", "cost": 3,
       "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
-      "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "scope": "own_units_and_base",
+      "params": { "charges": 1, "invuln_sec": 0.3, "startup_sec": 0.0, "scope": "cancel_enemy_cast",
                   "deploy_lock_sec": 1.0, "money_on_success": 200 },
-      "note": "相手のカード／切り札の発動に合わせて押す。自軍と拠点が0.3秒だけ無敵。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない" },
+      "note": "相手のカードの詠唱に合わせて押す。0.3秒の窓が詠唱の完了を覆えば、そのカードは不発（クールタイムだけ払わせる）。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない" },
 
     { "id": "surge", "name": "突撃", "category": "combat_active", "cost": 5,
       "changes_flow": true, "resolves_in": "battle", "visible_to_opponent": true,
