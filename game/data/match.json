@@ -20,7 +20,7 @@
   "victory": {
     "_comment": "体力制。相手アバターのHPを0にすれば即勝ち",
     "condition": "enemy_avatar_hp_zero",
-    "time_limit_sec": 300,
+    "time_limit_sec": 210,
     "on_timeout": "damage_percent_dealt",
     "tie": "draw"
   },
@@ -29,10 +29,24 @@
     "slots": 8,
     "chosen_slots": 6,
     "random_slots": 2,
-    "unit_cost_range": [60, 600],
-    "unit_cooldown_range_sec": [3, 25],
+    "unit_cost_range": [
+      60,
+      600
+    ],
+    "unit_cooldown_range_sec": [
+      3,
+      25
+    ],
     "min_hp_per_knockback": 200,
-    "siege_mult_range": [0.3, 2.0]
+    "siege_mult_range": [
+      0.3,
+      2.0
+    ],
+    "wall_threshold": 0.6,
+    "anti_wall_mult_range": [
+      0.5,
+      2.5
+    ]
   },
   "trump": {
     "_comment": "出撃8枠とは別枠。1試合に1回だけ出せる切り札。寿命が切れると撃破されなくても退場する",
@@ -47,33 +61,106 @@
   "economy": {
     "_comment": "資金は出撃・カード・切り札で共用。今出すか、貯めて大技か、育てるかの択が試合の背骨になる",
     "start": 150,
-    "kill_reward_ratio": 0.4,
+    "_kill_reward": "撃破しても資金は入らない。この仕組みは将来、特定キャラの特性として使う予定なので全体ルールからは外してある",
+    "kill_reward_ratio": 0.0,
     "growth": {
-      "_comment": "にゃんこ大戦争の働きネコに当たる仕組み。資金を払ってレベルを上げると上限と増加速度が上がる。上げている間は何も出せないので、序盤の択になる",
+      "_comment": "にゃんこ大戦争の働きネコに当たる仕組み。資金を払ってレベルを上げると上限と増加速度が上がる。上げている間（upgrade_sec）は出撃もカードも切り札も止まるので、そこが殴りどころになる。伸びを緩くしてあるのは、レベルの意味を『速さ』ではなく『誰を使えるか』に寄せるため",
       "player_controlled": true,
-      "upgrade_sec": 3.0,
+      "upgrade_sec": 6.0,
       "max_level": 8,
       "levels": [
-        { "level": 1, "max":  300, "per_sec":  30, "upgrade_cost":  150 },
-        { "level": 2, "max":  500, "per_sec":  40, "upgrade_cost":  250 },
-        { "level": 3, "max":  750, "per_sec":  55, "upgrade_cost":  400 },
-        { "level": 4, "max": 1050, "per_sec":  70, "upgrade_cost":  600 },
-        { "level": 5, "max": 1400, "per_sec":  90, "upgrade_cost":  850 },
-        { "level": 6, "max": 1800, "per_sec": 110, "upgrade_cost": 1150 },
-        { "level": 7, "max": 2250, "per_sec": 135, "upgrade_cost": 1500 },
-        { "level": 8, "max": 2800, "per_sec": 160 }
+        {
+          "level": 1,
+          "max": 300,
+          "per_sec": 40,
+          "upgrade_cost": 200
+        },
+        {
+          "level": 2,
+          "max": 500,
+          "per_sec": 44,
+          "upgrade_cost": 350
+        },
+        {
+          "level": 3,
+          "max": 750,
+          "per_sec": 48,
+          "upgrade_cost": 550
+        },
+        {
+          "level": 4,
+          "max": 1050,
+          "per_sec": 52,
+          "upgrade_cost": 800
+        },
+        {
+          "level": 5,
+          "max": 1400,
+          "per_sec": 56,
+          "upgrade_cost": 1100
+        },
+        {
+          "level": 6,
+          "max": 1800,
+          "per_sec": 60,
+          "upgrade_cost": 1450
+        },
+        {
+          "level": 7,
+          "max": 2250,
+          "per_sec": 65,
+          "upgrade_cost": 1850
+        },
+        {
+          "level": 8,
+          "max": 2800,
+          "per_sec": 70
+        }
       ]
     }
   },
   "phases": [
-    { "id": "avatar_reveal", "seconds": 5,   "note": "アバターと保有特典を相互公開。切り札は「持っている」ことだけ公開" },
-    { "id": "draft",         "seconds": 45,  "note": "出撃6枠＋カード3枚＋切り札1体。すべて非公開" },
-    { "id": "lock_commit",   "seconds": 2,   "note": "commit提出→共通シード→ランダム枠確定" },
-    { "id": "intel",         "seconds": 12,  "note": "情報系特典の解決" },
-    { "id": "battle",        "seconds": 300, "note": "1レーン攻城戦" }
+    {
+      "id": "avatar_reveal",
+      "seconds": 5,
+      "note": "アバターと保有特典を相互公開。切り札は「持っている」ことだけ公開"
+    },
+    {
+      "id": "draft",
+      "seconds": 45,
+      "note": "出撃6枠＋カード3枚＋切り札1体。すべて非公開"
+    },
+    {
+      "id": "lock_commit",
+      "seconds": 2,
+      "note": "commit提出→共通シード→ランダム枠確定"
+    },
+    {
+      "id": "intel",
+      "seconds": 12,
+      "note": "情報系特典の解決"
+    },
+    {
+      "id": "battle",
+      "seconds": 210,
+      "note": "1レーン攻城戦"
+    }
   ],
   "random_slot_draw": {
-    "mirrored_tier_templates": [ ["A", "B"], ["A", "A"], ["S", "B"] ],
+    "mirrored_tier_templates": [
+      [
+        "A",
+        "B"
+      ],
+      [
+        "A",
+        "A"
+      ],
+      [
+        "S",
+        "B"
+      ]
+    ],
     "exclude_chosen": true,
     "lend_from_common_pool_if_short": true,
     "seed": "sha256(commitA || commitB || matchId)"
@@ -85,7 +172,10 @@
     "uses_money": false,
     "global_cooldown_sec": 12,
     "max_deck_uptime": 0.75,
-    "uptime_range": [0.15, 0.30],
+    "uptime_range": [
+      0.15,
+      0.3
+    ],
     "opponent_sees": "unrevealed_count_and_cooldowns"
   },
   "combat": {

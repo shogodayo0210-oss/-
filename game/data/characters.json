@@ -9,55 +9,201 @@
     "pierce": "1回の攻撃が当たる敵の数。1=単体。大きいほど範囲攻撃だが、無限ではない",
     "knockback": "ノックバック回数。体力をこの数で割った区切りごとに後退する。1=後退せずその場で死ぬ",
     "speed_mps": "前進速度。前線がどこで作られるかを決める",
-    "siege_mult": "対拠点ダメージ倍率。1.0が基準。低いユニットは押し合い向き、高いユニットは攻城向き",
+    "siege_mult": "対拠点ダメージ倍率。1.0が基準。これが低い（wall_threshold以下）ユニットは「壁」として扱われ、壁特攻の的になる",
     "cost": "出撃に払う資金",
     "cooldown_sec": "同じユニットを再度出せるまでの時間。同時に何体出ていても構わない",
-    "tier": "S/A/B。ランダム枠の鏡像抽選はこのティアで揃える"
+    "tier": "S/A/B。ランダム枠の鏡像抽選はこのティアで揃える",
+    "anti_wall_mult": "対壁ダメージ倍率。壁（拠点を割れないユニット）に対する倍率。1.0が基準。壁の連鎖を崩すための数字"
   },
   "characters": [
-    { "id": "grunt",   "name": "兵卒",     "tier": "B", "cost":  60, "cooldown_sec":  3,
-      "hp":  400, "attack":  60, "attack_interval_sec": 1.2, "attack_windup_sec": 0.15,
-      "attack_band_m": [0, 12], "pierce": 1, "knockback": 1, "speed_mps": 8, "siege_mult": 1.0,
-      "role": "数で押す。後退せずその場で死ぬので、壁として一番安い" },
-
-    { "id": "spear",   "name": "槍兵",     "tier": "B", "cost": 120, "cooldown_sec":  5,
-      "hp":  700, "attack": 110, "attack_interval_sec": 1.4, "attack_windup_sec": 0.20,
-      "attack_band_m": [0, 25], "pierce": 1, "knockback": 3, "speed_mps": 7, "siege_mult": 1.0,
-      "role": "接近戦の一歩外から刺す。押されながらも粘る" },
-
-    { "id": "archer",  "name": "弓手",     "tier": "A", "cost": 200, "cooldown_sec":  8,
-      "hp":  450, "attack": 130, "attack_interval_sec": 1.7, "attack_windup_sec": 0.30,
-      "attack_band_m": [0, 90], "pierce": 1, "knockback": 2, "speed_mps": 4, "siege_mult": 0.8,
-      "role": "遠距離の単体。前に壁がないと即溶ける" },
-
-    { "id": "shield",  "name": "重装",     "tier": "A", "cost": 260, "cooldown_sec": 10,
-      "hp": 3000, "attack":  70, "attack_interval_sec": 2.0, "attack_windup_sec": 0.25,
-      "attack_band_m": [0, 14], "pierce": 1, "knockback": 1, "speed_mps": 4, "siege_mult": 0.5,
-      "role": "壁役。後退しないので線が下がらない。拠点はほとんど削れない" },
-
-    { "id": "twin",    "name": "双剣",     "tier": "A", "cost": 300, "cooldown_sec": 12,
-      "hp":  900, "attack": 200, "attack_interval_sec": 0.8, "attack_windup_sec": 0.10,
-      "attack_band_m": [0, 13], "pierce": 1, "knockback": 4, "speed_mps": 9, "siege_mult": 1.2,
-      "role": "最も手数が多い。よく後退するので、単体では線を保てない" },
-
-    { "id": "sweeper", "name": "薙ぎ払い", "tier": "A", "cost": 340, "cooldown_sec": 14,
-      "hp": 1200, "attack": 180, "attack_interval_sec": 2.0, "attack_windup_sec": 0.40,
-      "attack_band_m": [0, 45], "pierce": 6, "knockback": 3, "speed_mps": 5, "siege_mult": 0.7,
-      "role": "前線範囲。6体まで巻き込むので、群れてきた安いユニットに強い" },
-
-    { "id": "mortar",  "name": "臼砲",     "tier": "S", "cost": 400, "cooldown_sec": 16,
-      "hp":  500, "attack": 480, "attack_interval_sec": 3.2, "attack_windup_sec": 0.80,
-      "attack_band_m": [70, 150], "pierce": 8, "knockback": 2, "speed_mps": 3, "siege_mult": 1.5,
-      "role": "後方範囲。手前70mが死角。相手の前線を飛び越えて後衛と拠点を叩く" },
-
-    { "id": "cannon",  "name": "砲手",     "tier": "S", "cost": 420, "cooldown_sec": 18,
-      "hp":  600, "attack": 480, "attack_interval_sec": 3.5, "attack_windup_sec": 0.70,
-      "attack_band_m": [0, 130], "pierce": 5, "knockback": 3, "speed_mps": 3, "siege_mult": 1.0,
-      "role": "死角のない遠距離範囲。発生0.7秒なので、振り始めが見えたら動ける" },
-
-    { "id": "titan",   "name": "巨兵",     "tier": "S", "cost": 600, "cooldown_sec": 25,
-      "hp": 6000, "attack": 350, "attack_interval_sec": 2.4, "attack_windup_sec": 0.60,
-      "attack_band_m": [0, 20], "pierce": 3, "knockback": 2, "speed_mps": 3, "siege_mult": 1.3,
-      "role": "体力も攻撃力も最上位。遅く、出したら資金が空になる" }
+    {
+      "id": "grunt",
+      "name": "兵卒",
+      "tier": "B",
+      "cost": 60,
+      "cooldown_sec": 3,
+      "hp": 400,
+      "attack": 35,
+      "attack_interval_sec": 1.2,
+      "attack_windup_sec": 0.15,
+      "attack_band_m": [
+        0,
+        12
+      ],
+      "pierce": 1,
+      "knockback": 1,
+      "speed_mps": 8,
+      "siege_mult": 0.5,
+      "role": "壁。拠点を割れず攻撃力も低い。数で前線を作るためだけに居る",
+      "anti_wall_mult": 1.0
+    },
+    {
+      "id": "spear",
+      "name": "槍兵",
+      "tier": "B",
+      "cost": 120,
+      "cooldown_sec": 5,
+      "hp": 700,
+      "attack": 110,
+      "attack_interval_sec": 1.4,
+      "attack_windup_sec": 0.2,
+      "attack_band_m": [
+        0,
+        25
+      ],
+      "pierce": 1,
+      "knockback": 3,
+      "speed_mps": 7,
+      "siege_mult": 1.0,
+      "role": "接近戦の一歩外から刺す。押されながらも粘る",
+      "anti_wall_mult": 1.3
+    },
+    {
+      "id": "archer",
+      "name": "弓手",
+      "tier": "A",
+      "cost": 200,
+      "cooldown_sec": 8,
+      "hp": 450,
+      "attack": 130,
+      "attack_interval_sec": 1.7,
+      "attack_windup_sec": 0.3,
+      "attack_band_m": [
+        0,
+        90
+      ],
+      "pierce": 1,
+      "knockback": 2,
+      "speed_mps": 4,
+      "siege_mult": 0.8,
+      "role": "遠距離の単体。前に壁がないと即溶ける",
+      "anti_wall_mult": 1.0
+    },
+    {
+      "id": "shield",
+      "name": "重装",
+      "tier": "A",
+      "cost": 260,
+      "cooldown_sec": 10,
+      "hp": 3000,
+      "attack": 45,
+      "attack_interval_sec": 2.0,
+      "attack_windup_sec": 0.25,
+      "attack_band_m": [
+        0,
+        14
+      ],
+      "pierce": 1,
+      "knockback": 1,
+      "speed_mps": 4,
+      "siege_mult": 0.5,
+      "role": "壁役。攻撃力を捨てて、後ろの遠距離を守る時間を買う",
+      "anti_wall_mult": 1.0
+    },
+    {
+      "id": "twin",
+      "name": "双剣",
+      "tier": "A",
+      "cost": 300,
+      "cooldown_sec": 12,
+      "hp": 900,
+      "attack": 200,
+      "attack_interval_sec": 0.8,
+      "attack_windup_sec": 0.1,
+      "attack_band_m": [
+        0,
+        13
+      ],
+      "pierce": 1,
+      "knockback": 4,
+      "speed_mps": 9,
+      "siege_mult": 1.2,
+      "role": "接近戦で最も手数が多く、壁を溶かすのが速い。代わりに紙",
+      "anti_wall_mult": 1.8
+    },
+    {
+      "id": "sweeper",
+      "name": "薙ぎ払い",
+      "tier": "A",
+      "cost": 340,
+      "cooldown_sec": 14,
+      "hp": 1200,
+      "attack": 180,
+      "attack_interval_sec": 2.0,
+      "attack_windup_sec": 0.4,
+      "attack_band_m": [
+        0,
+        45
+      ],
+      "pierce": 6,
+      "knockback": 3,
+      "speed_mps": 5,
+      "siege_mult": 0.7,
+      "role": "前線範囲。6体まで巻き込み、壁の群れを崩すのが仕事",
+      "anti_wall_mult": 2.2
+    },
+    {
+      "id": "mortar",
+      "name": "臼砲",
+      "tier": "S",
+      "cost": 400,
+      "cooldown_sec": 16,
+      "hp": 500,
+      "attack": 480,
+      "attack_interval_sec": 3.2,
+      "attack_windup_sec": 0.8,
+      "attack_band_m": [
+        70,
+        150
+      ],
+      "pierce": 8,
+      "knockback": 2,
+      "speed_mps": 3,
+      "siege_mult": 1.5,
+      "role": "後方範囲。手前70mが死角。相手の前線を飛び越えて後衛と拠点を叩く",
+      "anti_wall_mult": 0.6
+    },
+    {
+      "id": "cannon",
+      "name": "砲手",
+      "tier": "S",
+      "cost": 420,
+      "cooldown_sec": 18,
+      "hp": 600,
+      "attack": 480,
+      "attack_interval_sec": 3.5,
+      "attack_windup_sec": 0.7,
+      "attack_band_m": [
+        0,
+        130
+      ],
+      "pierce": 5,
+      "knockback": 3,
+      "speed_mps": 3,
+      "siege_mult": 1.0,
+      "role": "死角のない遠距離範囲。発生0.7秒なので、振り始めが見えたら動ける",
+      "anti_wall_mult": 1.0
+    },
+    {
+      "id": "titan",
+      "name": "巨兵",
+      "tier": "S",
+      "cost": 600,
+      "cooldown_sec": 25,
+      "hp": 6000,
+      "attack": 350,
+      "attack_interval_sec": 2.4,
+      "attack_windup_sec": 0.6,
+      "attack_band_m": [
+        0,
+        20
+      ],
+      "pierce": 3,
+      "knockback": 2,
+      "speed_mps": 3,
+      "siege_mult": 1.3,
+      "role": "体力も攻撃力も最上位。遅く、出したら資金が空になる",
+      "anti_wall_mult": 1.5
+    }
   ]
 }

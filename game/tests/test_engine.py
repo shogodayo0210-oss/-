@@ -97,6 +97,51 @@ class TestAttackBand(unittest.TestCase):
         self.assertGreater(len(found), 6)       # 押せば通る
 
 
+class TestWalls(unittest.TestCase):
+    """壁は別のタグではなく「拠点を割れないユニット」。壁特攻はその的を叩く。"""
+
+    def setUp(self):
+        self.line = GAME.wall_threshold
+
+    def test_wall_is_defined_by_siege_mult(self):
+        self.assertTrue(GAME.units["grunt"].is_wall(self.line))
+        self.assertTrue(GAME.units["shield"].is_wall(self.line))
+        self.assertFalse(GAME.units["twin"].is_wall(self.line))
+        self.assertFalse(GAME.units["mortar"].is_wall(self.line))
+
+    def test_walls_hit_softly(self):
+        median = sorted(u.dps for u in GAME.units.values())[len(GAME.units) // 2]
+        for unit in GAME.units.values():
+            if unit.is_wall(self.line):
+                self.assertLessEqual(unit.dps, median, unit.name)
+
+    def test_anti_wall_bonus_applies_only_to_walls(self):
+        bt = battle()
+        sweeper = GAME.units["sweeper"]          # 対壁 2.2
+        wall = GAME.units["grunt"]
+        other = GAME.units["twin"]
+
+        attacker = Fighter(spec=sweeper, side=0, x=0.0, hp=float(sweeper.hp), facing=1)
+        bt.sides[0].fighters.append(attacker)
+        victims = [
+            Fighter(spec=wall, side=1, x=10.0, hp=float(wall.hp), facing=-1),
+            Fighter(spec=other, side=1, x=20.0, hp=float(other.hp), facing=-1),
+        ]
+        bt.sides[1].fighters.extend(victims)
+        bt.snapshot()
+        bt.resolve_attack(attacker)
+
+        dealt = {v.spec.id: amount for v, amount in bt._damage}
+        self.assertAlmostEqual(dealt["grunt"], sweeper.attack * sweeper.anti_wall_mult)
+        self.assertAlmostEqual(dealt["twin"], sweeper.attack)
+
+    def test_someone_can_break_walls(self):
+        breakers = [u for u in GAME.units.values() if u.anti_wall_mult > 1.5]
+        self.assertTrue(breakers, "壁を崩す答えが1体も無いと、壁を並べるだけで前線が保たれる")
+        for unit in breakers:
+            self.assertLessEqual(unit.far, 50, f"{unit.name}: 壁特攻は接近戦の役割に限る")
+
+
 class TestParry(unittest.TestCase):
     """見切りは相手のカードを潰す。0.3秒の窓が詠唱の完了を覆えば不発になる。"""
 

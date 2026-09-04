@@ -371,9 +371,12 @@ class Battle:
         if enemy.parry_until >= self.t:
             return
 
+        wall_line = self.game.wall_threshold
         hits = self.targets_in_band(fighter)[: fighter.spec.pierce]
         for victim in hits:
-            self._damage.append((victim, power))
+            bonus = (fighter.spec.anti_wall_mult
+                     if victim.spec.is_wall(wall_line) else 1.0)
+            self._damage.append((victim, power * bonus))
 
         if not hits and self.base_in_band(fighter):
             self._base_damage.append((enemy, power * fighter.spec.siege_mult))

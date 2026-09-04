@@ -19,7 +19,8 @@
       "pierce": 4,
       "knockback": 1,
       "speed_mps": 3,
-      "siege_mult": 1.4
+      "siege_mult": 1.4,
+      "anti_wall_mult": 1.5
     },
     {
       "id": "gale_edge",
@@ -39,7 +40,8 @@
       "pierce": 1,
       "knockback": 2,
       "speed_mps": 14,
-      "siege_mult": 1.6
+      "siege_mult": 1.6,
+      "anti_wall_mult": 0.8
     },
     {
       "id": "archmage",
@@ -59,7 +61,8 @@
       "pierce": 6,
       "knockback": 1,
       "speed_mps": 2,
-      "siege_mult": 2.0
+      "siege_mult": 2.0,
+      "anti_wall_mult": 0.6
     }
   ]
 }

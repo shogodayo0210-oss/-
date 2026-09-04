@@ -161,6 +161,8 @@ def check_characters(game: GameData, report: Report) -> None:
     lo, hi = roster["unit_cost_range"]
     cd_lo, cd_hi = roster["unit_cooldown_range_sec"]
     s_lo, s_hi = roster["siege_mult_range"]
+    w_lo, w_hi = roster["anti_wall_mult_range"]
+    wall_line = roster["wall_threshold"]
 
     hp_median = statistics.median(u.hp for u in units)
     dps_median = statistics.median(u.dps for u in units)
@@ -179,6 +181,22 @@ def check_characters(game: GameData, report: Report) -> None:
         report.check(s_lo <= unit.siege_mult <= s_hi,
                      f"{unit.name}: 対拠点倍率 {unit.siege_mult} が "
                      f"{s_lo}〜{s_hi} の外")
+        report.check(w_lo <= unit.anti_wall_mult <= w_hi,
+                     f"{unit.name}: 対壁倍率 {unit.anti_wall_mult} が "
+                     f"{w_lo}〜{w_hi} の外")
+
+        # 壁の仕事は前線を作ることであって、殴ることではない。
+        if unit.is_wall(wall_line):
+            report.check(unit.dps <= dps_median,
+                         f"{unit.name}: 壁（対拠点 {unit.siege_mult}）なのに "
+                         f"DPS {unit.dps:.0f} が中央値 {dps_median:.0f} 超え。"
+                         "壁の攻撃力は低くする")
+
+        # 壁を割るのは、壁と同じ距離まで出てきた者の仕事。
+        # 遠くから安全に壁を溶かせると、前に出る理由が無くなる。
+        report.check(unit.anti_wall_mult <= 1.5 or unit.far <= FAR,
+                     f"{unit.name}: 対壁倍率 {unit.anti_wall_mult} で射程 "
+                     f"{unit.far}m。壁特攻は接近戦の役割に限る")
         _windup_rule(unit, game, report)
 
         if not report.check(0 <= unit.near < unit.far,
@@ -210,6 +228,15 @@ def check_characters(game: GameData, report: Report) -> None:
         report.check(unit.speed_mps <= speed_median,
                      f"{unit.name}: 射程 {unit.far}m で速度 {unit.speed_mps} は"
                      f"中央値 {speed_median:.1f} 超え。遠距離は足を遅くする")
+
+    # 壁と、その壁を崩す答えの両方が要る。片方だけだと、
+    # 「安い壁を並べるだけで前線が保たれる」か「壁が意味を持たない」に倒れる。
+    walls = [u for u in units if u.is_wall(wall_line)]
+    breakers = [u for u in units if u.anti_wall_mult > 1.5]
+    report.check(bool(walls), "characters: 壁（対拠点倍率が低いユニット）が居ない")
+    report.check(bool(breakers),
+                 "characters: 壁特攻を持つユニットが居ない。"
+                 "安い壁を並べるだけで前線が保たれてしまう")
 
     # ティアはランダム枠の鏡像抽選の土台。コスト帯が重なると意味を失う。
     by_tier: dict[str, list[int]] = {}

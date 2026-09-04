@@ -29,6 +29,7 @@ class Unit:
     knockback: int
     speed_mps: float
     siege_mult: float
+    anti_wall_mult: float = 1.0
     role: str = ""
 
     @property
@@ -39,6 +40,14 @@ class Unit:
     @property
     def far(self) -> float:
         return self.attack_band_m[1]
+
+    def is_wall(self, threshold: float) -> bool:
+        """壁かどうかは対拠点倍率で決まる。拠点を割れないユニットが壁。
+
+        別のタグを持たせない。「壁」という役割は、すでにある数字の
+        言い換えでしかない。
+        """
+        return self.siege_mult <= threshold
 
     @property
     def dps(self) -> float:
@@ -152,6 +161,10 @@ class GameData:
     def combat(self) -> dict:
         return self.match["combat"]
 
+    @property
+    def wall_threshold(self) -> float:
+        return self.match["roster"]["wall_threshold"]
+
     def units_by_tier(self, tier: str) -> list[Unit]:
         return [u for u in self.units.values() if u.tier == tier]
 
@@ -180,7 +193,7 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             attack_band_m=tuple(u["attack_band_m"]),
             pierce=u["pierce"], knockback=u["knockback"],
             speed_mps=u["speed_mps"], siege_mult=u["siege_mult"],
-            role=u.get("role", ""),
+            anti_wall_mult=u["anti_wall_mult"], role=u.get("role", ""),
         )
 
     cards = {}
@@ -204,7 +217,7 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             attack_band_m=tuple(t["attack_band_m"]),
             pierce=t["pierce"], knockback=t["knockback"],
             speed_mps=t["speed_mps"], siege_mult=t["siege_mult"],
-            role=t.get("role", ""),
+            anti_wall_mult=t["anti_wall_mult"], role=t.get("role", ""),
             lifespan_sec=t["lifespan_sec"], summon_sec=t["summon_sec"],
         )
 
