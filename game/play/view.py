@@ -22,10 +22,14 @@ from ..engine.data import Unit
 ART = Path(__file__).resolve().parent.parent / "art"
 
 # ---------------------------------------------------------------- 画面の寸法
-W, H = 1000, 580
-GROUND_Y = 392          # ユニットが立つ線
-HUD_Y = 426             # ここから下が操作盤
-LANE_LEFT, LANE_RIGHT = 92, W - 92
+# にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
+# 操作盤は2段：**呪文を選ぶところ**と、**キャラを召喚するところ**。
+W, H = 1140, 712
+GROUND_Y = 400          # ユニットが立つ線
+HUD_Y = 434             # ここから下が操作盤
+SPELL_Y = 440           # 呪文の段
+SUMMON_Y = 548          # 資金と召喚の段
+LANE_LEFT, LANE_RIGHT = 100, W - 100
 
 UNIT_PX = 48            # art/README.md 1章の実寸
 AVATAR_PX = 64
@@ -153,11 +157,23 @@ class Button:
                 and side.deploy_cd.get(self.spec.id, 0.0) <= 0)
 
 
+class Spell:
+    """呪文の枠1つ。持ち込み1枠＋ストック3枠。"""
+
+    def __init__(self, rect: pygame.Rect, source: tuple[str, int],
+                 hotkey: int, label: str):
+        self.rect = rect
+        self.source = source
+        self.hotkey = hotkey
+        self.label = label
+
+
 class View:
     """1フレーム描く。状態は持たない（フォントと絵の使い回しだけ）。"""
 
-    def __init__(self, surface: pygame.Surface, roster: tuple[Unit, ...]):
+    def __init__(self, surface: pygame.Surface, roster: tuple[Unit, ...], game):
         self.surface = surface
+        self.game = game
         self.sprites = Sprites()
         self.f_small = load_font(15)
         self.f_body = load_font(18)
@@ -165,8 +181,24 @@ class View:
         self.f_big = load_font(34, bold=True)
         self.f_num = load_font(24, bold=True)
 
+        # ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
+        slots = game.stock_slots
+        self.spells = [Spell(pygame.Rect(66, SPELL_Y + 8, 158, 92),
+                             ("brought", 0), pygame.K_q, "持ち込み")]
+        for i in range(slots):
+            self.spells.append(Spell(
+                pygame.Rect(240 + i * 168, SPELL_Y + 8, 158, 92),
+                ("stock", i), pygame.K_w + i, f"ストック{i + 1}"))
+        self.trump_rect = pygame.Rect(W - 182, SPELL_Y + 8, 158, 92)
+        self.trump_key = pygame.K_t
+
+        # ── 召喚の段：財布 ＋ 出撃ボタン ─────────────────────────
+        self.upgrade_rect = pygame.Rect(24, SUMMON_Y + 44, 118, 100)
+        self.upgrade_key = pygame.K_0
+        span = W - 24 - 158
+        width = min(114, span // max(len(roster), 1) - 8)
         self.buttons = [
-            Button(pygame.Rect(W - 46 - (len(roster) - i) * 116, HUD_Y + 22, 104, 106),
+            Button(pygame.Rect(158 + i * (width + 8), SUMMON_Y + 44, width, 100),
                    spec, pygame.K_1 + i, str(i + 1))
             for i, spec in enumerate(roster)
         ]
@@ -309,14 +341,87 @@ class View:
                    (W // 2, 34), center=True)
         self._text("残り", self.f_small, MUTED, (W // 2, 55), center=True)
 
-    # -------------------------------------------------------------- 操作盤
-    def _hud(self, battle: Battle, side: Side) -> None:
+    # ---------------------------------------------------------- 操作盤：呪文
+    def _spells(self, battle: Battle, side: Side) -> None:
         pygame.draw.rect(self.surface, PANEL, (0, HUD_Y, W, H - HUD_Y))
         pygame.draw.line(self.surface, RULE, (0, HUD_Y), (W, HUD_Y))
+        self._text("呪文", self.f_small, MUTED, (22, SPELL_Y + 44))
 
+        for slot in self.spells:
+            self._spell(slot, battle, side)
+        self._trump(battle, side)
+
+    def _spell(self, slot: "Spell", battle: Battle, side: Side) -> None:
+        rect = slot.rect
+        card = side.card_of(slot.source)
+        ready = side.castable(slot.source)
+        kind, index = slot.source
+
+        pygame.draw.rect(self.surface, (33, 43, 54) if ready else (24, 31, 39), rect)
+
+        # 空きストックは下から補充されていく。持ち込みは自分のクールタイム。
+        left = total = 0.0
+        if kind == "stock" and side.stock[index] is None:
+            left, total = side.restock[index], side.restock_sec
+        elif kind == "brought":
+            left, total = side.brought_cd, self.game.cards[side.brought].cooldown_sec
+        if left > 0:
+            h = int(rect.h * min(1.0, left / max(total, 1e-6)))
+            pygame.draw.rect(self.surface, (18, 24, 30),
+                             (rect.x, rect.bottom - h, rect.w, h))
+
+        edge = GOLD if kind == "brought" else (ACCENT if ready else RULE)
+        pygame.draw.rect(self.surface, edge, rect, 2)
+        self._text(slot.label, self.f_small, edge, (rect.x + 8, rect.y + 13))
+
+        if card is None:
+            self._text("補充中", self.f_body, MUTED, (rect.centerx, rect.centery),
+                       center=True)
+            self._text(f"{left:.1f}秒", self.f_small, MUTED,
+                       (rect.centerx, rect.bottom - 14), center=True)
+            return
+
+        self._text(card.name, self.f_bold, INK if ready else MUTED,
+                   (rect.centerx, rect.y + 40), center=True)
+        self._text(f"{card.cost}", self.f_body, GOLD if ready else RULE,
+                   (rect.centerx, rect.y + 66), center=True)
+        note = card.band
+        if left > 0:
+            note = f"{left:.1f}秒"
+        elif side.money < card.cost:
+            note = "資金不足"
+        self._text(note, self.f_small, MUTED,
+                   (rect.centerx, rect.bottom - 14), center=True)
+
+    def _trump(self, battle: Battle, side: Side) -> None:
+        rect = self.trump_rect
+        spec = self.game.trumps[side.loadout.trump]
+        unlock = self.game.trump_rules["unlock_at_sec"]
+        locked = battle.t < unlock
+        ready = (not side.trump_used and not locked
+                 and side.money >= spec.cost and not side.busy)
+
+        pygame.draw.rect(self.surface, (36, 30, 22) if ready else (24, 31, 39), rect)
+        pygame.draw.rect(self.surface, GOLD if ready else RULE, rect, 2)
+        self._text("切り札", self.f_small, GOLD if ready else MUTED,
+                   (rect.x + 8, rect.y + 13))
+        if side.trump_used:
+            self._text("使用済み", self.f_body, MUTED,
+                       (rect.centerx, rect.centery), center=True)
+            return
+        self._text(spec.name, self.f_bold, INK if ready else MUTED,
+                   (rect.centerx, rect.y + 40), center=True)
+        self._text(f"{spec.cost}", self.f_body, GOLD if ready else RULE,
+                   (rect.centerx, rect.y + 66), center=True)
+        note = f"{unlock - battle.t:.0f}秒後" if locked else (
+            "資金不足" if side.money < spec.cost else "1試合1回")
+        self._text(note, self.f_small, MUTED,
+                   (rect.centerx, rect.bottom - 14), center=True)
+
+    # ------------------------------------------------------ 操作盤：資金と召喚
+    def _summon(self, battle: Battle, side: Side) -> None:
         cap = side.money_cap
-        bar = pygame.Rect(34, HUD_Y + 46, 440, 30)
-        self._text(f"資金  Lv{side.level}", self.f_small, MUTED, (34, HUD_Y + 26))
+        bar = pygame.Rect(24, SUMMON_Y, 520, 26)
         self._bar(bar, side.money / cap, GOLD, border=RULE)
 
         # 出せる線。ここを越えたら押せる、が棒の上で分かる。
@@ -324,43 +429,72 @@ class View:
             cost = side.unit_cost(button.spec)
             if cost <= cap:
                 x = bar.x + int(bar.w * cost / cap)
-                pygame.draw.line(self.surface, INK, (x, bar.y - 4),
-                                 (x, bar.bottom + 4))
+                pygame.draw.line(self.surface, (120, 136, 152),
+                                 (x, bar.y), (x, bar.bottom))
 
-        self._text(f"{side.money:,.0f} / {cap:,.0f}", self.f_body, INK,
-                   (bar.right + 14, bar.centery))
-        self._text(f"毎秒 +{side.income:.0f}", self.f_small, MUTED,
-                   (34, bar.bottom + 18))
+        self._text(f"{side.money:,.0f} / {cap:,.0f}", self.f_num, INK,
+                   (bar.right + 16, bar.centery))
+        self._text(f"財布 Lv{side.level}   毎秒 +{side.income:.0f}",
+                   self.f_small, MUTED, (bar.right + 210, bar.centery))
+        if side.busy:
+            self._text(f"育成中 {side.upgrading_left:.1f}秒 — 何も出せない",
+                       self.f_small, RED, (bar.right + 380, bar.centery))
 
+        self._upgrade(side)
         for button in self.buttons:
             self._button(button, side)
 
-    def _button(self, button: Button, side: Side) -> None:
+    def _upgrade(self, side: Side) -> None:
+        rect = self.upgrade_rect
+        cost = side.upgrade_cost
+        ready = cost is not None and side.can_upgrade() and not side.busy
+
+        pygame.draw.rect(self.surface, (26, 40, 40) if ready else (24, 31, 39), rect)
+        pygame.draw.rect(self.surface, GREEN if ready else RULE, rect, 2)
+        self._text("0", self.f_small, GREEN if ready else MUTED,
+                   (rect.x + 8, rect.y + 13))
+        self._text("財布", self.f_bold, INK if ready else MUTED,
+                   (rect.centerx, rect.y + 38), center=True)
+        if cost is None:
+            self._text("最大", self.f_body, MUTED,
+                       (rect.centerx, rect.y + 62), center=True)
+            return
+        self._text(f"{cost}", self.f_body, GREEN if ready else RULE,
+                   (rect.centerx, rect.y + 62), center=True)
+        self._text(f"Lv{side.level + 1} へ", self.f_small, MUTED,
+                   (rect.centerx, rect.bottom - 13), center=True)
+
+    def _button(self, button: "Button", side: Side) -> None:
         rect = button.rect
         cd = side.deploy_cd.get(button.spec.id, 0.0)
-        reason = button.blocked_by(side)
+        cost = side.unit_cost(button.spec)
+        over_cap = cost > side.money_cap          # 財布のレベルが足りない
         ready = button.ready(side)
 
         pygame.draw.rect(self.surface, (33, 43, 54) if ready else (24, 31, 39), rect)
-
         if cd > 0:                    # 再出撃までを下から塗り戻す
             total = max(side.deploy_cooldown(button.spec), 1e-6)
             h = int(rect.h * min(1.0, cd / total))
             pygame.draw.rect(self.surface, (18, 24, 30),
                              (rect.x, rect.bottom - h, rect.w, h))
 
-        pygame.draw.rect(self.surface, ACCENT if ready else RULE, rect, 2)
-        self._text(button.label, self.f_small, ACCENT if ready else MUTED,
-                   (rect.x + 9, rect.y + 14))
+        edge = RED if over_cap else (ACCENT if ready else RULE)
+        pygame.draw.rect(self.surface, edge, rect, 2)
+        self._text(button.label, self.f_small, edge, (rect.x + 8, rect.y + 13))
         self._text(button.spec.name, self.f_bold, INK if ready else MUTED,
-                   (rect.centerx, rect.y + 42), center=True)
-        self._text(f"{button.spec.cost}", self.f_body, GOLD if ready else RULE,
-                   (rect.centerx, rect.y + 68), center=True)
+                   (rect.centerx, rect.y + 38), center=True)
+        self._text(f"{cost:.0f}", self.f_body, GOLD if ready else RULE,
+                   (rect.centerx, rect.y + 62), center=True)
 
-        status = f"{cd:.1f}秒" if cd > 0 else (reason or "")
-        if status:
-            self._text(status, self.f_small, MUTED,
-                       (rect.centerx, rect.bottom - 15), center=True)
+        if over_cap:
+            note = "財布 Lv不足"
+        elif cd > 0:
+            note = f"{cd:.1f}秒"
+        else:
+            note = button.blocked_by(side) or ""
+        if note:
+            self._text(note, self.f_small, RED if over_cap else MUTED,
+                       (rect.centerx, rect.bottom - 13), center=True)
 
     # -------------------------------------------------------------- 決着
     def _result(self, battle: Battle, player: int) -> None:
@@ -386,25 +520,43 @@ class View:
 
     # -------------------------------------------------------------- 1フレーム
     def draw(self, battle: Battle, player: int, paused: bool = False) -> None:
+        side = battle.sides[player]
         self.surface.fill(BG)
         self._field(battle)
         self._fighters(battle)
         self._header(battle, player)
-        self._hud(battle, battle.sides[player])
+        self._spells(battle, side)
+        self._summon(battle, side)
         if battle.finished():
             self._result(battle, player)
         elif paused:
             self._text("一時停止（Space）", self.f_bold, GOLD,
                        (W // 2, 120), center=True)
 
-    def button_at(self, pos: tuple[int, int]) -> Button | None:
+    # ------------------------------------------------------------ 当たり判定
+    # クリックとキーを同じ「操作」に畳んで返す。__main__ は中身を知らなくていい。
+    def action_at(self, pos: tuple[int, int]):
+        if self.upgrade_rect.collidepoint(pos):
+            return ("upgrade", None)
+        if self.trump_rect.collidepoint(pos):
+            return ("trump", None)
+        for slot in self.spells:
+            if slot.rect.collidepoint(pos):
+                return ("cast", slot.source)
         for button in self.buttons:
             if button.rect.collidepoint(pos):
-                return button
+                return ("deploy", button.spec.id)
         return None
 
-    def button_for_key(self, key: int) -> Button | None:
+    def action_for_key(self, key: int):
+        if key == self.upgrade_key:
+            return ("upgrade", None)
+        if key == self.trump_key:
+            return ("trump", None)
+        for slot in self.spells:
+            if slot.hotkey == key:
+                return ("cast", slot.source)
         for button in self.buttons:
             if button.hotkey == key:
-                return button
+                return ("deploy", button.spec.id)
         return None

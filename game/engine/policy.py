@@ -32,22 +32,36 @@ def _try_parry(battle: Battle, side: Side) -> bool:
 
 
 def _try_card(battle: Battle, side: Side) -> bool:
+    """呪文はユニットと同じ資金を食う。**出撃ぶんを残してから撃つ。**
+
+    ここが新しい択で、いくら効果が大きくても、前線を維持できなくなるほど
+    払うと負ける。方針の側にも「取っておく」という判断が要る。
+    """
     if side.casting is not None or side.gcd_left > 0:
         return False
     own_units = len(battle.live(side.index))
     foe_units = len(battle.live(1 - side.index))
 
-    for card_id in side.loadout.deck:
-        if side.card_cd.get(card_id, 0.0) > 0:
+    cheapest = min((side.unit_cost(battle.game.units[uid])
+                    for uid in side.loadout.roster), default=0.0)
+    reserve = cheapest * 3          # 壁を切らさないぶんは手を付けない
+
+    best, best_card = None, None
+    for source in side.sources():
+        if not side.castable(source):
             continue
-        card = battle.game.cards[card_id]
-        wants_own = card.apply.scope.startswith("own")
-        if wants_own and own_units < 2:
+        card = side.card_of(source)
+        if side.money - card.cost < reserve:
             continue
-        if not wants_own and card.apply.scope == "enemy_units" and foe_units < 2:
+        scope = card.apply.scope
+        if scope.startswith("own") and scope.endswith("units") and own_units < 2:
+            continue                # 誰も居ないところに自軍強化を撒かない
+        if scope == "enemy_units" and foe_units < 2:
             continue
-        return battle.start_cast(side, card_id)
-    return False
+        if best_card is None or card.power > best_card.power:
+            best, best_card = source, card
+
+    return battle.start_cast(side, best) if best else False
 
 
 def _try_deploy(battle: Battle, side: Side) -> bool:

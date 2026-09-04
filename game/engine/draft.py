@@ -30,6 +30,22 @@ def _rng(seed: str, salt: str) -> random.Random:
     return random.Random(int.from_bytes(stream, "big"))
 
 
+def stock_sequence(game: GameData, seed: str, count: int) -> list[str]:
+    """呪文ストックに流れてくる札の並び。
+
+    軽い札ほど出やすい（`stock_weight`）。重い札は「引けたら大きい手が打てる」
+    機会として現れる ―― 引けなかったから負ける、にはならないよう、
+    重い札は自分の持ち込み枠で確保できる（設計書5章）。
+
+    種から決まるので、同じ試合は何度回しても同じ並びになる。
+    """
+    rng = _rng(seed, "stock")
+    weights = game.card_rules["stock_weight"]
+    pool = list(game.cards.values())
+    chances = [weights.get(c.band, 1) for c in pool]
+    return [rng.choices(pool, weights=chances)[0].id for _ in range(count)]
+
+
 def pick_template(game: GameData, seed: str) -> list[str]:
     """その試合の抽選テンプレート。両者共通なので、引く強さが揃う。"""
     templates = game.match["random_slot_draw"]["mirrored_tier_templates"]

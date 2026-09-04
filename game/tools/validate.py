@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from game.engine.data import GameData, Unit, load  # noqa: E402
 
 FAR = 50          # ここを超えたら遠距離扱い
-CD_PER_COST = 25  # 再出撃CDの目安：コスト ÷ これ
 
 
 class Report:
@@ -89,37 +88,94 @@ def check_avatars(game: GameData, report: Report) -> list[tuple]:
 
 # --------------------------------------------------------------------- カード
 def check_cards(game: GameData, report: Report) -> None:
-    """カードは資金ではなく時間で回す。効いている時間の割合で釣り合いを見る。"""
+    """呪文は資金で撃つ。**コストの高さが、そのまま強さの帯になっている**か。
+
+    無料だった頃は占有率（継続÷CT）が唯一の物差しだったが、資金を払うように
+    なったので「効かせ続けるのに収入の何割を食うか」＝維持費が主役になる。
+    """
     rules = game.card_rules
     gcd = rules["global_cooldown_sec"]
-    lo, hi = rules["uptime_range"]
     pool = list(game.cards.values())
+    bands = rules["cost_bands"]
+    powers = rules["power_bands"]
+    income1 = game.levels[0]["per_sec"]
 
-    report.check(len(pool) >= rules["deck_size"],
+    report.check(len(pool) >= rules["stock_slots"] + rules["brought"],
                  f"cards: プールが {len(pool)} 枚。"
-                 f"デッキ {rules['deck_size']} 枚を組めない")
+                 f"持ち込み{rules['brought']}＋ストック{rules['stock_slots']} を賄えない")
     names = [c.name for c in pool]
-    report.check(len(names) == len(set(names)),
-                 "cards: カード名が重複（同名不可ルールと衝突）")
+    report.check(len(names) == len(set(names)), "cards: カード名が重複")
 
     for card in pool:
         report.check(card.duration_sec < card.cooldown_sec,
                      f"{card.name}: 継続 {card.duration_sec}秒 がクールタイム "
-                     f"{card.cooldown_sec}秒 以上。常時かかったままになる")
+                     f"{card.cooldown_sec}秒 以上。持ち込むと常時かかったままになる")
         report.check(card.cooldown_sec >= gcd,
-                     f"{card.name}: 個別クールタイム {card.cooldown_sec}秒 が"
-                     f"共通クールタイム {gcd}秒 より短く、意味がない")
-        report.check(lo <= card.uptime <= hi,
-                     f"{card.name}: 占有率 {card.uptime:.0%}"
-                     f"（継続{card.duration_sec}秒 / CT{card.cooldown_sec}秒）が"
-                     f"{lo:.0%}〜{hi:.0%} の外")
+                     f"{card.name}: 個別CT {card.cooldown_sec}秒 が"
+                     f"共通CT {gcd}秒 より短く、意味がない")
+        report.check(card.uptime <= rules["max_uptime"],
+                     f"{card.name}: 占有率 {card.uptime:.0%} が上限 "
+                     f"{rules['max_uptime']:.0%} を超える")
 
-    top = sorted(pool, key=lambda c: c.uptime, reverse=True)[: rules["deck_size"]]
-    total = sum(c.uptime for c in top)
-    report.check(total <= rules["max_deck_uptime"],
-                 f"cards: 最も濃いデッキ（{'・'.join(c.name for c in top)}）の"
-                 f"占有率合計が {total:.0%} で、上限 "
-                 f"{rules['max_deck_uptime']:.0%} を超える")
+        lo, hi = bands.get(card.band, (0, 0))
+        report.check(lo <= card.cost <= hi,
+                     f"{card.name}: コスト {card.cost} が「{card.band}」の帯 "
+                     f"{lo}〜{hi} の外")
+        plo, phi = powers.get(card.band, (0, 0))
+        report.check(plo <= card.power < phi,
+                     f"{card.name}: 効果の大きさ {card.power:.1f} が「{card.band}」の"
+                     f"想定 {plo}〜{phi} の外。**コストと強さがずれている**")
+
+    # 帯のあいだで、コストも維持費も重ならないこと。
+    # 重ならないから「高い＝強い」が一目で成り立つ。
+    order = ["軽", "中", "重"]
+    for lower, upper in zip(order, order[1:]):
+        low = [c for c in pool if c.band == lower]
+        high = [c for c in pool if c.band == upper]
+        if not (low and high):
+            continue
+        report.check(max(c.cost for c in low) < min(c.cost for c in high),
+                     f"cards: 「{lower}」と「{upper}」のコスト帯が重なっている")
+        report.check(max(c.upkeep for c in low) < min(c.upkeep for c in high),
+                     f"cards: 「{lower}」と「{upper}」の維持費が重なっている")
+
+    # 帯の中では「高い方が弱い」が起きないこと。
+    # 同額どうしは比べない ―― 同じ値段で役割が違うのは正しい姿。
+    for band in order:
+        members = sorted((c for c in pool if c.band == band), key=lambda c: c.cost)
+        for a, b in zip(members, members[1:]):
+            if a.cost == b.cost:
+                continue
+            report.check(a.power <= b.power + 1e-9,
+                         f"{b.name}（{b.cost}）は {a.name}（{a.cost}）より高いのに"
+                         f"効果が小さい（{b.power:.1f} < {a.power:.1f}）")
+
+    # 一番軽い帯は、育てる前でも維持できること。ここが払えないと
+    # 「呪文はお金持ちの遊び」になって、序盤の択が消える。
+    light = [c for c in pool if c.band == "軽"]
+    if light:
+        worst = max(light, key=lambda c: c.upkeep)
+        report.check(worst.upkeep <= income1 * 0.4,
+                     f"{worst.name}: 維持費 {worst.upkeep:.1f}/秒 が"
+                     f"Lv1収入 {income1}/秒 の40%を超え、序盤に撃てない")
+
+    # 一番重い帯は、育てないと維持できないこと。差が出ないなら帯を分ける意味がない。
+    heavy = [c for c in pool if c.band == "重"]
+    if heavy:
+        cheapest_heavy = min(heavy, key=lambda c: c.upkeep)
+        report.check(cheapest_heavy.upkeep > income1 * 0.6,
+                     f"{cheapest_heavy.name}: 維持費 {cheapest_heavy.upkeep:.1f}/秒 が"
+                     f"Lv1収入の60%以下。育てる理由にならない")
+        for card in heavy:
+            report.check(card.cast_sec >= rules["heavy_min_cast_sec"],
+                         f"{card.name}: 重い呪文なのに詠唱 {card.cast_sec}秒。"
+                         f"{rules['heavy_min_cast_sec']}秒以上でないと見切れない")
+
+    # ストックは軽い札ほど出やすい。重い札しか流れてこないと引き損になる。
+    weights = rules["stock_weight"]
+    report.check(weights.get("軽", 0) > weights.get("重", 0),
+                 "cards: ストックの重みが「軽 > 重」になっていない。"
+                 "撃てない札ばかり並ぶ")
 
     # 読心が公開するのは系統だけ。偏っていると情報の価値が消える。
     families = {c.family for c in pool}
@@ -174,10 +230,11 @@ def check_characters(game: GameData, report: Report) -> None:
         report.check(cd_lo <= unit.cooldown_sec <= cd_hi,
                      f"{unit.name}: 再出撃CD {unit.cooldown_sec}秒 が "
                      f"{cd_lo}〜{cd_hi}秒 の外")
-        expected = unit.cost / CD_PER_COST
-        report.check(0.4 <= unit.cooldown_sec / expected <= 1.6,
-                     f"{unit.name}: 再出撃CD {unit.cooldown_sec}秒 がコスト "
-                     f"{unit.cost} に対して外れすぎ（目安 {expected:.0f}秒）")
+        band = game.match["roster"]["tier_cooldown_bands"].get(unit.tier)
+        if band:
+            report.check(band[0] <= unit.cooldown_sec <= band[1],
+                         f"{unit.name}: 再出撃CD {unit.cooldown_sec}秒 が"
+                         f"ティア{unit.tier}の帯 {band[0]}〜{band[1]}秒 の外")
         report.check(s_lo <= unit.siege_mult <= s_hi,
                      f"{unit.name}: 対拠点倍率 {unit.siege_mult} が "
                      f"{s_lo}〜{s_hi} の外")
@@ -231,6 +288,15 @@ def check_characters(game: GameData, report: Report) -> None:
 
     # 壁と、その壁を崩す答えの両方が要る。片方だけだと、
     # 「安い壁を並べるだけで前線が保たれる」か「壁が意味を持たない」に倒れる。
+    # 強いキャラほど再出撃までが長い ―― 比ではなく**順序**で縛る。
+    # コスト帯が 75〜2500 と3桁ぶん広いので、ひとつの係数では表せない。
+    by_cost = sorted(units, key=lambda u: u.cost)
+    for cheap, dear in zip(by_cost, by_cost[1:]):
+        report.check(cheap.cooldown_sec <= dear.cooldown_sec,
+                     f"{dear.name}（{dear.cost}）は {cheap.name}（{cheap.cost}）より"
+                     f"高いのに再出撃が早い（{dear.cooldown_sec}秒 < "
+                     f"{cheap.cooldown_sec}秒）")
+
     walls = [u for u in units if u.is_wall(wall_line)]
     breakers = [u for u in units if u.anti_wall_mult > 1.5]
     report.check(bool(walls), "characters: 壁（対拠点倍率が低いユニット）が居ない")
@@ -296,6 +362,22 @@ def unlock_table(game: GameData) -> list[tuple[int, int, list[str]]]:
     return rows
 
 
+def check_field(game: GameData, report: Report) -> None:
+    """場に置ける数は、レーンに物理的に入る数を超えられない。
+
+    超えると入りきらないぶんが前線で詰まり、資金をいくら積んでも
+    線が動かなくなる。実測で、上限30体（入るのは20体）のとき
+    拠点への与ダメージが平均7%まで落ちていた。
+    """
+    lane = game.lane_length
+    spacing = game.combat["unit_spacing_m"]
+    cap = game.match["field"]["max_units_per_side"]
+    fits = int(lane / spacing)
+    report.check(cap <= fits,
+                 f"field: 場の上限 {cap}体 に対し、レーン {lane:.0f}m ÷ 隊列間隔 "
+                 f"{spacing}m では {fits}体しか並べない")
+
+
 def check_economy(game: GameData, report: Report) -> None:
     levels = game.levels
 
@@ -337,14 +419,16 @@ def check_economy(game: GameData, report: Report) -> None:
 def check_trumps(game: GameData, report: Report) -> None:
     """1試合1回しか出せないので、出せないまま終わる設定は事故。"""
     rules = game.trump_rules
-    unlock = rules["unlock_at_sec"]
-    reachable = money_at(game, unlock)
     reaction = game.readability["human_reaction_sec"]
+    # 解禁した瞬間に払える必要はない。貯めること自体が択なので。
+    # ただし**使う時間が残っているうち**には届かないと、置物になる。
+    deadline = game.time_limit * rules["affordable_by_fraction"]
+    reachable = money_at(game, deadline)
 
     for trump in game.trumps.values():
         report.check(trump.cost <= reachable,
-                     f"{trump.name}: 解禁の {unlock}秒 時点で貯まる "
-                     f"{reachable:.0f} では出せない。解禁時刻かコストを見直す")
+                     f"{trump.name}: 残り時間が意味を持つ {deadline:.0f}秒 までに"
+                     f"貯まるのは {reachable:.0f} で、コスト {trump.cost} に届かない")
         report.check(trump.summon_sec >= reaction,
                      f"{trump.name}: 召喚 {trump.summon_sec}秒 は反応 "
                      f"{reaction}秒 より短く、対応できない")
@@ -399,6 +483,7 @@ def main() -> int:
     rows = check_avatars(game, report)
     check_cards(game, report)
     check_characters(game, report)
+    check_field(game, report)
     check_economy(game, report)
     check_trumps(game, report)
     check_readability(game, report)

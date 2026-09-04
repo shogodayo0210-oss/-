@@ -9,21 +9,23 @@ from __future__ import annotations
 from .battle import Loadout
 from .draft import draw_random_slots, pick_template
 
+# アバター / 出撃6種 / 持ち込む呪文1枚 / 切り札
 PRESETS = {
     "rush":     ("scout",   ["grunt", "spear", "twin", "archer", "shield", "sweeper"],
-                 ["advance", "warcry", "mire"], "gale_edge"),
+                 "advance", "gale_edge"),
     "balanced": ("marshal", ["grunt", "spear", "shield", "archer", "sweeper", "cannon"],
-                 ["warcry", "rust", "levy"], "colossus"),
+                 "warcry", "colossus"),
     "greed":    ("bulwark", ["grunt", "shield", "archer", "cannon", "mortar", "titan"],
-                 ["bulwark", "rally", "blight"], "archmage"),
+                 "bulwark", "archmage"),
 }
 
 
 def build(game, name: str, seed: str, side: str) -> Loadout:
     """選んだ6種に、抽選の2種を足して8枠にする。"""
-    avatar, chosen, deck, trump = PRESETS[name]
+    avatar, chosen, brought, trump = PRESETS[name]
     template = pick_template(game, seed)
     owned = list(game.units)
     drawn = draw_random_slots(game, seed, side, owned, tuple(chosen), template)
     return Loadout(avatar=avatar, roster=tuple(chosen) + tuple(drawn),
-                   deck=tuple(deck), trump=trump)
+                   brought=brought, trump=trump,
+                   stock_seed=f"{seed}:{side}")

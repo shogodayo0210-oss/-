@@ -18,9 +18,9 @@ from .presets import PRESETS, build
 
 
 def one_match(game, a: str, b: str, match_id: str, verbose: bool = False):
-    seed = match_seed(commit(tuple(PRESETS[a][1]), tuple(PRESETS[a][2]),
+    seed = match_seed(commit(tuple(PRESETS[a][1]), (PRESETS[a][2],),
                              PRESETS[a][3], f"{match_id}:a"),
-                      commit(tuple(PRESETS[b][1]), tuple(PRESETS[b][2]),
+                      commit(tuple(PRESETS[b][1]), (PRESETS[b][2],),
                              PRESETS[b][3], f"{match_id}:b"),
                       match_id)
     battle = Battle(game, build(game, a, seed, "a"), build(game, b, seed, "b"),
@@ -91,7 +91,9 @@ def main() -> int:
         print(f"\nP{side.index + 1} {name}  アバター={avatar.name}"
               f"（看板 {game.perks[avatar.signature].name}）")
         print(f"   出撃  {roster}")
-        print(f"   カード {'・'.join(game.cards[c].name for c in side.loadout.deck)}")
+        brought = game.cards[side.loadout.brought]
+        print(f"   持ち込み {brought.name}（{brought.cost}・{brought.band}）")
+        print(f"   ストック {'・'.join(game.cards[c].name for c in side.stock if c)}")
         print(f"   切り札 {game.trumps[side.loadout.trump].name}")
 
     if not args.timeline and battle.events:

@@ -6,7 +6,8 @@
     "length_m": 120,
     "deploy_from": "own_base",
     "same_unit_simultaneous": "unlimited",
-    "max_units_per_side": 30
+    "max_units_per_side": 18,
+    "_max_units_note": "レーン 120m ÷ 隊列間隔 6m = 20体しか物理的に並べない。上限がこれを超えると、入りきらないぶんが前線に詰まって誰も攻め落とせなくなる"
   },
   "avatar": {
     "_comment": "アバターは拠点そのもの。ダメージはここに入る。HPは全アバター共通で、差は特典だけ",
@@ -30,12 +31,12 @@
     "chosen_slots": 6,
     "random_slots": 2,
     "unit_cost_range": [
-      60,
-      600
+      75,
+      2500
     ],
     "unit_cooldown_range_sec": [
-      3,
-      25
+      2,
+      35
     ],
     "min_hp_per_knockback": 200,
     "siege_mult_range": [
@@ -46,7 +47,23 @@
     "anti_wall_mult_range": [
       0.5,
       2.5
-    ]
+    ],
+    "tier_cooldown_bands": {
+      "B": [
+        2,
+        8
+      ],
+      "A": [
+        9,
+        18
+      ],
+      "S": [
+        20,
+        35
+      ]
+    },
+    "max_reach_m": 110,
+    "_max_reach_note": "射程の奥はレーン長より短いこと。自陣に立ったまま敵拠点を叩けると、前に出る理由が消える"
   },
   "trump": {
     "_comment": "出撃8枠とは別枠。1試合に1回だけ出せる切り札。寿命が切れると撃破されなくても退場する",
@@ -56,65 +73,67 @@
     "unlock_at_sec": 60,
     "summon_sec": 3.0,
     "identity_hidden_until_summon": true,
-    "readiness_visible_to_opponent": true
+    "readiness_visible_to_opponent": true,
+    "affordable_by_fraction": 0.7,
+    "_affordable_note": "解禁した瞬間に払える必要はない ―― 貯めること自体が択なので。ただし使う時間が残っているうちには届くこと"
   },
   "economy": {
-    "_comment": "資金は出撃・カード・切り札で共用。今出すか、貯めて大技か、育てるかの択が試合の背骨になる",
-    "start": 150,
+    "_comment": "資金は出撃・呪文・切り札で共用。今出すか、呪文を撃つか、貯めて大技か、財布を育てるか ―― すべて同じ1本の資金を奪い合う",
+    "start": 300,
     "_kill_reward": "撃破しても資金は入らない。この仕組みは将来、特定キャラの特性として使う予定なので全体ルールからは外してある",
     "kill_reward_ratio": 0.0,
     "growth": {
-      "_comment": "にゃんこ大戦争の働きネコに当たる仕組み。資金を払ってレベルを上げると上限と増加速度が上がる。上げている間（upgrade_sec）は出撃もカードも切り札も止まるので、そこが殴りどころになる。伸びを緩くしてあるのは、レベルの意味を『速さ』ではなく『誰を使えるか』に寄せるため",
+      "_comment": "にゃんこ大戦争の働きネコ。1段上げるたびに、貯まる上限と貯まる速度の両方が少しずつ上がる。上限は「どのユニットを出せるか」を決め、毎秒は「その中でどれだけ回せるか」を決める",
       "player_controlled": true,
       "upgrade_sec": 6.0,
       "max_level": 8,
       "levels": [
         {
           "level": 1,
-          "max": 300,
-          "per_sec": 40,
-          "upgrade_cost": 200
+          "max": 500,
+          "per_sec": 60,
+          "upgrade_cost": 400
         },
         {
           "level": 2,
-          "max": 500,
-          "per_sec": 44,
-          "upgrade_cost": 350
+          "max": 700,
+          "per_sec": 72,
+          "upgrade_cost": 600
         },
         {
           "level": 3,
-          "max": 750,
-          "per_sec": 48,
-          "upgrade_cost": 550
-        },
-        {
-          "level": 4,
-          "max": 1050,
-          "per_sec": 52,
+          "max": 950,
+          "per_sec": 88,
           "upgrade_cost": 800
         },
         {
-          "level": 5,
-          "max": 1400,
-          "per_sec": 56,
+          "level": 4,
+          "max": 1250,
+          "per_sec": 105,
           "upgrade_cost": 1100
         },
         {
+          "level": 5,
+          "max": 1600,
+          "per_sec": 128,
+          "upgrade_cost": 1400
+        },
+        {
           "level": 6,
-          "max": 1800,
-          "per_sec": 60,
-          "upgrade_cost": 1450
+          "max": 2000,
+          "per_sec": 155,
+          "upgrade_cost": 1800
         },
         {
           "level": 7,
-          "max": 2250,
-          "per_sec": 65,
-          "upgrade_cost": 1850
+          "max": 2500,
+          "per_sec": 185,
+          "upgrade_cost": 2300
         },
         {
           "level": 8,
-          "max": 2800,
-          "per_sec": 70
+          "max": 3100,
+          "per_sec": 225
         }
       ]
     }
@@ -166,17 +185,53 @@
     "seed": "sha256(commitA || commitB || matchId)"
   },
   "cards": {
-    "_comment": "資金は使わない。1枚使うと共通クールタイムが入り、そのカード自身は個別クールタイムで戻る。使い切りではない",
-    "deck_size": 3,
-    "unique_names": true,
-    "uses_money": false,
-    "global_cooldown_sec": 12,
-    "max_deck_uptime": 0.75,
-    "uptime_range": [
-      0.15,
-      0.3
-    ],
-    "opponent_sees": "unrevealed_count_and_cooldowns"
+    "_comment": "持ち込み1枚＋ランダムに補充されるストック3枠。どちらもユニットと同じ資金を払う。持ち込みは確実に手に入る代わりに個別クールタイムが長く、ストックは運だが資金さえあれば続けて撃てる",
+    "brought": 1,
+    "stock_slots": 3,
+    "uses_money": true,
+    "restock_sec": 8.0,
+    "global_cooldown_sec": 3.0,
+    "stock_weight": {
+      "軽": 3,
+      "中": 2,
+      "重": 1
+    },
+    "cost_bands": {
+      "軽": [
+        225,
+        375
+      ],
+      "中": [
+        600,
+        900
+      ],
+      "重": [
+        1350,
+        2100
+      ]
+    },
+    "power_bands": {
+      "軽": [
+        0.0,
+        3.4
+      ],
+      "中": [
+        3.4,
+        5.4
+      ],
+      "重": [
+        5.4,
+        99.0
+      ]
+    },
+    "cooldown_by_band": {
+      "軽": 18.0,
+      "中": 22.0,
+      "重": 30.0
+    },
+    "max_uptime": 0.6,
+    "heavy_min_cast_sec": 0.8,
+    "opponent_sees": "stock_bands_and_brought_cooldown"
   },
   "combat": {
     "_comment": "シミュレータの刻み幅とノックバックの挙動。全ユニット共通",

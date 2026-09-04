@@ -35,13 +35,37 @@ class Controller:
     def deploy(self, unit_id: str) -> None:
         self.pending.append(Command("deploy", unit_id))
 
+    def cast(self, source: tuple[str, int]) -> None:
+        self.pending.append(Command("cast", f"{source[0]}:{source[1]}"))
+
+    def upgrade(self) -> None:
+        self.pending.append(Command("upgrade", ""))
+
+    def trump(self) -> None:
+        self.pending.append(Command("trump", ""))
+
+    def _run(self, battle, side, command: Command) -> bool:
+        if command.kind == "deploy":
+            return battle.deploy(side, command.arg)
+        if command.kind == "cast":
+            kind, index = command.arg.split(":")
+            return battle.start_cast(side, (kind, int(index)))
+        if command.kind == "upgrade":
+            if side.busy or not side.can_upgrade():
+                return False
+            side.upgrade()
+            return True
+        if command.kind == "trump":
+            return battle.summon_trump(side)
+        return False
+
     def __call__(self, battle, side) -> None:
         self.ticks += 1
         while self.pending:
             command = self.pending.popleft()
-            if command.kind == "deploy" and battle.deploy(side, command.arg):
+            if self._run(battle, side, command):
                 self.history.append((self.ticks, command.kind, command.arg))
             else:
-                # 出せなかった操作は捨てる。持ち越すと、資金が貯まった
-                # 瞬間に覚えのない出撃が走る。
+                # 通らなかった操作は捨てる。持ち越すと、資金が貯まった
+                # 瞬間に覚えのない出撃や詠唱が走る。
                 self.rejected += 1

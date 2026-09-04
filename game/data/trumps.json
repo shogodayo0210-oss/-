@@ -4,7 +4,7 @@
     {
       "id": "colossus",
       "name": "巨神",
-      "cost": 800,
+      "cost": 1900,
       "lifespan_sec": 20,
       "summon_sec": 3.0,
       "role": "前線を押し切る",
@@ -25,7 +25,7 @@
     {
       "id": "gale_edge",
       "name": "疾風の刃",
-      "cost": 700,
+      "cost": 1500,
       "lifespan_sec": 15,
       "summon_sec": 2.5,
       "role": "拠点に直行する",
@@ -46,7 +46,7 @@
     {
       "id": "archmage",
       "name": "大呪術師",
-      "cost": 750,
+      "cost": 1700,
       "lifespan_sec": 18,
       "summon_sec": 3.0,
       "role": "後方から拠点を叩く",

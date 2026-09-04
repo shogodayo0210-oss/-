@@ -12,7 +12,10 @@ import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
+from collections import deque
+
 from .data import Card, GameData, Trump, Unit
+from .draft import stock_sequence
 
 # 位置の比較に使う許容差。左右のユニットは逆向きに動くので、同じ地点でも
 # 浮動小数点の下位桁が一致しない。素で比較すると「前の味方に詰まるか」の
@@ -39,8 +42,14 @@ class Loadout:
     """試合に持ち込むもの。編成フェーズの出力。"""
     avatar: str
     roster: tuple[str, ...]     # 出撃できるユニット8種
-    deck: tuple[str, ...]       # カード3枚
+    brought: str                # 持ち込む呪文1枚。確実に手に入る代わりにCDが長い
     trump: str
+    stock_seed: str = "stock"   # ランダムストックの並びを決める種
+
+    @property
+    def deck(self) -> tuple[str, ...]:
+        """持ち込みだけ。commit や表示のために1枚のタプルとして見せる。"""
+        return (self.brought,)
 
 
 @dataclass
@@ -101,12 +110,25 @@ class Side:
 
         self.fighters: list[Fighter] = []
         self.deploy_cd: dict[str, float] = {}
-        self.card_cd: dict[str, float] = {c: 0.0 for c in loadout.deck}
         self.gcd_left = 0.0
         self.casting: Card | None = None
+        self.cast_source: tuple[str, int] | None = None
         self.cast_left = 0.0
         self.cast_started = 0.0
         self.effects: list[Effect] = []
+
+        # 呪文。持ち込み1枚は確実に手に入る代わりに個別クールタイムが長く、
+        # ストック3枠は運だが資金さえあれば続けて撃てる（設計書5章）。
+        rules = game.card_rules
+        self.brought = loadout.brought
+        self.brought_cd = 0.0
+        self.restock_sec = rules["restock_sec"]
+        self._queue: deque[str] = deque(
+            stock_sequence(game, loadout.stock_seed, 96))
+        self.stock: list[str | None] = []
+        self.restock: list[float] = [0.0] * rules["stock_slots"]
+        for _ in range(rules["stock_slots"]):
+            self.stock.append(self._draw())
 
         self.trump_used = False
         self.deploy_lock_left = 0.0
@@ -123,6 +145,36 @@ class Side:
             self.money += self.game.perks["head_start"].params["start_money"]
 
         self.log: list[str] = []
+
+    # ------------------------------------------------------------------ 呪文
+    def _draw(self) -> str | None:
+        """ストックに1枚流し込む。いま並んでいる札とは重ならないようにする。"""
+        for _ in range(len(self._queue)):
+            card_id = self._queue.popleft()
+            self._queue.append(card_id)          # 並びは循環させる
+            if card_id not in self.stock:
+                return card_id
+        return None
+
+    def card_of(self, source: tuple[str, int]) -> Card | None:
+        kind, index = source
+        if kind == "brought":
+            return self.game.cards[self.brought]
+        if 0 <= index < len(self.stock) and self.stock[index]:
+            return self.game.cards[self.stock[index]]
+        return None
+
+    def castable(self, source: tuple[str, int]) -> bool:
+        """いま撃てるか。資金・詠唱中・共通CD・育成中・個別CDを全部見る。"""
+        if self.casting is not None or self.gcd_left > 0 or self.busy:
+            return False
+        if source[0] == "brought" and self.brought_cd > 0:
+            return False
+        card = self.card_of(source)
+        return card is not None and self.money >= card.cost
+
+    def sources(self) -> list[tuple[str, int]]:
+        return [("brought", 0)] + [("stock", i) for i in range(len(self.stock))]
 
     # ------------------------------------------------------------------ 特典
     def _perk_param(self, perk_id: str, key: str, default):
@@ -252,38 +304,54 @@ class Battle:
             seconds *= self.game.perks["quick_cast"].params["cast_time_mult"]
         return max(seconds, self.game.readability["min_cast_sec"])
 
-    def start_cast(self, side: Side, card_id: str) -> bool:
-        if (side.casting is not None or side.gcd_left > 0 or side.busy
-                or side.card_cd.get(card_id, 0.0) > 0):
+    def start_cast(self, side: Side, source: tuple[str, int]) -> bool:
+        """詠唱に入る。**資金と札はこの時点で消える。**
+
+        見切られた場合も戻らない。撃つ判断そのものに値段が付いているので、
+        「相手が見切りを持っているか」が資金の読み合いに直結する。
+        """
+        if not side.castable(source):
             return False
-        card = self.game.cards[card_id]
+        card = side.card_of(source)
+        side.money -= card.cost
+
+        kind, index = source
+        if kind == "brought":
+            side.brought_cd = card.cooldown_sec
+        else:
+            side.stock[index] = None
+            side.restock[index] = side.restock_sec
+
         side.casting = card
+        side.cast_source = source
         side.cast_left = self.cast_time(side, card)
         side.cast_started = self.t
-        self.note(side.index, f"{card.name} を詠唱（{side.cast_left:.2f}秒）")
+        where = "持ち込み" if kind == "brought" else f"ストック{index + 1}"
+        self.note(side.index,
+                  f"{card.name} を詠唱（{where}・{card.cost} / {side.cast_left:.2f}秒）")
         return True
 
     def resolve_cast(self, side: Side) -> None:
         card = side.casting
         side.casting = None
+        side.cast_source = None
         enemy = self.enemy_of(side)
+        side.gcd_left = self.game.card_rules["global_cooldown_sec"]
 
-        # 見切りは「カードを潰す」。無敵の窓が詠唱の完了を覆っていれば不発。
+        # 見切りは「呪文を潰す」。無敵の窓が詠唱の完了を覆っていれば不発。
+        # 資金も札も戻らないので、潰された側の損は資金ぶんだけ大きい。
         if enemy.parry_until >= self.t:
-            side.card_cd[card.id] = card.cooldown_sec
-            side.gcd_left = self.game.card_rules["global_cooldown_sec"]
             reward = self.game.perks["parry"].params["money_on_success"]
             enemy.money = min(enemy.money + reward, enemy.money_cap)
             enemy.parry_until = -1.0
-            self.note(enemy.index, f"見切り成功 — {card.name} を潰した（資金 +{reward}）")
+            self.note(enemy.index,
+                      f"見切り成功 — {card.name}（{card.cost}）を潰した（資金 +{reward}）")
             return
 
         target = side if card.apply.scope.startswith("own") else enemy
         target.add_effect(Effect(stat=card.apply.stat, mult=card.apply.mult,
                                  add=card.apply.add,
                                  until=self.t + card.duration_sec, source=card.id))
-        side.card_cd[card.id] = card.cooldown_sec
-        side.gcd_left = self.game.card_rules["global_cooldown_sec"]
         self.note(side.index, f"{card.name} 発動（{card.duration_sec}秒）")
 
     def use_parry(self, side: Side) -> bool:
@@ -374,14 +442,28 @@ class Battle:
             return
 
         wall_line = self.game.wall_threshold
-        hits = self.targets_in_band(fighter)[: fighter.spec.pierce]
-        for victim in hits:
-            bonus = (fighter.spec.anti_wall_mult
-                     if victim.spec.is_wall(wall_line) else 1.0)
-            self._damage.append((victim, power * bonus))
 
-        if not hits and self.base_in_band(fighter):
-            self._base_damage.append((enemy, power * fighter.spec.siege_mult))
+        # 拠点も帯の中の「的」のひとつ。近い順に、貫通の数だけ当たる。
+        #
+        # 以前は「敵ユニットが1体でも帯に居れば拠点は絶対に安全」だった。
+        # これだと両者が安い壁を出し続ける限り拠点に永久に触れられず、
+        # 実測で36試合中28が0対0の引き分けになっていた。
+        # 拠点を的の列に混ぜると、**貫通の余りが拠点に届く** ――
+        # 前線を薙げるユニットだけが攻城できる、という設計どおりの形になる。
+        targets: list[tuple[float, Fighter | None]] = [
+            (abs(f.x - fighter.x), f) for f in self.targets_in_band(fighter)]
+        if self.base_in_band(fighter):
+            targets.append((abs(enemy.base_x - fighter.x), None))
+        targets.sort(key=lambda pair: pair[0])   # 同着は先に入った敵が優先
+
+        for _, victim in targets[: fighter.spec.pierce]:
+            if victim is None:
+                self._base_damage.append(
+                    (enemy, power * fighter.spec.siege_mult))
+            else:
+                bonus = (fighter.spec.anti_wall_mult
+                         if victim.spec.is_wall(wall_line) else 1.0)
+                self._damage.append((victim, power * bonus))
 
     def step_fighter(self, fighter: Fighter) -> None:
         side = self.sides[fighter.side]
@@ -433,8 +515,14 @@ class Battle:
             side.upgrading_left = max(0.0, side.upgrading_left - dt)
             for uid in list(side.deploy_cd):
                 side.deploy_cd[uid] = max(0.0, side.deploy_cd[uid] - dt)
-            for cid in list(side.card_cd):
-                side.card_cd[cid] = max(0.0, side.card_cd[cid] - dt)
+
+            side.brought_cd = max(0.0, side.brought_cd - dt)
+            for i, left in enumerate(side.restock):
+                if side.stock[i] is not None:
+                    continue
+                side.restock[i] = left = max(0.0, left - dt)
+                if left <= 0:
+                    side.stock[i] = side._draw()
 
             if ("last_stand" in side.perks and not side.last_stand_used
                     and side.base_hp <= self.game.base_hp

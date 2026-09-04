@@ -75,11 +75,29 @@ class Card:
     cast_sec: float
     effect: str
     apply: CardEffect
+    cost: int = 0
+    band: str = "軽"          # 軽 / 中 / 重。コストの帯であり、強さの帯でもある
 
     @property
     def uptime(self) -> float:
-        """効いている時間の割合。コストが無いので、これが強さの物差し。"""
+        """効いている時間の割合。持ち込み枠でどれだけ効かせ続けられるか。"""
         return self.duration_sec / self.cooldown_sec
+
+    @property
+    def upkeep(self) -> float:
+        """撃ち続けた場合の毎秒あたりの資金。呪文の重さはこれで測る。
+
+        コストが付いたので、占有率だけでは強さを測れなくなった。
+        「効かせ続けるのに収入の何割を食うか」が新しい物差し。
+        """
+        return self.cost / self.cooldown_sec
+
+    @property
+    def power(self) -> float:
+        """効果の大きさ。倍率のずれ×持続。ノックバック加算だけ別尺度。"""
+        if self.apply.mult is not None:
+            return abs(self.apply.mult - 1.0) * self.duration_sec
+        return abs(self.apply.add or 0) * 2 * self.duration_sec / 10
 
 
 @dataclass(frozen=True)
@@ -167,6 +185,13 @@ class GameData:
     def wall_threshold(self) -> float:
         return self.match["roster"]["wall_threshold"]
 
+    @property
+    def stock_slots(self) -> int:
+        return self.card_rules["stock_slots"]
+
+    def cards_in_band(self, band: str) -> list[Card]:
+        return [c for c in self.cards.values() if c.band == band]
+
     def units_by_tier(self, tier: str) -> list[Unit]:
         return [u for u in self.units.values() if u.tier == tier]
 
@@ -206,6 +231,7 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             id=c["id"], name=c["name"], family=c["family"], target=c["target"],
             duration_sec=c["duration_sec"], cooldown_sec=c["cooldown_sec"],
             cast_sec=c["cast_sec"], effect=c["effect"],
+            cost=c["cost"], band=c["band"],
             apply=CardEffect(scope=a["scope"], stat=a["stat"],
                              mult=a.get("mult"), add=a.get("add")),
         )
