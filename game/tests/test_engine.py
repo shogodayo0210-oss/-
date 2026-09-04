@@ -193,6 +193,50 @@ class TestCardsTouchUnitStats(unittest.TestCase):
         self.assertAlmostEqual(side.unit_cost(spec), full * 0.7)
 
 
+class TestNoStrictUpgrade(unittest.TestCase):
+    """コストが高いというだけで、安いユニットの上位互換にはならない。"""
+
+    HIGHER = (("体力", lambda u: u.hp), ("DPS", lambda u: u.dps),
+              ("射程", lambda u: u.far), ("速度", lambda u: u.speed_mps),
+              ("対拠点", lambda u: u.siege_mult),
+              ("対壁", lambda u: u.anti_wall_mult), ("貫通", lambda u: u.pierce))
+    LOWER = (("ノックバック", lambda u: u.knockback),
+             ("攻撃発生", lambda u: u.attack_windup_sec),
+             ("死角", lambda u: u.near))
+
+    def test_cheap_units_win_on_price(self):
+        """上位互換は居てよい。差別化は**コストの差**で付ける。
+
+        双剣1体ぶんの資金で兵卒は5体出せて、体力の合計では上回る ――
+        これが成り立っていれば、全項目で負けていても安い側に役目がある。
+        成り立たないなら、その安いキャラは存在する意味を失う。
+        """
+        units = list(GAME.units.values())
+        for poor in units:
+            for rich in units:
+                if poor.cost >= rich.cost:
+                    continue
+                dominates = (all(f(rich) >= f(poor) for _, f in self.HIGHER)
+                             and all(f(rich) <= f(poor) for _, f in self.LOWER))
+                if not dominates:
+                    continue
+                n = rich.cost / poor.cost
+                self.assertTrue(
+                    poor.hp * n > rich.hp or poor.dps * n > rich.dps,
+                    f"{rich.name}({rich.cost}) は {poor.name}({poor.cost}) の"
+                    f"全項目で上回る上に、同じ資金ぶん{n:.0f}体でも届かない")
+
+    def test_someone_needs_protecting(self):
+        """高コストの高火力・高射程が、安い壁より脆いこと。
+        これが無いと壁に仕事が無く、前線を取る意味も薄れる。"""
+        units = list(GAME.units.values())
+        toughest_cheap = max(u.hp for u in units if u.cost <= 2)
+        fragile = [u for u in units
+                   if u.cost >= 7 and u.hp < toughest_cheap and u.far > 50]
+        self.assertTrue(fragile,
+                        f"安い壁（体力{toughest_cheap}）より脆い高コストの遠距離が居ない")
+
+
 class TestSpells(unittest.TestCase):
     """持ち込み1枚 ＋ ランダムに補充されるストック3枠。どちらも資金を払う。"""
 

@@ -306,6 +306,44 @@ def check_characters(game: GameData, report: Report) -> None:
                      f"高いのに再出撃が早い（{dear.cooldown_sec}秒 < "
                      f"{cheap.cooldown_sec}秒）")
 
+    # ── 上位互換は居てよい。ただし「同じ資金ぶん並べれば勝てる」こと ──
+    # 全項目で上回るキャラが居るのは構わない。差別化は**コストの差**で付ける ――
+    # 双剣1体ぶんの資金で兵卒は5体出せて、体力の合計では上回る。
+    # 逆に「同じ資金を積んでも安い側が何ひとつ勝てない」なら、
+    # その安いキャラは存在する意味を失う。
+    higher = [("体力", lambda u: u.hp), ("DPS", lambda u: u.dps),
+              ("射程", lambda u: u.far), ("速度", lambda u: u.speed_mps),
+              ("対拠点", lambda u: u.siege_mult),
+              ("対壁", lambda u: u.anti_wall_mult), ("貫通", lambda u: u.pierce)]
+    lower = [("ノックバック", lambda u: u.knockback),
+             ("攻撃発生", lambda u: u.attack_windup_sec),
+             ("死角", lambda u: u.near)]
+
+    def dominates(rich: Unit, poor: Unit) -> bool:
+        return (all(f(rich) >= f(poor) for _, f in higher)
+                and all(f(rich) <= f(poor) for _, f in lower))
+
+    for poor in units:
+        for rich in units:
+            if poor.cost >= rich.cost or not dominates(rich, poor):
+                continue
+            n = rich.cost / poor.cost          # 同じ資金で買える数
+            report.check(poor.hp * n > rich.hp or poor.dps * n > rich.dps,
+                         f"{rich.name}（{rich.cost}）は {poor.name}（{poor.cost}）の"
+                         f"全項目で上回る上に、同じ資金ぶん（{n:.0f}体）並べても"
+                         f"体力もDPSも届かない（体力 {poor.hp * n:.0f} 対 {rich.hp} / "
+                         f"DPS {poor.dps * n:.0f} 対 {rich.dps:.0f}）。"
+                         "安い側が存在する意味を失う")
+
+    # ── 守られる側が居ること ────────────────────────────────
+    # 高コストの高火力・高射程が、安い壁より脆い。だから壁に仕事がある。
+    toughest_cheap = max((u.hp for u in units if u.cost <= 2), default=0)
+    fragile_rich = [u for u in units
+                    if u.cost >= 7 and u.hp < toughest_cheap and u.far > FAR]
+    report.check(bool(fragile_rich),
+                 f"characters: 安い壁（体力{toughest_cheap}）より脆い高コストの"
+                 "遠距離が1体も居ない。壁が守る相手が存在せず、前線を取る意味が薄れる")
+
     walls = [u for u in units if u.is_wall(wall_line)]
     breakers = [u for u in units if u.anti_wall_mult > 1.5]
     report.check(bool(walls), "characters: 壁（対拠点倍率が低いユニット）が居ない")

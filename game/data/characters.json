@@ -222,7 +222,7 @@
       "tier": "B",
       "cost": 3,
       "cooldown_sec": 8,
-      "hp": 3059,
+      "hp": 3400,
       "attack": 35,
       "attack_interval_sec": 2.5,
       "attack_windup_sec": 0.35,
