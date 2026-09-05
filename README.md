@@ -5,13 +5,18 @@
 0にすれば勝ち。
 
 この文書が設計書で、`game/` に**動くもの**が入っている ――
-決定論的なシミュレータ、遊べる試遊版、data の検算器、仮のドット絵の生成器。
+決定論的なシミュレータ、遊べる試遊版、Web版、data の検算器、仮のドット絵の生成器。
+
+**遊ぶだけなら何も要らない。** `game/web/out/index.html` をブラウザで開けば動く
+（1枚で完結していて、data も仮絵もその中に入っている）。
 
 ```console
 $ pip install -r requirements.txt
-$ python3 -m game.play                            # 遊ぶ（14章）
+$ python3 -m game.play                            # 手元で遊ぶ（14章）
 $ python3 -m game.engine --a balanced --b greed   # AI同士で1試合（12章）
 $ python3 game/tools/validate.py                  # data が約束を守っているか
+$ python3 game/tools/build_web.py                 # Web版を焼き直す（data を触ったら）
+$ python3 game/tools/conform.py                   # Python と JS が一致しているか
 $ python3 -m unittest discover -s game/tests -t . # 32件
 ```
 
@@ -21,10 +26,14 @@ $ python3 -m unittest discover -s game/tests -t . # 32件
 | [`ROADMAP.md`](ROADMAP.md) | 工程表。何を作らないと決めたかと、作る順番 |
 | `game/data/*.json` | **調整対象の数値は全部ここ。** コードを触らずに回せる |
 | `game/engine/` | シミュレータ（決定論・固定タイムステップ） |
-| `game/play/` | 試遊版（pygame。**外の物を使うのはここだけ**） |
-| `game/tools/` | data の検算器、ドット絵の生成器（どちらも依存なし） |
+| `game/play/` | 手元の試遊版（pygame。**Python側で外の物を使うのはここだけ**） |
+| `game/web/` | Web版（engine と試遊版の JS 移植。**依存なし**） |
+| `game/tools/` | 検算器・仮絵の生成器・Web版の焼き込み・一致試験（どれも依存なし） |
 | `game/art/` | アート指針・パレット・仮絵 |
 | `game/tests/` | 32件（標準ライブラリのみ） |
+
+**実装は2つある**（Python と JS）。ずれると意味がないので、`conform.py` が
+両方で同じ試合を回し、0.5秒ごとの盤面を**浮動小数点のビット単位**で突き合わせる。
 
 数値は全部仮置きで、調整対象のものは `game/data/` に JSON で外に出してある
 （コードを触らずに数字だけ回せる状態にしておく、が主旨）。
@@ -44,6 +53,7 @@ $ python3 -m unittest discover -s game/tests -t . # 32件
 - [12. シミュレータ](#12-シミュレータ)
 - [13. 見た目](#13-見た目)
 - [14. 試遊版](#14-試遊版)
+- [15. Web版](#15-web版)
 
 ---
 
@@ -952,3 +962,63 @@ $ python3 -m game.play --capture shots --at 30,90  # 表示せず画面だけ書
 
 編成フェーズ（6選択＋2抽選）とアバター特典26個（`ROADMAP.md` 塊B）。
 相手は `policy.py` が動かす。
+
+---
+
+## 15. Web版
+
+`game/web/`。**同じ試合を、何も入れずにブラウザで遊べるようにしたもの。**
+`game/web/out/index.html` が1枚で完結していて、data も仮絵もその中に入っている。
+
+```console
+$ python3 game/tools/build_web.py    # data と仮絵を焼き込んで1枚のHTMLにする
+$ python3 game/tools/conform.py      # Python と JS が一致しているか確かめる
+```
+
+### 中身
+
+| ファイル | 何が |
+| --- | --- |
+| `engine.js` | `battle.py` / `data.py` / `policy.py` / `human.py` の移植 |
+| `view.js` | `play/view.py` の移植（pygame → Canvas） |
+| `main.js` | `play/__main__.py` の移植（実時間の溜め込みと入力） |
+| `template.html` | 画面の外側。焼き込み先の4か所だけが空いている |
+| `tools/build_web.py` | data・仮絵・呪文の並びを流し込む |
+| `tools/conform.py` | **一致試験** |
+
+**数値は JS にも書かない。** `build_web.py` が `game/data/*.json` を
+そのまま流し込むので、**data を直したら焼き直すだけ**で Web版も同じ数字になる。
+
+### 実装が2つあることの維持費
+
+**同じゲームの実装が2つある。**「たぶん同じ」では意味がないので、
+`conform.py` が Python と JS で同じ試合を回し、0.5秒ごとの盤面を
+**浮動小数点8バイトの16進**で突き合わせる ―― 丸めた比較はしない。
+8.2で「1e-16 の差で左右対称の試合が割れた」のを踏んでいるので。
+
+```console
+$ python3 game/tools/conform.py --matches 18
+OK  18試合 / 指紋 6969点 がビット単位で一致
+```
+
+指紋に入れているのは、資金・レベル・拠点HP・収入までの残り・各種クールタイム・
+効果の数・ストックの中身・詠唱の状態・場の全員（位置・体力・振りかぶり・
+硬直・ノックバック回数・寿命）。
+
+**乱数だけは移植していない。** 呪文ストックの並びは Python 側で引いてから
+焼き込む ―― Mersenne Twister を JS に書き直すと、そこが新しい食い違いの種になる。
+
+**data を触ったら `build_web.py`、engine を触ったら `conform.py`。**
+これを回さなくなった時点で、2つの実装は静かにずれ始める。
+
+### 手元版との違い
+
+| | 手元版（`game/play/`） | Web版（`game/web/`） |
+| --- | --- | --- |
+| 要るもの | Python ＋ pygame | **ブラウザだけ** |
+| 出撃できる種類 | `--unit` で自由 | 試遊用の6種（`preset_six.json`） |
+| 相手 | 3方針 ＋ `--enemy-roster full` | 3方針（持ち物は常に同じ6種） |
+| 呪文の並び | その場で引く | **40試合ぶんを焼き込み済み**（それ以降は先頭に戻る） |
+| 戦績 | 残らない | **その端末の中だけに残る**（どこにも送らない） |
+
+盤面の中身は同じ ―― 一致試験がそれを保証している。

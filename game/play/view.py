@@ -403,16 +403,16 @@ class View:
             return
 
         self._text(card.name, self.f_bold, INK if ready else MUTED,
-                   (rect.centerx, rect.y + 40), center=True)
+                   (rect.centerx, rect.y + 38), center=True)
         self._text(f"{card.cost}", self.f_body, GOLD if ready else RULE,
-                   (rect.centerx, rect.y + 66), center=True)
+                   (rect.centerx, rect.y + 62), center=True)
         note = card.band
         if left > 0:
             note = f"{left:.1f}秒"
         elif side.money < card.cost:
             note = "資金不足"
         self._text(note, self.f_small, MUTED,
-                   (rect.centerx, rect.bottom - 14), center=True)
+                   (rect.centerx, rect.bottom - 10), center=True)
 
     def _trump(self, battle: Battle, side: Side) -> None:
         rect = self.trump_rect
@@ -431,13 +431,13 @@ class View:
                        (rect.centerx, rect.centery), center=True)
             return
         self._text(spec.name, self.f_bold, INK if ready else MUTED,
-                   (rect.centerx, rect.y + 40), center=True)
+                   (rect.centerx, rect.y + 38), center=True)
         self._text(f"{spec.cost}", self.f_body, GOLD if ready else RULE,
-                   (rect.centerx, rect.y + 66), center=True)
+                   (rect.centerx, rect.y + 62), center=True)
         note = f"{unlock - battle.t:.0f}秒後" if locked else (
             "資金不足" if side.money < spec.cost else "1試合1回")
         self._text(note, self.f_small, MUTED,
-                   (rect.centerx, rect.bottom - 14), center=True)
+                   (rect.centerx, rect.bottom - 10), center=True)
 
     # ------------------------------------------------------ 操作盤：資金と召喚
     def _summon(self, battle: Battle, side: Side) -> None:
