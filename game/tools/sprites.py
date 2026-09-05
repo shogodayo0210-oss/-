@@ -143,14 +143,25 @@ def norm(value: float, lo: float, hi: float) -> float:
     return max(0.0, min(1.0, (value - lo) / (hi - lo)))
 
 
-def silhouette(unit: Unit, wall_line: float) -> str:
+def heavy_line(bounds: dict) -> float:
+    """「大型」と呼ぶコストの線を、その時のコスト幅から引く。
+
+    数値を直接書くと、コストの尺度を変えたときに黙って死ぬ
+    （1〜10 に直したとき `cost >= 450` が誰にも当たらなくなった）。
+    上位4割を大型とみなす。
+    """
+    lo, hi = bounds["cost"]
+    return lo + (hi - lo) * 0.6
+
+
+def silhouette(unit: Unit, wall_line: float, heavy_cost: float) -> str:
     """数字からシルエットの型を決める。art/README.md の規約そのもの。"""
     if unit.near > 0:
         return "mortar"          # 後方範囲：死角を持つ＝上に向いた砲身
     if unit.is_wall(wall_line):
         return "wall"            # 壁：横に広く、盾を前に
-    if unit.cost >= 450:
-        return "heavy"           # 大型：画面を埋める
+    if unit.cost >= heavy_cost and unit.far <= 50:
+        return "heavy"           # 高コストの近接：画面を埋める
     if unit.far > 50:
         return "ranged"          # 遠距離：細く高く、長い得物
     if unit.speed_mps >= 9:
@@ -161,7 +172,7 @@ def silhouette(unit: Unit, wall_line: float) -> str:
 def draw_unit(unit: Unit, bounds: dict, wall_line: float) -> Canvas:
     c = Canvas(UNIT_PX)
     S = UNIT_PX
-    shape = silhouette(unit, wall_line)
+    shape = silhouette(unit, wall_line, heavy_line(bounds))
 
     big = norm(unit.cost, bounds["cost"][0], bounds["cost"][1])
     tough = norm(unit.hp, bounds["hp"][0], bounds["hp"][1])
@@ -393,8 +404,8 @@ def main() -> int:
           f"{OUT.relative_to(ART.parent.parent)} に書き出した")
     counts: dict[str, int] = {}
     for unit in units:
-        counts[silhouette(unit, wall_line)] = counts.get(
-            silhouette(unit, wall_line), 0) + 1
+        shape = silhouette(unit, wall_line, heavy_line(bounds))
+        counts[shape] = counts.get(shape, 0) + 1
     print("シルエットの内訳: " + " / ".join(
         f"{k} {v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1])))
     return 0
