@@ -1,0 +1,19 @@
+{
+  "_comment": "系統・見た目ごとの5段階の色。outline / shadow / base / light / accent / dark_accent の6色を必ず同じ役割で使う。色数を揃えておくと、絵描きが増えても質感が揃う。",
+  "families": {
+    "人":   { "outline": "#1b1420", "shadow": "#44557a", "base": "#7d90b8", "light": "#b8c6e2", "accent": "#e0aa46", "dark_accent": "#9a6a1e" },
+    "獣":   { "outline": "#201410", "shadow": "#6b3f2a", "base": "#a06a44", "light": "#d8ac7c", "accent": "#e2622f", "dark_accent": "#9c3714" },
+    "機械": { "outline": "#12161a", "shadow": "#414c57", "base": "#7b8894", "light": "#bcc7d0", "accent": "#3ecad9", "dark_accent": "#1b7d8c" },
+    "不死": { "outline": "#16101c", "shadow": "#43305a", "base": "#6f5488", "light": "#ab95c4", "accent": "#7ee081", "dark_accent": "#37904a" },
+    "精霊": { "outline": "#101c1c", "shadow": "#2d6660", "base": "#4fa196", "light": "#a4dcd3", "accent": "#f2e58a", "dark_accent": "#b09a2c" }
+  },
+  "looks": {
+    "可憐": { "outline": "#22141c", "shadow": "#8a4467", "base": "#c874a0", "light": "#f0b6d2", "accent": "#ffd9e6", "dark_accent": "#8f2f5c" },
+    "剛力": { "outline": "#1d1310", "shadow": "#7a3524", "base": "#b45a3c", "light": "#e39a72", "accent": "#f0c04a", "dark_accent": "#8a2f18" },
+    "知性": { "outline": "#131826", "shadow": "#33447e", "base": "#5a72b8", "light": "#9db0e4", "accent": "#8ee6f0", "dark_accent": "#2a4c8c" },
+    "俊敏": { "outline": "#101d18", "shadow": "#2c7050", "base": "#4faa78", "light": "#9ee0b4", "accent": "#f2f0a0", "dark_accent": "#1f6b46" },
+    "怪異": { "outline": "#17111f", "shadow": "#4a2e66", "base": "#75509c", "light": "#b294d2", "accent": "#c8f05a", "dark_accent": "#4a7a18" },
+    "王道": { "outline": "#1c1710", "shadow": "#6e5a2c", "base": "#a89050", "light": "#ddc98c", "accent": "#f2d24a", "dark_accent": "#8a6a14" }
+  },
+  "sheet": { "background": "#171c22", "label": "#7d8d9c" }
+}

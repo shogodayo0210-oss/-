@@ -1,0 +1,1850 @@
+<title>一本道の攻城戦</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+
+<style>
+:root{
+  --ground:#12161a; --panel:#1b232c; --panel-2:#212b36;
+  --ink:#dfe6ec; --muted:#7d8d9c; --rule:#2b343e;
+  --accent:#3ecad9; --gold:#e0aa46; --green:#4fa196; --red:#e2622f;
+  --f:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%; text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--f); font-size:15px; line-height:1.7;
+  font-feature-settings:"palt" 1; -webkit-font-smoothing:antialiased;
+  /* 操作中に画面が引っぱられないようにする（スマホ） */
+  overscroll-behavior:none; -webkit-user-select:none; user-select:none;
+}
+.wrap{max-width:1180px; margin-inline:auto; padding:16px 16px 48px}
+
+header{display:flex; flex-wrap:wrap; align-items:baseline; gap:.4rem 1rem;
+  margin-block-end:.8rem}
+h1{font-size:1.15rem; font-weight:900; margin:0; letter-spacing:.01em}
+header .sub{color:var(--muted); font-size:.85rem}
+
+/* 画面。内部は 1140×712 固定で、CSS 側だけ伸び縮みさせる。 */
+#screen{
+  display:block; width:100%; height:auto; aspect-ratio:1140/712;
+  margin-inline:auto; background:#171c22; border:1px solid var(--rule);
+  image-rendering:pixelated; touch-action:manipulation;
+}
+/* 横長で背の低い画面（スマホを横にしたとき）は、幅ではなく**高さ**で決める。
+   縦のままだと 1140px を 390px に潰すことになり、ボタンの字が読めない。 */
+@media (max-height:620px) and (orientation:landscape){
+  .wrap{padding-block-start:8px}
+  header{display:none}
+  #screen{height:calc(100dvh - 20px); width:auto; max-width:100%}
+}
+#rotate{display:none}
+@media (max-width:640px) and (orientation:portrait){
+  #rotate{
+    display:block; margin-block-start:.5rem; padding:.5rem .7rem;
+    background:var(--panel); border-inline-start:3px solid var(--gold);
+    color:var(--muted); font-size:.85rem;
+  }
+  #rotate b{color:var(--gold)}
+}
+
+.bar{display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:center;
+  margin-block-start:.7rem}
+.bar label{color:var(--muted); font-size:.85rem}
+select,button{
+  font-family:inherit; font-size:.9rem; color:var(--ink);
+  background:var(--panel-2); border:1px solid var(--rule);
+  padding:.35rem .7rem; border-radius:0; cursor:pointer;
+}
+button:hover,select:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+#screen:focus-visible{outline-offset:-2px}
+#tally{margin-inline-start:auto; color:var(--muted); font-size:.85rem;
+  font-variant-numeric:tabular-nums}
+
+.cols{display:grid; gap:1.4rem; margin-block-start:1.4rem;
+  grid-template-columns:1fr}
+@media(min-width:60rem){.cols{grid-template-columns:1.15fr .85fr}}
+
+h2{font-size:.95rem; font-weight:700; margin:0 0 .5rem}
+.keys{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.keys div{background:var(--panel); display:grid; grid-template-columns:5.5rem 1fr;
+  gap:.8rem; padding:.45rem .7rem; font-size:.88rem}
+.keys b{color:var(--accent); font-weight:700}
+.keys span{color:var(--muted)}
+
+#log{margin-block-start:.5rem; max-height:16rem; overflow-y:auto;
+  font-size:.82rem; font-variant-numeric:tabular-nums}
+#log .row{display:flex; gap:.7rem; padding:.3rem .1rem;
+  border-block-end:1px solid var(--rule); color:var(--muted)}
+#log .row b{color:var(--ink); min-width:1.6rem}
+#log .w{color:var(--accent); font-weight:700}
+#log .l{color:var(--red); font-weight:700}
+#log .d{color:var(--muted); font-weight:700}
+#log:empty::after{content:"まだ1試合も終わっていません"; color:var(--muted);
+  font-size:.85rem}
+
+.note{color:var(--muted); font-size:.85rem; margin:.6rem 0 0}
+.note b{color:var(--ink)}
+code{font-size:.9em; color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>一本道の攻城戦</h1>
+    <span class="sub">1レーン攻城戦 1v1 ／ 試遊版</span>
+  </header>
+
+  <canvas id="screen" width="1140" height="712"></canvas>
+
+  <p id="rotate"><b>端末を横にすると</b>画面が3倍ほど大きくなります。</p>
+
+  <div class="bar">
+    <label for="enemy">相手</label>
+    <select id="enemy">
+      <option value="rush">rush ― 育てずに攻める</option>
+      <option value="balanced" selected>balanced ― Lv4まで育てる</option>
+      <option value="greed">greed ― Lv6まで育てる</option>
+    </select>
+    <label for="speed">速さ</label>
+    <select id="speed">
+      <option value="1">1倍</option>
+      <option value="2">2倍</option>
+      <option value="4">4倍</option>
+    </select>
+    <button id="pause">一時停止</button>
+    <button id="again">次の試合</button>
+    <span id="tally">0試合</span>
+  </div>
+
+  <div class="cols">
+    <section>
+      <h2>操作</h2>
+      <div class="keys">
+        <div><b>1〜6</b><span>出撃。画面下のボタンを押しても同じ</span></div>
+        <div><b>0</b><span>財布を育てる。<b>6秒かかり、その間は何も出せない</b></span></div>
+        <div><b>Q</b><span>持ち込みの呪文（必ず使える1枚）</span></div>
+        <div><b>W / E / R</b><span>ストックの呪文（流れてくる3枠）</span></div>
+        <div><b>T</b><span>切り札。60秒解禁・1試合1回</span></div>
+        <div><b>Space</b><span>一時停止</span></div>
+        <div><b>R</b><span>決着したあとは次の試合へ</span></div>
+      </div>
+      <p class="note">
+        <b>資源は資金1本。</b>出撃・呪文・切り札・財布の育成が、全部おなじ財布を
+        奪い合います。画面の見どころは3つ ――
+        <b>資金のマス目</b>（コストが1〜10なので数えられる）、
+        <b>頭上の金色の棒</b>（振りかぶり。大きい一撃ほど長い）、
+        赤い <b>「財布 Lv不足」</b>（資金があっても上限が届いていない）。
+      </p>
+      <p class="note">
+        ヘッダの<b>「陣地 +N」</b>は、そのとき前線を押し込んでいる側だけに入ります。
+        互角なら誰にも入りません ―― <b>安いユニットを早く出す理由</b>がここにあります。
+      </p>
+    </section>
+
+    <section>
+      <h2>この端末で遊んだ試合</h2>
+      <div id="log"></div>
+      <p class="note">
+        <b>与</b>＝相手の拠点をどれだけ削ったか、<b>被</b>＝自分がどれだけ削られたか。
+        勝ち負けより<b>この2つの差</b>のほうが、何が効いたかを表します。
+        記録はこの端末に残るだけで、どこにも送られません。
+      </p>
+      <p class="note">
+        相手は<b>まったく同じ6種・同じ呪文・同じ切り札</b>を持っています。
+        違うのは<b>資金をどこまで育ててから戦うか</b>だけ ――
+        負けた理由が読めるように、まず同じ条件にしてあります。
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>const DATA = {"raw":{"characters":{"_comment":"出撃ユニット。個別の特性（このユニットだけの特殊能力）は入れない。全ユニット共通の数字だけで役割を作る。DPS は 攻撃力÷攻撃間隔 の導出値なので持たせない。","stat_model":{"hp":"体力","attack":"1発の攻撃力","attack_interval_sec":"攻撃間隔。短いほど手数が多い","attack_windup_sec":"攻撃発生。振り始めてから当たるまで。長いほど見て対応できる","attack_band_m":"攻撃が当たる帯 [手前, 奥]。手前が0より大きければ、そこまでが死角","pierce":"1回の攻撃が当たる敵の数。1=単体。大きいほど範囲攻撃だが、無限ではない","knockback":"ノックバック回数。体力をこの数で割った区切りごとに後退する。1=後退せずその場で死ぬ","speed_mps":"前進速度。前線がどこで作られるかを決める","siege_mult":"対拠点ダメージ倍率。1.0が基準。これが低い（wall_threshold以下）ユニットは「壁」として扱われ、壁特攻の的になる","cost":"出撃に払う資金","cooldown_sec":"同じユニットを再度出せるまでの時間。同時に何体出ていても構わない","tier":"S/A/B。ランダム枠の鏡像抽選はこのティアで揃える","anti_wall_mult":"対壁ダメージ倍率。壁（拠点を割れないユニット）に対する倍率。1.0が基準。壁の連鎖を崩すための数字","family":"系統。人 / 獣 / 機械 / 不死 / 精霊。見た目のためだけの区分で、数字にも戦闘にも影響しない"},"characters":[{"id":"grunt","name":"兵卒","family":"人","tier":"B","cost":1,"cooldown_sec":2,"hp":583,"attack":51,"attack_interval_sec":1.2,"attack_windup_sec":0.15,"attack_band_m":[0,12],"pierce":1,"knockback":1,"speed_mps":8,"siege_mult":0.5,"anti_wall_mult":1.0,"role":"壁。拠点を割れず攻撃力も低い。数で前線を作るためだけに居る"},{"id":"ratling","name":"斥候鼠","family":"獣","tier":"B","cost":1,"cooldown_sec":3,"hp":437,"attack":58,"attack_interval_sec":1.0,"attack_windup_sec":0.1,"attack_band_m":[0,8],"pierce":1,"knockback":1,"speed_mps":14,"siege_mult":1.2,"anti_wall_mult":0.8,"role":"最速。前線を作らず相手陣まで走り抜ける"},{"id":"hound","name":"猟犬","family":"獣","tier":"B","cost":1,"cooldown_sec":4,"hp":583,"attack":102,"attack_interval_sec":0.7,"attack_windup_sec":0.1,"attack_band_m":[0,10],"pierce":1,"knockback":2,"speed_mps":12,"siege_mult":1.1,"anti_wall_mult":1.2,"role":"速い手数。壁の後ろに回り込ませる"},{"id":"shieldman","name":"盾兵","family":"人","tier":"B","cost":2,"cooldown_sec":4,"hp":1910,"attack":32,"attack_interval_sec":2.2,"attack_windup_sec":0.3,"attack_band_m":[0,10],"pierce":1,"knockback":1,"speed_mps":5,"siege_mult":0.4,"anti_wall_mult":1.0,"role":"安い壁。兵卒より硬く、より遅い"},{"id":"spear","name":"槍兵","family":"人","tier":"B","cost":2,"cooldown_sec":5,"hp":891,"attack":140,"attack_interval_sec":1.4,"attack_windup_sec":0.2,"attack_band_m":[0,25],"pierce":1,"knockback":3,"speed_mps":7,"siege_mult":1.0,"anti_wall_mult":1.3,"role":"接近戦の一歩外から刺す。押されながらも粘る"},{"id":"bomber","name":"爆弾兵","family":"人","tier":"B","cost":2,"cooldown_sec":6,"hp":535,"attack":242,"attack_interval_sec":2.4,"attack_windup_sec":0.5,"attack_band_m":[0,35],"pierce":3,"knockback":2,"speed_mps":6,"siege_mult":0.7,"anti_wall_mult":1.9,"role":"小さな範囲で壁の列を崩す。自分は紙"},{"id":"slinger","name":"投石兵","family":"人","tier":"B","cost":2,"cooldown_sec":6,"hp":586,"attack":115,"attack_interval_sec":1.6,"attack_windup_sec":0.35,"attack_band_m":[0,55],"pierce":1,"knockback":2,"speed_mps":5,"siege_mult":0.8,"anti_wall_mult":0.9,"role":"序盤の遠距離。届くだけで火力は無い"},{"id":"torch","name":"松明持ち","family":"人","tier":"B","cost":3,"cooldown_sec":7,"hp":941,"attack":141,"attack_interval_sec":1.5,"attack_windup_sec":0.25,"attack_band_m":[0,30],"pierce":2,"knockback":3,"speed_mps":6,"siege_mult":0.9,"anti_wall_mult":1.4,"role":"2体まで巻き込む小範囲。前線の押し合いに強い"},{"id":"crossbow","name":"弩兵","family":"人","tier":"B","cost":3,"cooldown_sec":7,"hp":612,"attack":165,"attack_interval_sec":1.8,"attack_windup_sec":0.4,"attack_band_m":[0,70],"pierce":1,"knockback":2,"speed_mps":4,"siege_mult":0.8,"anti_wall_mult":1.0,"role":"遠距離の入門。壁が要る"},{"id":"stonewall","name":"石壁","family":"機械","tier":"B","cost":3,"cooldown_sec":8,"hp":3400,"attack":35,"attack_interval_sec":2.5,"attack_windup_sec":0.35,"attack_band_m":[0,12],"pierce":1,"knockback":1,"speed_mps":3,"siege_mult":0.35,"anti_wall_mult":1.0,"role":"純粋な壁。攻撃はほぼ飾り"},{"id":"archer","name":"弓手","family":"人","tier":"A","cost":4,"cooldown_sec":9,"hp":501,"attack":145,"attack_interval_sec":1.7,"attack_windup_sec":0.3,"attack_band_m":[0,90],"pierce":1,"knockback":2,"speed_mps":4,"siege_mult":0.8,"anti_wall_mult":1.0,"role":"遠距離の単体。前に壁がないと即溶ける"},{"id":"piercer","name":"貫き手","family":"人","tier":"A","cost":4,"cooldown_sec":10,"hp":723,"attack":189,"attack_interval_sec":1.3,"attack_windup_sec":0.25,"attack_band_m":[0,22],"pierce":2,"knockback":3,"speed_mps":7,"siege_mult":1.1,"anti_wall_mult":1.5,"role":"2体抜き。壁の列に刺さる"},{"id":"halberd","name":"長柄兵","family":"人","tier":"A","cost":4,"cooldown_sec":10,"hp":1223,"attack":178,"attack_interval_sec":1.6,"attack_windup_sec":0.3,"attack_band_m":[0,30],"pierce":2,"knockback":2,"speed_mps":6,"siege_mult":1.0,"anti_wall_mult":1.5,"role":"間合いと硬さの中間。無難に強い"},{"id":"shield","name":"重装","family":"人","tier":"A","cost":5,"cooldown_sec":11,"hp":3195,"attack":48,"attack_interval_sec":2.0,"attack_windup_sec":0.25,"attack_band_m":[0,14],"pierce":1,"knockback":1,"speed_mps":4,"siege_mult":0.5,"anti_wall_mult":1.0,"role":"壁役。後ろの遠距離を守る時間を買う"},{"id":"hexer","name":"呪い手","family":"精霊","tier":"A","cost":5,"cooldown_sec":12,"hp":745,"attack":128,"attack_interval_sec":2.0,"attack_windup_sec":0.35,"attack_band_m":[0,80],"pierce":3,"knockback":2,"speed_mps":4,"siege_mult":0.7,"anti_wall_mult":0.9,"role":"遠距離の小範囲。群れを削る"},{"id":"golem","name":"土人形","family":"機械","tier":"A","cost":5,"cooldown_sec":12,"hp":3621,"attack":64,"attack_interval_sec":2.4,"attack_windup_sec":0.4,"attack_band_m":[0,14],"pierce":1,"knockback":1,"speed_mps":3,"siege_mult":0.45,"anti_wall_mult":1.0,"role":"重装より硬い壁。動きは鈍い"},{"id":"twin","name":"双剣","family":"人","tier":"A","cost":5,"cooldown_sec":13,"hp":958,"attack":213,"attack_interval_sec":0.8,"attack_windup_sec":0.1,"attack_band_m":[0,13],"pierce":1,"knockback":4,"speed_mps":9,"siege_mult":1.2,"anti_wall_mult":1.8,"role":"接近戦で最も手数が多く、壁を溶かすのが速い。代わりに紙"},{"id":"flamer","name":"火炎兵","family":"精霊","tier":"A","cost":5,"cooldown_sec":14,"hp":873,"attack":160,"attack_interval_sec":1.4,"attack_windup_sec":0.3,"attack_band_m":[0,40],"pierce":4,"knockback":3,"speed_mps":5,"siege_mult":0.8,"anti_wall_mult":2.0,"role":"前線範囲で壁の列を焼く"},{"id":"rider","name":"騎兵","family":"獣","tier":"A","cost":5,"cooldown_sec":15,"hp":1118,"attack":202,"attack_interval_sec":1.0,"attack_windup_sec":0.15,"attack_band_m":[0,16],"pierce":1,"knockback":3,"speed_mps":11,"siege_mult":1.3,"anti_wall_mult":1.4,"role":"速い中型。前線を一気に押し上げる"},{"id":"sweeper","name":"薙ぎ払い","family":"人","tier":"A","cost":6,"cooldown_sec":16,"hp":1233,"attack":185,"attack_interval_sec":2.0,"attack_windup_sec":0.4,"attack_band_m":[0,45],"pierce":6,"knockback":3,"speed_mps":5,"siege_mult":0.7,"anti_wall_mult":2.2,"role":"前線範囲。6体まで巻き込み、壁の群れを崩すのが仕事"},{"id":"berserk","name":"狂戦士","family":"獣","tier":"A","cost":6,"cooldown_sec":17,"hp":1387,"attack":247,"attack_interval_sec":0.9,"attack_windup_sec":0.12,"attack_band_m":[0,15],"pierce":1,"knockback":4,"speed_mps":10,"siege_mult":1.4,"anti_wall_mult":1.6,"role":"最大級の手数。よく押し戻される"},{"id":"arbalest","name":"重弩","family":"機械","tier":"A","cost":6,"cooldown_sec":18,"hp":617,"attack":267,"attack_interval_sec":2.2,"attack_windup_sec":0.5,"attack_band_m":[0,100],"pierce":1,"knockback":2,"speed_mps":3,"siege_mult":0.9,"anti_wall_mult":1.0,"role":"遠距離の単体高火力。撃った直後が狙い目"},{"id":"mortar","name":"臼砲","family":"機械","tier":"S","cost":7,"cooldown_sec":20,"hp":499,"attack":479,"attack_interval_sec":3.2,"attack_windup_sec":0.8,"attack_band_m":[70,110],"pierce":8,"knockback":2,"speed_mps":3,"siege_mult":1.5,"anti_wall_mult":0.6,"role":"後方範囲。手前70mが死角。相手の前線を飛び越えて後衛と拠点を叩く"},{"id":"cannon","name":"砲手","family":"機械","tier":"S","cost":7,"cooldown_sec":21,"hp":606,"attack":479,"attack_interval_sec":3.5,"attack_windup_sec":0.7,"attack_band_m":[0,110],"pierce":5,"knockback":3,"speed_mps":3,"siege_mult":1.0,"anti_wall_mult":1.0,"role":"死角のない遠距離範囲。発生0.7秒なので振り始めが見えたら動ける"},{"id":"warlock","name":"大呪術","family":"精霊","tier":"S","cost":8,"cooldown_sec":22,"hp":641,"attack":389,"attack_interval_sec":3.0,"attack_windup_sec":0.65,"attack_band_m":[60,110],"pierce":6,"knockback":2,"speed_mps":3,"siege_mult":1.2,"anti_wall_mult":0.6,"role":"臼砲より近い死角。後衛を焼く"},{"id":"ballista","name":"攻城弩","family":"機械","tier":"S","cost":8,"cooldown_sec":23,"hp":680,"attack":505,"attack_interval_sec":3.4,"attack_windup_sec":0.75,"attack_band_m":[0,110],"pierce":2,"knockback":2,"speed_mps":2,"siege_mult":1.7,"anti_wall_mult":0.7,"role":"最長射程。拠点を割るための兵器で、ユニット相手は不得手"},{"id":"assassin","name":"影討ち","family":"不死","tier":"S","cost":8,"cooldown_sec":24,"hp":1117,"attack":253,"attack_interval_sec":0.8,"attack_windup_sec":0.15,"attack_band_m":[0,14],"pierce":1,"knockback":3,"speed_mps":13,"siege_mult":1.6,"anti_wall_mult":1.7,"role":"最速の大型。小さい一撃を高速で刻み、壁ごと押し通って拠点に届く"},{"id":"paladin","name":"聖騎士","family":"人","tier":"S","cost":9,"cooldown_sec":27,"hp":3988,"attack":209,"attack_interval_sec":2.2,"attack_windup_sec":0.6,"attack_band_m":[0,18],"pierce":2,"knockback":1,"speed_mps":3,"siege_mult":0.9,"anti_wall_mult":1.3,"role":"硬さと火力の両立。後退しない"},{"id":"siegetower","name":"攻城櫓","family":"機械","tier":"S","cost":9,"cooldown_sec":29,"hp":4558,"attack":285,"attack_interval_sec":2.6,"attack_windup_sec":0.65,"attack_band_m":[0,22],"pierce":3,"knockback":1,"speed_mps":2,"siege_mult":1.9,"anti_wall_mult":1.0,"role":"最も拠点を削る。遅く、前線が必要"},{"id":"behemoth","name":"巨獣","family":"獣","tier":"S","cost":10,"cooldown_sec":32,"hp":4837,"attack":391,"attack_interval_sec":2.8,"attack_windup_sec":0.7,"attack_band_m":[0,26],"pierce":4,"knockback":2,"speed_mps":3,"siege_mult":1.2,"anti_wall_mult":1.4,"role":"体力も火力も上位。範囲で前線を薙ぐ"},{"id":"titan","name":"巨兵","family":"機械","tier":"S","cost":10,"cooldown_sec":35,"hp":5582,"attack":326,"attack_interval_sec":2.4,"attack_windup_sec":0.6,"attack_band_m":[0,20],"pierce":3,"knockback":2,"speed_mps":3,"siege_mult":1.3,"anti_wall_mult":1.5,"role":"体力も攻撃力も最上位。遅く、出したら資金が空になる"},{"id":"revenant","name":"亡霊将","family":"不死","tier":"S","cost":9,"cooldown_sec":25,"hp":1709,"attack":285,"attack_interval_sec":1.6,"attack_windup_sec":0.35,"attack_band_m":[0,28],"pierce":2,"knockback":4,"speed_mps":8,"siege_mult":1.5,"anti_wall_mult":1.5,"role":"速さと火力。押し戻されやすいので数で支える"}]},"cards":{"_comment":"呪文カードは戦術の道具。資金は使わず、クールタイムだけで回す。使い切りではなく、時間で戻ってくる。中身は最初に使うまで非公開。詠唱の予兆は必ず残す（見切りが合わせる相手なので）。","stat_model":{"family":"系統。攻撃 / 機動 / 経済 / 耐久。読心が公開するのはここだけ","target":"own=自軍にかける / enemy=敵軍にかける（補助か妨害か）","duration_sec":"効果の継続時間","cooldown_sec":"そのカード個別の再使用まで","cast_sec":"詠唱。予兆が出て、見切りで合わせられる","apply":"効果の中身。scope=誰に / stat=どの数字を / mult か add で。stat はユニットが持っている項目そのもの（attack / speed / attack_interval / knockback）"},"cards":[{"id":"warcry","name":"鬨の声","family":"攻撃","target":"own","duration_sec":10,"cooldown_sec":20.0,"cast_sec":0.7,"apply":{"scope":"own_units","stat":"attack","mult":1.4},"effect":"自軍の攻撃力 +40%","cost":4,"band":"中"},{"id":"morale","name":"士気","family":"攻撃","target":"own","duration_sec":10.0,"cooldown_sec":18.0,"cast_sec":0.6,"apply":{"scope":"own_units","stat":"attack","mult":1.2},"effect":"自軍の攻撃力 +20%。長く薄くかける","cost":1,"band":"軽"},{"id":"lastcharge","name":"決死","family":"攻撃","target":"own","duration_sec":6,"cooldown_sec":20.0,"cast_sec":0.9,"apply":{"scope":"own_units","stat":"attack","mult":1.8},"effect":"自軍の攻撃力 +80%。短く、決めに行く時だけ","cost":4,"band":"中"},{"id":"rust","name":"錆","family":"攻撃","target":"enemy","duration_sec":10,"cooldown_sec":18.0,"cast_sec":0.7,"apply":{"scope":"enemy_units","stat":"attack","mult":0.7},"effect":"敵の攻撃力 −30%","cost":2,"band":"軽"},{"id":"corrode","name":"腐食","family":"攻撃","target":"enemy","duration_sec":7,"cooldown_sec":20.0,"cast_sec":0.9,"apply":{"scope":"enemy_units","stat":"attack","mult":0.5},"effect":"敵の攻撃力 −50%。相手の大型を無力化する","cost":3,"band":"中"},{"id":"quickhand","name":"早撃ち","family":"攻撃","target":"own","duration_sec":8,"cooldown_sec":18.0,"cast_sec":0.5,"apply":{"scope":"own_units","stat":"attack_interval","mult":0.8},"effect":"自軍の攻撃間隔 −20%","cost":1,"band":"軽"},{"id":"frenzy","name":"猛攻","family":"攻撃","target":"own","duration_sec":6,"cooldown_sec":18.0,"cast_sec":0.8,"apply":{"scope":"own_units","stat":"attack_interval","mult":0.6},"effect":"自軍の攻撃間隔 −40%","cost":1,"band":"軽"},{"id":"dull","name":"鈍化","family":"攻撃","target":"enemy","duration_sec":8,"cooldown_sec":20.0,"cast_sec":0.6,"apply":{"scope":"enemy_units","stat":"attack_interval","mult":1.5},"effect":"敵の攻撃間隔 +50%。手数を落とす","cost":4,"band":"中"},{"id":"stagnate","name":"停滞","family":"攻撃","target":"enemy","duration_sec":6,"cooldown_sec":24.0,"cast_sec":0.9,"apply":{"scope":"enemy_units","stat":"attack_interval","mult":2.0},"effect":"敵の攻撃間隔 +100%。ほぼ止める","cost":8,"band":"重"},{"id":"advance","name":"進軍","family":"機動","target":"own","duration_sec":8,"cooldown_sec":20.0,"cast_sec":0.5,"apply":{"scope":"own_units","stat":"speed","mult":1.5},"effect":"自軍の移動速度 +50%。前線を押し上げる","cost":4,"band":"中"},{"id":"sprint","name":"疾駆","family":"機動","target":"own","duration_sec":5,"cooldown_sec":20.0,"cast_sec":0.7,"apply":{"scope":"own_units","stat":"speed","mult":2.0},"effect":"自軍の移動速度 +100%。一気に間合いを詰める","cost":5,"band":"中"},{"id":"mire","name":"泥濘","family":"機動","target":"enemy","duration_sec":8,"cooldown_sec":20.0,"cast_sec":0.6,"apply":{"scope":"enemy_units","stat":"speed","mult":0.5},"effect":"敵の移動速度 −50%","cost":4,"band":"中"},{"id":"freeze","name":"氷結","family":"機動","target":"enemy","duration_sec":5,"cooldown_sec":20.0,"cast_sec":0.8,"apply":{"scope":"enemy_units","stat":"speed","mult":0.25},"effect":"敵の移動速度 −75%。押し返しを止める","cost":3,"band":"中"},{"id":"rally","name":"号令","family":"機動","target":"own","duration_sec":12,"cooldown_sec":24.0,"cast_sec":0.8,"apply":{"scope":"own_deploy","stat":"deploy_cooldown","mult":0.5},"effect":"自軍の再出撃クールタイム −50%","cost":8,"band":"重"},{"id":"mobilize","name":"総動員","family":"機動","target":"own","duration_sec":8,"cooldown_sec":24.0,"cast_sec":0.9,"apply":{"scope":"own_deploy","stat":"deploy_cooldown","mult":0.25},"effect":"自軍の再出撃クールタイム −75%","cost":9,"band":"重"},{"id":"confuse","name":"混乱","family":"機動","target":"enemy","duration_sec":10,"cooldown_sec":20.0,"cast_sec":0.7,"apply":{"scope":"enemy_deploy","stat":"deploy_cooldown","mult":1.5},"effect":"敵の再出撃クールタイム +50%","cost":5,"band":"中"},{"id":"sever","name":"分断","family":"機動","target":"enemy","duration_sec":7,"cooldown_sec":24.0,"cast_sec":0.9,"apply":{"scope":"enemy_deploy","stat":"deploy_cooldown","mult":2.0},"effect":"敵の再出撃クールタイム +100%。増援を断つ","cost":10,"band":"重"},{"id":"bulwark","name":"堅陣","family":"耐久","target":"own","duration_sec":8,"cooldown_sec":24.0,"cast_sec":0.9,"apply":{"scope":"own_units","stat":"knockback","mult":0.0},"effect":"自軍がノックバックしなくなる。線を保つ","cost":10,"band":"重"},{"id":"brace","name":"踏ん張り","family":"耐久","target":"own","duration_sec":10,"cooldown_sec":20.0,"cast_sec":0.6,"apply":{"scope":"own_units","stat":"knockback","mult":0.5},"effect":"自軍のノックバック回数を半分に","cost":5,"band":"中"},{"id":"waver","name":"動揺","family":"耐久","target":"enemy","duration_sec":10,"cooldown_sec":18.0,"cast_sec":0.5,"apply":{"scope":"enemy_units","stat":"knockback","add":1},"effect":"敵のノックバック回数 +1。押し戻しやすくする","cost":1,"band":"軽"},{"id":"brittle","name":"脆化","family":"耐久","target":"enemy","duration_sec":8,"cooldown_sec":18.0,"cast_sec":0.7,"apply":{"scope":"enemy_units","stat":"knockback","add":2},"effect":"敵のノックバック回数 +2。前線を大きく下げさせる","cost":2,"band":"軽"},{"id":"nodrop","name":"不退転","family":"耐久","target":"own","duration_sec":9,"cooldown_sec":24.0,"cast_sec":0.8,"apply":{"scope":"own_units","stat":"knockback","mult":0.25},"effect":"自軍のノックバック回数を1/4に","cost":9,"band":"重"},{"id":"levy","name":"徴発","family":"経済","target":"own","duration_sec":12,"cooldown_sec":20.0,"cast_sec":0.8,"apply":{"scope":"own_deploy","stat":"cost","mult":0.7},"effect":"出撃コスト −30%。厚く並べたい時間に合わせる","cost":3,"band":"中"},{"id":"largesse","name":"大盤振る舞い","family":"経済","target":"own","duration_sec":8,"cooldown_sec":20.0,"cast_sec":0.9,"apply":{"scope":"own_deploy","stat":"cost","mult":0.5},"effect":"出撃コスト −50%。一気に数を出す","cost":4,"band":"中"},{"id":"tax","name":"増税","family":"経済","target":"enemy","duration_sec":10,"cooldown_sec":18.0,"cast_sec":0.6,"apply":{"scope":"enemy_deploy","stat":"cost","mult":1.3},"effect":"敵の出撃コスト +30%","cost":2,"band":"軽"},{"id":"embargo","name":"封鎖","family":"経済","target":"enemy","duration_sec":7,"cooldown_sec":20.0,"cast_sec":0.9,"apply":{"scope":"enemy_deploy","stat":"cost","mult":1.6},"effect":"敵の出撃コスト +60%。押し込む直前に刺す","cost":4,"band":"中"},{"id":"boom","name":"増収","family":"経済","target":"own","duration_sec":10,"cooldown_sec":20.0,"cast_sec":0.7,"apply":{"scope":"own_economy","stat":"income","mult":1.5},"effect":"自軍の資金の増え方 +50%","cost":5,"band":"中"},{"id":"lode","name":"金脈","family":"経済","target":"own","duration_sec":6,"cooldown_sec":24.0,"cast_sec":0.9,"apply":{"scope":"own_economy","stat":"income","mult":2.0},"effect":"自軍の資金の増え方 +100%","cost":9,"band":"重"},{"id":"blight","name":"枯渇","family":"経済","target":"enemy","duration_sec":8,"cooldown_sec":20.0,"cast_sec":0.9,"apply":{"scope":"enemy_economy","stat":"income","mult":0.5},"effect":"敵の資金の増え方 −50%。育てている相手に刺す","cost":4,"band":"中"},{"id":"famine","name":"断絶","family":"経済","target":"enemy","duration_sec":5,"cooldown_sec":20.0,"cast_sec":0.8,"apply":{"scope":"enemy_economy","stat":"income","mult":0.25},"effect":"敵の資金の増え方 −75%","cost":3,"band":"中"}]},"trumps":{"_comment":"切り札。出撃8枠とは別枠で1体だけ選び、1試合に1回だけ出せる。強いが寿命で退場する。中身は召喚まで非公開だが、召喚には演出時間があり相手は見てから対応できる。能力の項目はユニットとまったく同じ（特別な仕組みを持たせない）。","trumps":[{"id":"colossus","name":"巨神","cost":10,"lifespan_sec":20,"summon_sec":3.0,"role":"前線を押し切る","hp":12000,"attack":700,"attack_interval_sec":2.5,"attack_windup_sec":0.7,"attack_band_m":[0,25],"pierce":4,"knockback":1,"speed_mps":3,"siege_mult":1.4,"anti_wall_mult":1.5},{"id":"gale_edge","name":"疾風の刃","cost":8,"lifespan_sec":15,"summon_sec":2.5,"role":"拠点に直行する","hp":2500,"attack":300,"attack_interval_sec":0.6,"attack_windup_sec":0.1,"attack_band_m":[0,15],"pierce":1,"knockback":2,"speed_mps":14,"siege_mult":1.6,"anti_wall_mult":0.8},{"id":"archmage","name":"大呪術師","cost":9,"lifespan_sec":18,"summon_sec":3.0,"role":"後方から拠点を叩く","hp":3000,"attack":900,"attack_interval_sec":3.0,"attack_windup_sec":0.9,"attack_band_m":[90,200],"pierce":6,"knockback":1,"speed_mps":2,"siege_mult":2.0,"anti_wall_mult":0.6}]},"perks":{"_comment":"アバターが持つ特典のカタログ。cost は勝率への寄与で後から動かす前提の仮価格。changes_flow=true は「手順が増える／画面が変わる」特典で、看板(signature)はここから選ぶ。","budget":{"max_total":10,"min_total":9,"category_caps":{"info":2,"draft":2,"combat_active":1,"combat_passive":2,"tempo":2}},"perks":[{"id":"scout_1","name":"索敵Ⅰ","category":"info","cost":5,"changes_flow":true,"resolves_in":"intel","visible_to_opponent":true,"params":{"reveal_from":"opponent_chosen","count":3,"selection":"random"},"note":"公開は両者ロック後。ロック前に見えるとカウンターピック機になる"},{"id":"scout_2","name":"索敵Ⅱ","category":"info","cost":3,"changes_flow":true,"resolves_in":"intel","visible_to_opponent":true,"params":{"reveal_from":"opponent_random","count":2,"selection":"all"}},{"id":"mind_read","name":"読心","category":"info","cost":4,"changes_flow":true,"resolves_in":"intel","visible_to_opponent":true,"params":{"reveal_from":"opponent_deck","count":1,"granularity":"school_only"}},{"id":"gauge_sight","name":"検算","category":"info","cost":2,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"show":"opponent_money","duration":"always"},"note":"相手の資金が見える＝次に何を出せるか／切り札を出せるかが読める"},{"id":"pick_plus","name":"選抜+1","category":"draft","cost":6,"changes_flow":true,"resolves_in":"draft","visible_to_opponent":true,"params":{"chosen_slots":7,"random_slots":1},"note":"出撃できるユニットの種類が7になる。6→8 は編成システムそのものを消すので +1 に留める"},{"id":"reroll","name":"引き直し","category":"draft","cost":4,"changes_flow":true,"resolves_in":"draft","visible_to_opponent":true,"params":{"reroll_random_slots":1}},{"id":"promote","name":"抜擢","category":"draft","cost":4,"changes_flow":false,"resolves_in":"draft","visible_to_opponent":true,"params":{"tier_shift":1}},{"id":"reserve","name":"予備兵","category":"draft","cost":3,"changes_flow":false,"resolves_in":"draft","visible_to_opponent":true,"params":{"team_size":9,"chosen_slots":6,"random_slots":3}},{"id":"pocket","name":"隠し玉","category":"draft","cost":3,"changes_flow":true,"resolves_in":"draft","visible_to_opponent":true,"params":{"deck_size":4,"revealed_at_start":1},"note":"4枚目の代償に1枚を晒す。晒す1枚をどれにするかが構築の駆け引きになる"},{"id":"late_pick","name":"後出し","category":"draft","cost":4,"changes_flow":true,"resolves_in":"intel","visible_to_opponent":true,"params":{"held_chosen_slots":1},"exclusive_with":["scout_1","scout_2","mind_read"],"note":"情報を見てから枠を埋めるのは事実上のカウンターピック。索敵系との同居は禁止"},{"id":"parry","name":"見切り","category":"combat_active","cost":3,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"charges":1,"invuln_sec":0.3,"startup_sec":0.0,"scope":"cancel_enemy_cast","deploy_lock_sec":1.0,"money_on_success":2},"note":"相手のカードの詠唱に合わせて押す。0.3秒の窓が詠唱の完了を覆えば、そのカードは不発（クールタイムだけ払わせる）。startup 0 でないと合わせられない。外すと1回きりの権利を失い、1秒間なにも出撃できない"},{"id":"surge","name":"突撃","category":"combat_active","cost":5,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"charges":2,"duration_sec":5,"speed_mult":1.5},"note":"自軍全ユニットの前進速度+50%を5秒。相手の遠距離ユニットに詰めるための択"},{"id":"bunker","name":"防壁","category":"combat_active","cost":5,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"charges":2,"duration_sec":2,"blocks":"enemy_units"},"note":"自拠点の前に2秒だけ壁。切り札の到達を遅らせる用途"},{"id":"last_stand","name":"起死回生","category":"combat_passive","cost":4,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"trigger":"own_base_hp_below","threshold":0.3,"money_gain":5,"once":true},"note":"拠点HPが3割を切った時に1回だけ資金600。負けている側だけが使える立て直し"},{"id":"head_start","name":"先手","category":"tempo","cost":3,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"start_money":3}},{"id":"quick_cast","name":"詠唱短縮","category":"tempo","cost":5,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"cast_time_mult":0.7},"note":"詠唱の下限は match.json の readability.min_cast_sec。短縮しても床は割らない（見切りで覆えなくなるため）"},{"id":"feint","name":"空撃ち","category":"tempo","cost":3,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"cooldown_sec":8,"gauge_cost":0},"note":"詠唱モーションだけを出す。見切りやカード対策を釣るための択。相手が見切り持ちだと価値が上がる"},{"id":"recall","name":"追憶","category":"tempo","cost":7,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"reset_card_cooldown":1,"includes_global_cooldown":true},"note":"カードのクールタイムを1回だけ即座に戻す。同じ札を続けて重ねられる唯一の手段"},{"id":"intel_net","name":"情報網","category":"info","cost":4,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"notify":"enemy_upgrade_start"},"note":"相手がレベルアップを始めた瞬間に分かる。育てている6秒を殴りに行くための特典"},{"id":"card_watch","name":"手札読み","category":"info","cost":3,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"show":"opponent_card_cooldowns"},"note":"相手のカードの残りクールタイムが見える。次がいつ来るかが読める"},{"id":"overdrive","name":"総力戦","category":"combat_active","cost":6,"changes_flow":true,"resolves_in":"battle","visible_to_opponent":true,"params":{"charges":1,"duration_sec":8,"deploy_cooldown_mult":0.0},"note":"8秒だけ再出撃クールタイムが消える。1回きり。資金が続く限り出し切る"},{"id":"siege_order","name":"攻城指揮","category":"combat_passive","cost":4,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"siege_mult_add":0.2},"note":"自軍の対拠点倍率 +0.2。同じ押し合いでも拠点が速く落ちる"},{"id":"breach_order","name":"破城指揮","category":"combat_passive","cost":4,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"anti_wall_mult_add":0.4},"note":"自軍の対壁倍率 +0.4。壁の連鎖を正面から崩す"},{"id":"warchest","name":"兵站","category":"tempo","cost":4,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"money_cap_mult":1.25},"note":"資金の上限 +25%。1つ上のレベルのユニットに早く手が届く"},{"id":"swift_start","name":"速攻","category":"tempo","cost":4,"changes_flow":false,"resolves_in":"battle","visible_to_opponent":true,"params":{"until_sec":45,"deploy_cooldown_mult":0.7},"note":"最初の45秒だけ再出撃クールタイム −30%。序盤の圧を作る"},{"id":"veteran","name":"精鋭","category":"draft","cost":5,"changes_flow":true,"resolves_in":"draft","visible_to_opponent":true,"params":{"discount_units":1,"cost_mult":0.75},"note":"固定枠から1種を選び、その出撃コストを −25%。軸を決めて回す編成になる"}]},"avatars":{"_comment":"アバターは1人1体。編成8枠とも切り札とも別枠で、拠点そのものとしてダメージを受ける。look は見た目の方向づけ（可憐/剛力/知性/俊敏/怪異/王道）で、数字には影響しない。signature は看板の特典で、必ず changes_flow=true のものから選ぶ。","avatars":[{"id":"scout","name":"斥候","look":"知性","concept":"相手を見てから組み立てる","signature":"scout_1","perks":["scout_1","gauge_sight","feint"]},{"id":"strategist","name":"軍師","look":"知性","concept":"カード読みと編成の微調整","signature":"mind_read","perks":["mind_read","gauge_sight","reroll"]},{"id":"marshal","name":"統率","look":"王道","concept":"事故を減らす構築寄り","signature":"pick_plus","perks":["pick_plus","head_start"]},{"id":"bulwark","name":"不動","look":"剛力","concept":"大技に合わせて防ぐ","signature":"parry","perks":["parry","last_stand","gauge_sight"]},{"id":"gale","name":"疾風","look":"俊敏","concept":"前に出て押し切る","signature":"surge","perks":["surge","quick_cast"]},{"id":"gambler","name":"賭博師","look":"怪異","concept":"リスクを取って上振れる","signature":"pocket","perks":["pocket","promote","head_start"]},{"id":"caster","name":"術師","look":"知性","concept":"カード中心","signature":"recall","perks":["recall","feint"]},{"id":"brute","name":"豪傑","look":"剛力","concept":"一点で押し切る","signature":"overdrive","perks":["overdrive","siege_order"]},{"id":"princess","name":"姫","look":"可憐","concept":"軸を1体に決めて回す","signature":"veteran","perks":["veteran","warchest"]},{"id":"artisan","name":"職人","look":"知性","concept":"編成を整えて数で回す","signature":"reroll","perks":["reroll","reserve","head_start"]},{"id":"beastmaster","name":"獣使い","look":"可憐","concept":"勘で相手の中身を当てる","signature":"scout_2","perks":["scout_2","card_watch","swift_start"]},{"id":"hermit","name":"隠者","look":"知性","concept":"相手の手順を読んで待つ","signature":"intel_net","perks":["intel_net","gauge_sight","late_pick"]}]},"match":{"_comment":"試合フォーマットの調整値。すべて仮置き。にゃんこ大戦争型の1レーン攻城戦。","field":{"_comment":"横1レーン。両端に拠点（＝アバター）。ユニットは自動で前進し自動で戦う","lanes":1,"length_m":120,"deploy_from":"own_base","same_unit_simultaneous":"unlimited","max_units_per_side":18,"_max_units_note":"レーン 120m ÷ 隊列間隔 6m = 20体しか物理的に並べない。上限がこれを超えると、入りきらないぶんが前線に詰まって誰も攻め落とせなくなる"},"avatar":{"_comment":"アバターは拠点そのもの。ダメージはここに入る。HPは全アバター共通で、差は特典だけ","per_player":1,"is_base":true,"hp":10000,"hp_identical_for_all":true,"revealed":"match_start","changeable_between_matches":true},"victory":{"_comment":"体力制。相手アバターのHPを0にすれば即勝ち","condition":"enemy_avatar_hp_zero","time_limit_sec":210,"on_timeout":"damage_percent_dealt","tie":"draw"},"roster":{"_comment":"出撃できるユニットの種類。試合中は何度でも出せる（コストとクールダウンの範囲で）","slots":8,"chosen_slots":6,"random_slots":2,"unit_cost_range":[1,10],"unit_cooldown_range_sec":[2,35],"min_hp_per_knockback":200,"siege_mult_range":[0.3,2.0],"wall_threshold":0.6,"anti_wall_mult_range":[0.5,2.5],"tier_cooldown_bands":{"B":[2,8],"A":[9,18],"S":[20,35]},"max_reach_m":110,"_max_reach_note":"射程の奥はレーン長より短いこと。自陣に立ったまま敵拠点を叩けると、前に出る理由が消える"},"trump":{"_comment":"出撃8枠とは別枠。1試合に1回だけ出せる切り札。寿命が切れると撃破されなくても退場する","slots":1,"separate_from_roster":true,"uses_per_match":1,"unlock_at_sec":60,"summon_sec":3.0,"identity_hidden_until_summon":true,"readiness_visible_to_opponent":true,"affordable_by_fraction":0.7,"_affordable_note":"解禁した瞬間に払える必要はない ―― 貯めること自体が択なので。ただし使う時間が残っているうちには届くこと"},"economy":{"_comment":"資金は出撃・呪文・切り札で共用。今出すか、呪文を撃つか、貯めて大技か、財布を育てるか ―― すべて同じ1本の資金を奪い合う","start":3,"_kill_reward":"撃破しても資金は入らない。この仕組みは将来、特定キャラの特性として使う予定なので全体ルールからは外してある","kill_reward_ratio":0.0,"growth":{"_comment":"にゃんこ大戦争の働きネコ。**コストは1〜10**で、資金は時間で刻んで貯まる（何秒かごとに +2）。1段上げると、貯まる上限と刻みの速さの両方が少しずつ上がる。上限が「どのユニットを出せるか」を決める","player_controlled":true,"upgrade_sec":6.0,"max_level":8,"levels":[{"level":1,"max":5,"income_every_sec":3.0,"income_amount":2,"upgrade_cost":4},{"level":2,"max":6,"income_every_sec":2.7,"income_amount":2,"upgrade_cost":5},{"level":3,"max":7,"income_every_sec":2.4,"income_amount":2,"upgrade_cost":6},{"level":4,"max":8,"income_every_sec":2.2,"income_amount":2,"upgrade_cost":7},{"level":5,"max":9,"income_every_sec":2.0,"income_amount":2,"upgrade_cost":8},{"level":6,"max":10,"income_every_sec":1.8,"income_amount":2,"upgrade_cost":9},{"level":7,"max":12,"income_every_sec":1.6,"income_amount":2,"upgrade_cost":11},{"level":8,"max":14,"income_every_sec":1.4,"income_amount":2}]},"milestones":[{"at_sec":10,"amount":3,"to":"both"},{"at_sec":15,"amount":4,"to":"leader"},{"at_sec":45,"amount":5,"to":"leader"},{"at_sec":60,"amount":5,"to":"both"},{"at_sec":100,"amount":6,"to":"leader"},{"at_sec":120,"amount":6,"to":"both"},{"at_sec":150,"amount":7,"to":"leader"},{"at_sec":180,"amount":8,"to":"both"}],"_milestones_note":"時間の節目の配布。刻みで貯まるのとは別枠で、試合の速度を上げるためのもの。to=both は両者に同額。to=leader は**そのとき前線を押し込んでいる側だけ**に入る（互角なら誰にも入らない）。leader があるおかげで、序盤に安いユニットを出して線を押し上げることが資金として返ってくる ―― これが無いと、何も出さずに財布だけ育てるのが常に正解になる。"},"phases":[{"id":"avatar_reveal","seconds":5,"note":"アバターと保有特典を相互公開。切り札は「持っている」ことだけ公開"},{"id":"draft","seconds":45,"note":"出撃6枠＋カード3枚＋切り札1体。すべて非公開"},{"id":"lock_commit","seconds":2,"note":"commit提出→共通シード→ランダム枠確定"},{"id":"intel","seconds":12,"note":"情報系特典の解決"},{"id":"battle","seconds":210,"note":"1レーン攻城戦"}],"random_slot_draw":{"mirrored_tier_templates":[["A","B"],["A","A"],["S","B"]],"exclude_chosen":true,"lend_from_common_pool_if_short":true,"seed":"sha256(commitA || commitB || matchId)"},"cards":{"_comment":"持ち込み1枚＋ランダムに補充されるストック3枠。どちらもユニットと同じ資金を払う。持ち込みは確実に手に入る代わりに個別クールタイムが長く、ストックは運だが資金さえあれば続けて撃てる","brought":1,"stock_slots":3,"uses_money":true,"restock_sec":8.0,"global_cooldown_sec":3.0,"stock_weight":{"軽":3,"中":2,"重":1},"cost_bands":{"軽":[1,2],"中":[3,5],"重":[8,10]},"power_bands":{"軽":[0.0,3.4],"中":[3.4,5.4],"重":[5.4,99.0]},"cooldown_by_band":{"軽":18.0,"中":20.0,"重":24.0},"max_uptime":0.6,"heavy_min_cast_sec":0.8,"opponent_sees":"stock_bands_and_brought_cooldown","upkeep_ratio_min":3.0,"_upkeep_note":"重の維持費は軽の3倍以上。収入に対する割合ではなく倍率で縛るのは、コストの尺度を変えても規則が壊れないため"},"combat":{"_comment":"シミュレータの刻み幅とノックバックの挙動。全ユニット共通","tick_sec":0.05,"unit_spacing_m":6,"knockback_distance_m":12,"knockback_stun_sec":0.4},"readability":{"_comment":"見切り(0.3秒)を成立させるための床。詠唱短縮などの修正後もここを下回らない","human_reaction_sec":0.25,"big_hit_threshold":300,"min_charge_windup_sec":0.6,"min_cast_sec":0.35}}},"preset":{"_comment":"試遊用の6種（工程表 塊A-2）。32体すべてを並べると何が効いたのか分からないので、役割が数字で割れる6体だけに絞る。両者これを使う（塊A-3）。","_rules":["役割が重ならない：壁 / 高速 / 遠距離 / 前線範囲 / 後方範囲 / 大型 を1つずつ","財布の階段にまたがる：Lv1で3体、そこから育てるたびに1体ずつ増える","6体の中で全員に答えがある：どれか1つを並べるだけでは勝てない","壁と、壁を崩す答えの両方が入っている（設計書2.4のルール9）"],"trial":{"avatar":"scout","_avatar_note":"特典が戦闘に効かないアバター。ここで見たいのは戦闘そのものなので、拠点側から効く隠し味を入れない","brought":"warcry","trump":"colossus","roster":[{"id":"grunt","role":"壁","why":"最安75・CD2秒でLv1の収入から連打できる。前線を作るためだけに居て、拠点は割れない（対拠点0.5）","answered_by":"薙ぎ払い（貫通6・対壁2.2）が列ごと薙ぐ"},{"id":"hound","role":"高速","why":"速度12。前線を相手陣寄りに作れる。臼砲の死角70mに飛び込む唯一の足","answered_by":"体力400しかないので、兵卒の壁に止められて薙ぎ払いに溶ける"},{"id":"archer","role":"遠距離","why":"帯[0,90]。前線の後ろから削る。Lv1で出せる最も高い札で、序盤の「出すか貯めるか」の実物","answered_by":"体力450。猟犬に踏み込まれると何もできない"},{"id":"sweeper","role":"前線範囲・壁特攻","why":"貫通6・帯[0,45]・対壁2.2。安い壁を並べるだけの相手への答え。Lv3まで育てないと出せない","answered_by":"速度5・体力1200。弓手と臼砲に遠くから削られる"},{"id":"mortar","role":"後方範囲","why":"帯[70,110]で手前が死角・貫通8・対拠点1.5。相手の前線を飛び越えて後衛と拠点を叩く攻城の主役","answered_by":"体力500。懐（70m以内）に猟犬か兵卒を1体送るだけで無力化する"},{"id":"siegetower","role":"大型","why":"体力4800・対拠点1.9でロースター最速の攻城。Lv6（150秒ごろ）まで育てて初めて出せる、成長の到達点","answered_by":"速度2。臼砲の貫通8と薙ぎ払いに前線で止められる"}]}},"art":{"units":{"grunt":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA1klEQVR42u2W3QnCUAyFO4RvgjiMuIFLdATBHXx2BCfoBJ1DXETJQ0qMt9pWsQl+Hxz6w304J7m5bVUBAAAAAAAAAADAn7FcrG9W6cxfztsHpQpBgF8aTRlAB7Npr8UhDR1AjYsOx6a7twbDBfBHohhXiTm52k6ECmArbiuvOtWrp06ECeCrPVQhAkw1b7eWdEeUtgOzB5gSws5AiA5sdvtO9iQqPdt1YYbYGyt9hVMGeLcuTYB0W8hL34cLUKrsGM0a4BPjfQFezRAdGPMn2jcDXt8IcAftBOPcr3xaVwAAAABJRU5ErkJggg==","hound":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA0ElEQVR42u2VsQ3CMBBFMwJFBkidhpKSJpNQwgqMkoIBMhA1i4CMdNEpsp1QIP2L3pO+Eru6Z5/tpgEAAAAAAAAA2C1de3hbwhTrx8/pPkdawhdrhabv4zrMkRewQk3Cz4VpIV9waAFrp1ACub4PL/C6HGO2kGU8tXq7UHuY5FuodrOUipcV8Nfl2uqXItPrtdW3w5xLCIk0LyfgD3Nt5ZcCEi2UE7md+2/8v43Xbi45iZxAiEcMAQQQ6IsSktfnVgH5nfm1+F1IyLbRMv88Ax8ZevIa5ALT4QAAAABJRU5ErkJggg==","archer":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAuUlEQVR42u2XwQmDQBBFLSK3QEgxkg7SREoQ0oNnS0gFVmAdkkaUESaIugFBYb6+Bx/3+N/uyGqWAQAAAAAAAMAuXC/3Tra4pW6+na+lyltxy7usf2sJCS9vxaeRkLCCS+Xbz2N4hhb4t/vV6zYk/CmkTsAlZEfIBWyUZCX8BMJLIBD9JZaVYIQQ2EBA5h7In8UsEjfxoQVkfmoQQODMAv6tkxIYR2bnUwklsbb8ISTCjtE0S/O/VfkeiqUbwJimQ8sAAAAASUVORK5CYII=","sweeper":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA3klEQVR42u2Y0QnCQBBEU4R/gliM2IFNWIJgD35bghWkgtQhNhLZwIaw3MXjCHFGZ2C4I1/zsnu3IU0jSZIkSZIkSRKqtpt9Txvc3Hav3vdU4S24+Xprxz0FhIe34NEUEBYwFf75OA4rNMDc27+fdxxVyFXATdtCAkAIDw9RA+BDLmVoALfdTjmvDlEKYDPBDQNQGh4WoKYCsYXozkA8xLpG/x7gJybx4XT5aOgWikGnKyWAmxZg7rkABCAAAaxzjaYGGdTvxlzQ0qn8VZDa4FCfF9QVSIFEx75f8gy8Ac6RTT/kwC/pAAAAAElFTkSuQmCC","mortar":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABD0lEQVR42u2YMQ7CMAxFewYGBrgLEjs7h0HsDIwchx2JiZXTFHkwcq3UqUIhv+Vb+kOjSP1P/WmcNA2LxWKxWF+sxXLVTtr85v5sJwtBAAL8EEDmWFU3rlKAyJjOs6oGIS++3h5vHU6XzrM3ljJfDUDNi+k+eQg4gMi8Ss31RadqfCLjYnAIQNXsRwDr47kTIxjzJRGCyb3/bZYCVDUv0bDKAUBF5+8AIBfuUACohTsGAESXOgRAxiDN5wD8uAWBOiOk9oGUeRXsAUcBIvPQELP5AhGE7UbhAXwX6s8DkADb3T4r6FsKD5F6hr9KIQABCEAAAnzUleYAYG6hS3ZhyF251PwsIGBPZlap7I+1Bl7JdfD70qNtqwAAAABJRU5ErkJggg==","siegetower":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA+klEQVR42u2YMQ7CMAxFewYGBrgLEjs7h0HsDIwch70SEyunKfLgKlQkOCm2bPiW/lBFdf9TnThJ1yEQCNVYLFdDaPOb22MICwEAAPwrABlmMQArhPlrfx91OF1enl1DsHkynZNrCDJWMs8KC0DzwS2ApHzWx7PvMgpTQumyOJUUICcT0+myOJUEoPS+CgQlpfpNJTHaIgAAAAAKq5MVAHXqnGZBAKASQKXB1XZbV5O4Zb8DAAAAwCkAQ2x3+1Gl/b1kPM1jdqCRfvjTmHsAizwAAAAAAPDjALlxVwCt3TiXR/V2Lv2olr4OYmX8HQj+QM3tdMuOdM4h/gnH26AMmO8+lQAAAABJRU5ErkJggg=="},"avatars":{"scout":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABCElEQVR42u3asQ3CMBCFYe9AwwQUtKxAyQQZgwGYALEBO1AyEKLOBiAjpUG24jjW+Xz+I12TOJHel/gSWXFOaNtsd5/be0wuP95Z23yo4fycLbPh749XEoAfZwphSXhzCDnhzSCsCW8CIbXpmW2KAAQA9qfrr0JBY8eaBIjN/xyAZvsAUwAAAPoGKIFg5nO42/C5CM2+9qYK7Vu6HjB3PdV3OBQ4hpB7riqENSEAsAggUV0DqG+CAAAAQN8A0+pOyQIAAHoAAAAAAAAAAAAAAAAqAQ7Hi1gBAAAAAAAAAAAAAAAAAAAAAAAAAAAAQOXwNQBUIEgHV/Uk1A4PgpZe8P9HuMTcL9UDvtWGAdztY8I1AAAAAElFTkSuQmCC"},"bbox":{"grunt":26,"hound":22,"archer":20,"sweeper":15,"mortar":8,"siegetower":4},"families":{"人":"#7d90b8","獣":"#a06a44","機械":"#7b8894","不死":"#6f5488","精霊":"#4fa196"}},"stocks":{"cards":["warcry","morale","lastcharge","rust","corrode","quickhand","frenzy","dull","stagnate","advance","sprint","mire","freeze","rally","mobilize","confuse","sever","bulwark","brace","waver","brittle","nodrop","levy","largesse","tax","embargo","boom","lode","blight","famine"],"matches":{"balanced":[["LcENDZLFXSTcPESDCLRFdBERMDJNLYVONdASZHbYOTHUUCEdWLESVMDJVYadJRCRcYYYbWXSBDTAAXNUBFAUFaNEDSGLKIAZ","DIHLASYLCJLTHTFWGJHYBNBcSEADKGTHZUZFFYcSPbGTDGOdFJBcCAAaDMQAdPDXTLNaVLFBEZCcTGFPIMDEbQUCPZQAFKGN"],["aAKBYQKLTMPaDFaDDBBTQdZcFLWUUBGRQEZcKWMcTHEcEGRFOLbaHaLFdJFTUIcBTEJBcRNPHTTNEMcRPGTJEDVbFJISTdKV","HCIPBXDcYDQZFbUYJSGWaPQZYaXWTVYJDHHdRWFQNFdKETGALCGDAFFXdaLUZUYYZaGPFJZAdUaSEMYNPcZLdPYURDCAWBCW"],["aOXWPOTDBCTEbdDKDALWaRPTBUOBDZJKPdSAJHKXBESSKCTGLFAYcaDBYKZRAPDGSYEPYUHaXYFFKHQDGEaDYPTdSadLEZBQ","MTACIFDKFWFOSEYSITWFHOMCHLWKGLKHCIBacMAWKWcGDYOEZNDQGIWPVVPYdYHFRTbYEPbGHDEFdZFdWISdPESaEBCTYUdU"],["EUDKTZXVTILPHadWBaIccGYHUTFZYFPLBGDGUZFZXbZdHTdcaUKGcCWQcKXWcMGLTUOSaBFaQTPBIWcPHBHFdHJJOXJJdDZC","GCYGWMFDBGSTTZXTCaZFVPcHWGEMAGDJYTUEKDEVTTDJdHWFJYUKFMaBBDVTYKUKLEYARUFYJEdKZZXCIBPJWLADVcaPAQOc"],["CbTCdGADBOWGJTETBXaFUcbECRKTAMOIFGUGaDKLYQHbNBBaZQESbYJXHGQXTZVLVFJPCGUXdYAZEJSHWNNUXXDPWXSTHTBc","ENdWZWFRGJUEJMJKUTEACdTYMXBDNUFBPXELGPVFXHKTcYdWDWLEYKPEDDYEUTSRBLTXQAEDDCYPAPKAXWBFBEYTPWYMEKTF"],["BVPLWBFDTUWXdKMPFLAaaaFcWDCRHCCJFKGXJYdJBLEYbXTFUDaGWDWZYSQSdYRVdDWLVAXBHdBUFCcGbCZcAICMQDTMJXKW","TLHJMWcHZUASLFGbGXSDREaXDBECXYTVSRNWEXMICDCWYDEAGSSWEWDYSUXLHKBACHXCYMHKGZGGRdBQECWUJGaCEOTJOGJB"],["cRSGBUKaFGdcXHCcTDZKdNBAPCSGYJFcGKKPGZTEVZDWJAKWPFYYGRXLXIHIdDYTYTCRUdQGNSKCFcPcUABPFBXZGTDFWdOT","SBQCSHUaFEdTdDTMdTOEHJDQZDHXUMYEaCRKGJacFXcNEEQXDUTDYIQSLTLaHPcLDAXMUYUUDJESKYTGPdXFJAHTLZCJWCVZ"],["YTEGLGKcGDFaUXQPBdaDdEbcYEBJFLDTATXHDLQTOdDFSTTJZYMRcDMSFbDBUcUdDGSXBYGTJNGKMGBUCOFGEBPaSHCdGPCJ","KDYWDZDWLMXCcCDKADMdGaTUGYUGUGKFLTUHDVcaNHPEEIVZPISCMVPaBYGFaUMGadBDWbEAIRIYDALNMHSNSQYQdGEJcMDE"],["NDJCYBPDUVWSUFUUNTMdLFTFabTaGCcAcSLSDXAbbOTPDTJTWDdDOUWUFBYJQWCMMcXVGBTSULUVBBBUaYBWcYVVUdZATNdA","UBBYAUUTMaGHaZWSJZTAOTFZbdaUcLGECWUNDGdYDHGHKWGFMDWTQEMSPESWMTPYTEBGGDEBUGcVBKQSDFBPGIcYKZMHUKGb"],["FScJGLdUBFGMFTDdGdRYcHBaTYUGYDLKULHKUaTGTUBYYFHHHHVTAUHHdYARTEcSUcMJZLCKGAYTEDPRPDbQZKBDIJWZDdUM","AGJEcRZETSXQWUGbbVGDPGEOTAaUOZTGJCGPNCBXGOIXUPXYHbSDOcbXDBddNDcTAKHTUDXaTFUGDUCGHRYDHYNBNDXNDCFZ"],["NBLMYGUZZBAXSHBZaOSHYZUFcUYFHTFBWcOGXQKSdRNcUadHVLcWETTVHVDADPJYRKZJDPGKcKYQULTXaFcPREABJWEUZLSN","XXZQZSYFSKdHGNPPUGXAHGGJTBUEUFYKEPLSHTYHIQOJQETTRWaPKdNCYDCZAAKSBKUFMZMMUBJPUCZDDaDWaTUKDYXODFFZ"],["HFXEdYSMEITZdadGTDXcVYEAUCCdNUDdWOAFdJCFZTVBdBGUKBHFLTBXCKSIcDZCGMIFDGRHBYZOEKTYGAdGaSFDWWWYDcXE","FGQCUJTZZHTFAcWYaMMEUOFPaDKHZWJDKJMBEQLBXNJZCFYEKUDWbScHJHUUFBcBAGESXEcNKPcYdKFHIDScUASGBdTDKADA"],["GLEZPaTKGCUKDaCLMFTFcFGATPBCTLFDTHAaRGGRdTGWFbREPMAVFKMZUdVYYcFDDLUYDadDMJJIDFdRdILPIQCJaFPAUBFU","FYNWNKUABGKadVMDdTPHGcWHZBYBPSdadGUKQJcHRADAMaTaUKULJUKCZVUGADYSUKOSEKYaTYGPDPVaUDBYIZDGFGTXFZVT"],["BWMZJJJHCSUGOTDRLSGdBEMGJdSNbDGcMAEVHMcYKANSGYdYJdJAHBDFBSLEDYBUPXFRGDDdAXXXHNLBXMMWFBKICdXULFCB","BSAdFVTPJQLOGFLBYMHZNYEFGXYFGHVPBHBZNGPYGbYKbKZGFFHUTGDSZJZUDTKGCZYTZHHEYAOLUGZQGYJDMSKTQWJQEaJd"],["DUSWEDCGIKUWJBGYJZHCXGHGPLaDEcKUPXUKQLMZBWZADCdSDaOVLPJUUSPEaDTUTFYQELZASOFYYOOdUAbYHCMTFBccbBPD","AKHMQAaGDGTBbbHOTPLWGBQTPDMbVdGdMMATPNbaLdBAFKXKUEFEcVbLLBDUKJUBLJJCBQdEGdNPGLZMDZGJOWKUPDJEUHDR"],["aPBObPYcaMXadPASKDbUUDEHRKIYSLBXBaIHGBSYOAHETXbPGMGMbBETGNDDKUGEGSWQWPCEBUdCYZCUCOSZYGDPSNLdYHEC","FSDSJJPFESEaXUHFLcKISGEGWHYcWTUaGDCQFNFYGJSTLAAUHPUDLOHGHaYQaTZSYcFSPLHEaBTdJUJDASHLEUKXScFVPdTN"],["XTTTXMDQSYGRPIHYcGWZAAddMMAPATDJGPASPNLCVJGCFTDbCAFXYUDXFZaGKYNWRBZWJUcEHbdSLEbNXJKZUCHBCGFHdJZZ","EZGGbDUBFVDaFGTCcYHUOBYPBDRYbaTUVaZdFIEFDKPCdFDIMXMPMaYGKZABGPKQLBASSGKLTMZLcWIASBXYXdEBFDLYLGbE"],["DJYLLTdZMSZNKFMTFIOXXDJKDSTTcFPLIGTdGGOYWGTTBYPaZKObQdDYEcFOdULRMLYGKWLJcKLaWGEXGJHWZcPKDJYZHCcN","GYFaKBbGTUGHYHYDPKbHFcYbDDGSHGLFcWTdAcYBAASBDTPJcYXcNUGJIYYNUXKFMQCKCDdPTNJdXTaLWEGBaJTBBGZdTYYC"],["GTCBATAMbUGPBAWSaRFRDUHCCBDAYaXDTYXWaJSMLXLGNTIGTACUMKQUNIUKJCFUPLPJdWHIUNLFLDXGOTASGTdUUUaSITJG","SKNHJCKAFMLHWHQcKTWXGdZWcMPYGXEEBRSdBPKLHDCdKOcAPOOUFMUJPdEBNAGYJVFPLYLZEGBPKUATaAABFYYGJDWAZCTT"],["BNHaVJTKLdMDAROUGGSNMLMUdGaaAYXaDYLULDCHZHLcDCGTRHYAZELAELTQYGMIDccTUHWGFSGGYBJLYDcIHPaGALDXVHBH","KHaJLHbFbAKEbLdddFHTFAUUNCYAOCWYHDESBTQBXUSLYBVGTSYLAYKUBMdXQJLXTcFWBTVBENBbCaVYUdYQFNGIETMcKcYA"],["YaJGWdBWDUJdHKcOcVZDLCYSTWBUHUVWLFMMdJKSZHTYBBTBZBLFHDQOSaBEIPKUDBSBFSYcEXDTJbWFYEacJFMWQcGAaBDc","adaXSddXKQERJTVGYDURHZYMUMFXWVIXJPYDOVIMLMTLVGcLPETLBbMXANSdKaYUPATKMTPdLUTFECdbGcGPOZYHKUJHHdHK"],["KYFIDOXSQWEHJMUKZPGFWHBbXdDLGUHdOTLDAaOBaNBYZIVWLAFdSOPEXQBGFLTGQBXXdBKAcGPFBUOLZKDHYYTFDVWScTDF","LSGOCUBGDTdCIEQRcEEVWHGBGMBaXCFKAYHdOGDYDaCaTALKXTcbZWZdRUdMZBaGYDKYZMaTTUPBUWDPZccZDSDRTZBGYEDL"],["DTdIYEPTJUWNUZWHAcTNTLFHASdKUTbYBGdEVaVGcTYQTUQWWZCUUHDCcdabLDHDWTbYDRCDZNCHdKTDFFAFUXbYSXDAdGPG","UGZJdYMTAOSCHAddLXAOBUCadSBaKZDFYCBULGWTAXYTPJCUDKBGYKRBJTKKGCYBYBUJFcGJGRKSTYSIYYEaAcUYCHFPGXWM"],["LEFBJEGCATFUbYPcLTEDdYGGNWGTGBdBLTQKLbHAGGCKATcKVJPcWCAJAGFTaCRNFXbJKXGDLTcZGbXFZZRGYSYGYBCGFEPY","BBbSdCdRFEYGAMSLMBcKAbcEMNacUJTTKLBGHPDXSSWKYUUdTaWIGcQaaJALBGEXWMZAXcGKWBOUEFDHOGZFJTPECGCEMNZG"],["cUGdbGLUURUENdCaHPGGVMUABUXCHUYODaTddDYDZCQQECZbMPTJbJXcBDTXHBWZHMaYCZVXWBdDSTaUJZTLYAXWXWWBJBFY","YYdZMUDGTDVaBTFVCDAbAWTBZYAWGXIOFEYCXJYMUWTdFDDUKXLYMEPJEBFCRGGdYCAYXLLPFCYDdXGCRTGSZFYLMZbQTSLb"],["NcAdFaQPTLYUJUacdTJWTKGTAKXDTQUZBTFdPbcGBABOCTdBMJQIPWdZBFMTFGGNLDGCJPAUHcUFSXcYFHbdTPcYKCCGdCAY","GMQUZTZbWIGYTQJJCaHBAJJKWZABAEaXYdJWJaCdCFFBWYPFUDJIYWZBSOPTaGVUKPWAaYHDBSGDHVKDKBMSUDYPETJUTGTa"],["PGdaTDYXLTdGEGYbKDKcPSDZWXXRSSJDGFNTTGXGUUJdBSKWdVCTEDYBMKXDAEWMdCMUdHTBaTYXFOMYHLOOWYFSORXQHBUN","KASZPSZJTCBCULRHGFADTZEMWSGQMEdEZTPFHPWLAXITSQaELYQDPNSHPTUYESFDZDXSBLLKcFccDTOWXSUaGGFDIGWAYGPd"],["AFLCPUELSFGBHYGTHDFdQdVHIYGHcGGNUTJMaTXBbFKCaTFEcJGNBTDKaLKdEKZUaSDGcBLLVPPTGJAHbVKcUBAadATNJMIW","HALYUUKKBXPFBQNVKGJXHNSNJPMTKUGDXIScDCBBFNXPdaBYTbAFDMDFGAcEZKTGSBVLAYMLZGTGHZDZVTIFLDJKDEFFSRQY"],["WJSGQGbEFGBNWQOKDKABKZWcHDAAUPPCWLRLNYPPaYUATVIWVCPWATWBFcMAFGRBXJHWUFdKXJCECCUaTQLFQMBYSUFZaMAB","dJUdAAGHGGIHcRTQNLFdEcGMAAYOXcTaHdXBGRTDCcSdOFLEVaEDNXdZDMXDXYYUSdFaGLUBFYVdAGTSHGdPaLMGAFUaYXCD"],["TdbTEZPNRWVCUDZEHAZaZLGaTYAKaQLAVFXUPQBLNWNaTTAMEFMZIbWXYFHITcGdUEWBDNcRddYJGYaTHGMDGUDFXAYYBYDD","CWBMQQcQaCRGBXFPDWMUXGURHXLXdMOEXGVadHTCAIDcWYCMHZBDMdGLCbPEYSTGDJMBKTMMSHOUUHHSSbFYaYAEMVCOTQbJ"],["cBcLRUJGZGGFYKLCGYBIETBOPcKSCQZHAMGHMFGGRFWYYMVDcSHOaDdHQFBHKXMBDaRTaODCIaYZBKBCZXCaESGIOaFEDPBA","UKFHNLHGTIRbYAdQKUAAaHWLbIUaAaIDaGaONTMTWPDQXRGEEGBYdEFMaHLDLTPZVBPNdcZKJBDPYFEUHUTcaYJDYaaBMKZb"],["FYcaUWXSAZUAWTXJdOGaCMOXKCDAZQAXKJISTTDTLRIKUXUGTETLGYHXTDBYKGDYVYMBcXSXFEaAQJDGFLYbBKTdGTbYBZHM","JGKTAEbEYZFIFWJJJOBUMZFTHZFUFZOIcBRTCKBEMEDDDKEBUTMJWUYYWQTPaMSMCTWMSBPEaDABZLPSLJYYCAUPFNQCXAVd"],["ZEGTYTBUGCTbaWCBdCBGUSBMKYHMBbMcCYbVKYAWEVbFGFMOFbPZGYANSWPFccaQbBaUcKYIDLaYJGDWCTRFPDdDHZCDcVBa","WcUHbSZRBZHCUCGUUSBSJUGaRNQMLLMNTGTBLDcWDHSBWZQAVUMMTTEPTDSFZPDGBQACdDEcNBBJNdTSFOADLATBWTPcDEJW"],["GcMLJGBCRVUDDaUDQdcSUAYADBXEEUUaPOJZOKXGBGXMUTTUBABdFJPdAFCVMXRHCYEQMEGEMEZAGJTUHBYXYMALHWJMEKZL","TDWbTcDSacHSJSOIOaTUPIQAGDSBTINLUFEdFCJHHBUTFPSaFCBUTQDTdYTYBTGGOQTKGadUaTDGYaGFRMKDOULYcLcJFKcB"],["TEaXSaBaHBNBYbDHUYdJESUYVFCKPAEJONUAEFaMBSJKYDBJYCUGTLUUVSBLFRMMHJTaSWACdTQDDbBKaYIDLdUGZFMYGHGU","IUEAGPYMdLaBVOALSTYGUFHSCJOcFbONcZHRJFBBbRYSESEFGMBCBUATXCdNGBWMFLBQbATdSYHXSHWZcFdSLYBUcTFYLEUa"],["XOJLFYUEdEXTAYZUHCUWKacaWKNASKROHDJaKAJLNSEBYaLMaZMUYUVVZbGMCZPYXTBXKccLXcSUaPWJEINaRcMcEdHFXLKC","TCHPQDKWXXEEMWcWYBMDGALdYUMCZSFSUcWMTLNGHKFGUUEDGLXVNFcXEXHHYBCFMRdUYWUccPdYPcUDMJMFGFKEYJMJBWXF"],["FMFHXADFDaHdZGFXScZYcJFGTJDFGOXBJWGAKcFDDAFYJMKIWNKKXNDOZMFFGSGXZZSADFTdTaZSWcRWBKaMXPYUWbADXHJd","QOVXaYAPERHUMZSFLTEGSZcJMKFJEPTaaERTDCbEUFHKSMCKFaaFHGSYaaZFadGYTCSZUMGHYQBZAEXQKcMLAZJTZEFZWcNU"],["WBaJDVTUBGUBOUTbWAICaDHdDZAYVTXBKbQTZcbATJBWCZKHLSBITTBZEWAJFAHZEZEYDSYJaKKYFODPZTUJddOEBKAcLEDM","YHXVEKTDXUVDSETGOZSOZGXKYRPaBTKBKDbQBKLDLFdGFHAJGRYHLSYHBdcLdFTBHCTACTKSYZSbABcOVEQUDGICcTHEcaFD"],["cILAGPaQTDKTUMNCSUFFCWYSBFXRcTUYIMWSBFDVTbaUUJCCJdSFVDYYKLDcULALZKROGBJCYJBKWdGMSSAYQWTZELPXDIHa","dBYSHJDEcSRMSDMUXGPJWQIFGBFPMTBTJHBPadDHHWMTUXPYJPMZMSELYCQOLUHBFGITXGPKJcbUAHVYXWHKPWbUHEVDHUDK"],["OTaGPGFDDBMZTcYCPXBSQdHTGGLKWBJFBGWCIGDGEAFPFZHZGHDHXaaKDPTNWcJXGBbGFRWSGFJWLDNdUUAFSaSKDNadDXTJ","KJTRdZDdccYDTSDaYXGPUOEDCWGYDJTRIUUGXKTcNNDBFGGGDaURYBTGZHUYZUbWXNYNIOCJAWYZYFKXUGbdUAFdJGJUVWSL"]],"greed":[["SVcBWFLCJOJXLGPHVUBDFQFZRYUPNSBDSGGDdJZBFaQSSPFTARVMUacBWJaaGCKaDLJOAESTJXdFZELBMBAIDKWLMDBEWBSd","LANJdXQGaZAPaTGGVXMYCFTMcKRdUTXCVZNHBRXXBJBZcPHaaLdDUAXTYJTEDOGYAJdHKPaTZTBUDYJWJUCMBSEJaYZHHHTA"],["GOQULXZPXASXJaUTKdXGTBMYNEFLUGAFEGcVGQbVDdYLcbdJGSLJMPCBWAFQUWIPTBDMLKadcGZPPdYdCYPPEEQTSWVUUYAD","FBPTaWIJTZaZUBEEEGZMAFHMEALYOWJNHUcTPUaDUFaZFAGYcAMRGHSGFBSSFBAdBAFcGEOPYBUBJGPBDMKAAUESaULNcaAX"],["HEHFDbaGacDGaAUTNELVBPaWUVETSDPTWFGHRcCDGLcGSZLUFcKBADMYTVKUJaJYIOFKUXTDJEaXFHBCHZRMHYGXJPPYTURW","UZQRBAcdMaBDQdFJGTBSGPSLTHKcVcAACXDAaDKRPCTJWMDIFFMASAAQdWJdAcZdPdWEWDBDKLUFEAREUaFBQdFSUYCLWWbL"],["BJKRQBDcAAZBCATAKUZBPXIAEBXdLDXXMIdUAaEEaLDMLWUMbCcXGcDGYDXOGXIPcYOFYdWELcbGJYWCTAPFUFUcdccHTWFM","LYWaHDdJYHXUYHLMBJUJEPKaYRDDacWRUIEHWHaMMSPKDVFMaSZSNYbMGcTDUdFTUNCOFTZXUDWMbVdGJWUYJPGEKaaWBFcH"],["WDUERUFYdKBKTTZcTLGdYAGRFDdGcEcDYWWdQaFJDLGcYUATDGMaLTBXaWDCURdYBYCHLBNHRaJaBEcXZRZSKLZaUQWTQXUb","KKGJWBGCGTXEWEKJROLTaXRTJHUODbHTJFMASWaWMMWGDDHYSBCCHVXURXCLHXBHPQDTBXbMdPXGTWGCECPBESFLMFOLTWKU"],["PGdYNBPESUaDDBUXTFUTGXDcaKQSFFcFYFLZLFccOXAdDXCUFcSBUWHaJKZUMHFdAFZUYaPQYaPADacJWPLXSaHXECGLATLH","JGUAQQJJdTFANGFKTTRaCHOVDYFTYYNTNTIGdSUWEKBXHTHLMCGLXESFGFPMJXWPXJaHEIbCDYZaPLTBSLTBdPDKUZdGTOSG"],["XFFAUGUYDMcSLUCHNSOEBFKYWdQTGEHJSXIOOWAXBKDcEJcHMBCPJPBHXMBWBaFYLJHBAYbcIFPUGYPTDPMdGZWUIXYJcbFA","CAYZaDHJZNcaTFTJdRVCABHXJKPFMGdWTRNDRRcBQLYEGHBXdCDWKLYHULUIBDZJGIABccUORQCHKaMCYDUFKZLZGXGZBBKW"],["cTdMCUcIBJUZKPTOcYaJdGUZaWUcJGUUKTTHZGYYXQIXNBFDEOWTCBPZBdcCSTWDFUWDUFFXUUcFZcPDJCLYTYWTGBCTPATP","CXQRBUXdJMZYCBLMGEVBdVDNLULMCEBLAaLDXTHHYLGdWLGVYQEPQHKLcAUJEaBDPGcEUTbdYdACJdGLFBNKCYGAQYJKGVKY"],["YUDBdXbaAYFDEYUXPYcPFYBSEMdUDKDTTGbHGQIXLUQSUTPPBDMSLFMVdSDDcPFZUaBcBHYJcEJCGMMXWZTDCFAdCYKYCDHC","ZEWEWKUYdLEFZbCcETVXGFFYIPHHCGFBKXDWIQIKGHHUCMTDKWKUbCGETGGIJDWHaPCYXaMSGaPGXQMdUOOCXFcEFIUcTSLB"],["dCTNcCUScZOcbVUJXPVFDdcYSSJaKdZODIdYLFGPaMRaDZMLWcRMYQUUTJWEbVbEADLaSdCcMUHAYDKGXBCAaGGEcGBPcaJc","ISTHaDbLDKZXYRHUaFaWEVcYBbKaDaIUbNGaZFACTXWacTBddKKXWHFDZVFMdYDJGEHHKUDXYdGXUDZLYMTGUJNDJHSLNbLa"],["QcGXFXHYEWMEXBQSZPUYSBAYUDTBPTSGdaXCSMFEGLAJGXDGRMCNdFJAdAJPYbcYYRJRHbFCQGMUEUDTGDcFITFPZBAAFAVD","AaSXdUBKHcEHGcaSTKTVYSCXDTUDSPaPFDcKTGaPBKccMBYDIETbGDHRZJMCbFCFPcZFBJQJQcGOGdPXcFJKTJKBUMKEZDDB"],["bFZUTACXPFFcJbFbPYUVTAGLHCdTPcdMHMZCYdYQAZPLEXdaTEEMFUZDbIcFJMZGLTTXPUZQaTZLGcBdNdPFSMAdbEXTbDZZ","ZFIKRMYIIWaWTBEAUFSDGWdKBSFRFEbCSIdDBcZNKSXJVQHCAUJHaPYUPTdGUDAdFDJCWcZDVGcUEXDTRWJBTYAaccMKBLSV"],["QFCHTNHBLZCSAVBGGGAVOLHSCUHKZdJSBQAULYCHdZPYHUHKPUHcUMNKHSOFJDaCYWKYaGWMUTAFdKQNVUMEcRVbYBBbPaDT","bLLbDQHAGABZKYUPPDDEBHEHGbTUEdMdTLTHLHRRADDKTFPcEZXBUTdTbKGDBUaYUWYYLdCUTYTcCDVCQcBMJBADGGXLLaEV"],["UYDaDZFWHDBaYaFBDLGNaJYTUaccDSYPaEdCTGEcadccBDGZZPGBECEaMTHDEKJPPcBaUZYWKKESXcTDOVLDKdHKAYdOLJCa","NMZTGTHDUPOUGYCAFXVScJSRUKFPJFHSEKGUEWcJKTcAPEEaTbHFXKbWDSNaDcYJMLJFFDUPTFVFVUUUbYTCaBFWKWKDTGcC"],["LYZDFZTIEASKYEYOTPFDFFAPKOVGRCcGFLTGYETcYBIEKETWaHYdOdTACPWZXHNBNMGYcDAGdDSGPDQaBLFIZEKUUBdFMSGK","RBAUTQJcUMENWEGMOSKdDTcCQHPUVAZSXLdBTWaTXZddCRIKUUDcKKDdYMJWDZDRBVTGcbEdUMHFJHSMAZFbDHPdXMBAGCYC"],["WcSWGHZPdDDXXMDYVVUSMBCBUFYcDAYGLZZSKFMGNXFTFPYYcKUSXFUJSQcYVPDAULENZEdWdEaCRUXWZTIJTdaGCSDCTZBE","GIWdMDTGQXIGGAHcQMLYTaYLDLSCVASTYYOcDYZBTKXNXWDdJYDEHJCNDDUDDCLHaVXbMdJUSLBXTRdUPUcBFPKZYZLQCULD"],["YdYEQJAFSdTAdPGIAWaMXITZYEWBKGBGFUERIKWZcdTHCDJJZaUAWZCKAaLBDPbUIDPBDFHNRZYLaKdRFdMXJMABFMKUJXFQ","cUZSZbaVUTAWAQLHHaUcDXBMMDMMYXcFGBJAbTUGKUUTHaFEdCBYZGFBUZCMXUFGCWYUKPODYAIXQYPUBUXKHBUCCDZXYDFE"],["USCbEYBYGCTABXMMPZIFTSGFFWXGPZDIQXIYAEDZAdFFcPWGMJXZZBHPTMBGJcLcKDSYDMZCCVUJUYTBUIYFYJBRIFQFaAMY","DFNdWGPLZYcTcBDXFTGICZGaLcTdSYYWHOJBGaZcaZCBFFXMVTQbSdEOUFHTDRZacYHHEDODURTLCBYKTAKXCKGCCSBcUBUA"],["SZGMQccPGGGdBQNGaIAGGAZBPSWbAKDLWWKYEUNTbDWMWLGFZMLKKCZUBJSVdZYUaKAcFWMXGWLPMJCJZPGUbELcBDTDBWNL","WXHAWNEZHYEYYBMCFVDPJNBUWbJBWLHSRAUWUGadaFIYTBDbISFGHJLaZKMJKTDHLaccSLUJWDdYLLZCMFYKSNJZbVHabKLF"],["UFJaGFLaMPdMEcZLdGYLJEBGHGFXFUHQMUaGHSHCYaLZERGXSZCJBXBcEJVScSPScHWYEZPSCVBTACUPEdTUUMYDTHdUdaSY","LdcTYOHGGUAMLNKAaJFJVYEWMFHZcAJWMDCZZPOYYFIHGHbacKEYGaWJUDcBUJLELBWAXRRYYTHDDPFAGdQFCYAPWVJPPDWH"],["DXVDVHMYDRQXCaUBcDLPUBDEYJXaMNCYJYDYdEHSELTLYHVcbAWdJVFAKdTSJMCBZEBTLCEPPdOLEDLYXPcDNTBBDIDRDUYP","GTVMIOTaXPHBAXXaXPDUbJTTYEGJWLGNBTGGBPdMETTULMYSXXaGTLTHMJBHFWDXWCDFBCWGHZDEJGPCSBDUEWSXMaKYRYVB"],["BERcMIKGdFFTGFTXALGCFZFJFAFESGFNSUcHCXMdBLZAUaDFETHSGCTYELQPdJKDbXJOdTBKCGRJDBJJFZBFYcBLCadHZYDL","JSCBbDDBHFDOGJRAXYDJLOQKGIMWOcHCBCETdJIFZdXWTFcBaUFBBFYRGFLUdWacGNWFVIBGAYUFKCLGGdUDWKJMESMMEUEK"],["URGCBPSPSZEDPGXFFABUKEHaUEZHBPVEDdMMBPLBAZZYGACAQPHRTGDWCXTBBKOORYGGAUQAUPPUURYMSEXAHcHLBMHBTHSB","XdUAZRSWEYEAHYcYEFDcPBJQLaMXJBYPOFYKKEHIUXVPPROFXBKJHBEGGaAVUWEaLYcCTULDaXBQVJCIWHdFDCFIPJcWKMBA"],["HTLFUDEFGUCZBMJQYUGPGJYXZJBHBcLcLVFZGBLKRFQJdQGALMYLASYXSbbYLEBWcKCDGQFBDdZTJcKGGGTZJLEGPZGIaXUN","DRBKTFGMRVBNaTKcUVJYWGGDIGTPNBYaAOKIVFFREDAMXTLEDJTAXXAaKDKHGIPUMcDJLTNDKLaCCGUQdUAULATKNXRObZKC"],["SUCTZPMRPQYaMHNHGYUAHLYTaUdUJANXJJCJXBMMMcSBDHLBMIHYQEFURKcRDUdWAGbBIaHMMFQdFBCWaSLaAYZZHCBEHFHA","ZAFaTIZSaBWCAWFXDcCWSYBTBFEHMEKXYICKZNTdXSZUcFWBWUadccDTNHIYaWBEAHDQKVKRbSQXNZEaBFZCQBbBHTdERJVT"],["aQbRBbaYTDAOXdRFFYUFdZYZEBHCPSKTUSHMJDMcaSBRZYDcAUAZLFSdHMKAGUcUXKKJZNdOTdYcAcGWdATMUbUUCUGIJHHN","aXNWPYXWcOGaWHECUUHDEZCYBcKEFEGbFCWaZLTSDKNVAYdKaJJKCDUDEIWKTDYSFbFYGaIFTGFbXaYCESNVWUYISRQSWSAL"],["bOKJJRYMJAUIJMTKZHHBCBMcVDKWBGFFDdRCXDcPYdUUOHJBaKaKLXAHHJWKUSATFaZGFMPFdBWdGRTTZYHJcPEYbaNAcYcG","dZLKKbGBRHKLAdXdQdGaTGObcSPHGAYBFAdLHGBDCaUdaYdDUdSDKAKOCMWWNBWWAEACBTAJEDFDSbINFPEFFOGDFGKGOMJa"],["PJSSDFURTDaZKSTaCaGVGKDdYHZAMWADGYKXPYcIcTLAWIPGcTXDHIGZKHcSBMAYSLNPGTFCHLQKSCCBFdZAWIDFaBICcCZG","KKFFBEXZGBDdacbEQPYIUdCJKcLKYMUNWLPcXaWDUSYXORTNYYSXTDUdORTcMHUGYLPGUMYBWBMGDJKEACAaAWbMMYXCKGCN"],["NcUWOXCKUFYFPHMLNACWBcFBNaXaHYWBACVMZECHGGYIdDIZZSBPHWLEOHaFBUXTTIBRdJBJCaWAYWHESDTLVCKHdCHFPAcM","BYdKAJdZOOMYBWBDYZDDNXcUEBHDZTCDIMSNBYDUdEWJJLNEUdAMYZBPGPUJdLZTPFDUcIBZUScSWTTUFEDUHFBJDPJZEFJY"],["AEZAdDYJUcTSUNYPZaSDIYRdcFDFZYECSBFcGCTDbZCLYRLCJGGWTYDXYIPPUXUTMWCYFTFPRCUXGFKMEMHBZGZZTJKSFBQT","TbdAKGYGFWATBQLcMPFQYDMdACdcSGWKHRKDBDPUZFNJZXLRELHEaEUCFFTZWJaEJGGbXaPVdXJSdHaLZYUSLXGKLAAAIUSK"],["CPVHOQTAdOJDBLCQZCVCPMMYFHTWWENdPUGRISbMZWMHHTPCYGRWXPdTXLDHMWBCKOKMCJXGEXMGVKYUXEKHUNUTYVMARYDF","ZDYcEYJIZGORTXJQRCJdBJZEYSaDMKcKSPUMRMKOJASWdGBDIBEdaUZAWcKNXJHNKVTCTTIFcUcHECFDdTQbMYALFcJTcJBT"],["bBZMPCHTEDBRWXaOZDacGMGYZBDcMJRIJcDKPBaZKDFBJFWGUAKFCFQNNPSNEXLZWKaGZcPJabWFRHdVHBTaKBDUCTUZKAFR","YTGCXaaBFXROFRaEaYAdYALXFaRKAEFUUcGSCXQAMBFCFaYZdDUCcUWSGBdJcUdYYGNTFLYPQWZFRLGbKBEXGPUXBDYEcGPD"],["KIHXJTYaJUBdBcIcYaWFUZUSOCJZdGdaIcCMGTHTYBSGSaAOGHQWWKSLXDDEcKZXWaJZaDBKYCBBDMWRPKXDGDVcMYYAZaaT","HYPBATWQPRJXUUCdSbMHYQFYQXaFDHdYdTOFGYPYSGaEIcTLTZbAcBRTPHBcFKNGBDGECEOAbDXWCAXaFNaCAWHMGVBALHdD"],["XCHTOXTaIDYDOXYPUUFENKdLaHcLNTQHCABTILBcIPPCIHMGPXKTFCcTFRbMWGUcNTWBWWMVaCXRDAaSSBDdYYXPDPQBGWaB","ScJPFGDSDdWMDDHdKEMPKBQITXWPZEPWGTXOTbXaKcCYKSFBaFGcMFOBcYBAFBRHQGOMZQaFSGBFPTHKCAWCPPYbRVXDDWRF"],["MMSYHEPGGYVcUBDCGWcGOUHWBTdbdFNMVSKQZBDNYABHBFCJRHYaPWAFPCZAcDMWDKaSBBIEZEQUEGSGJXLYUXUUMDaEQWKS","cMFCOKKWcIODCFYPXTAFPIXWPWIPcNLCKUTIaWYRXYKHdWLHYYCBOTNcOFSZFJGFAcYSUABWcYBGBCTFGLdBaCDPPQQCBOOW"],["MTKGFSXAcCUdOWLKUOFWYZSZGUJRFUSZTYOBTBbdcODTDcAQDaASTFCPGVdWSZCFXZTcBXUCPFQMJHPXGPTEQEQYcNPRPUIU","HXaYMGBaUJSLJWHFVbOdWKcaFUAbJFaJHDBBABXNBXKLNGYJWXDdXFDZDGYBYCSMVIDcNCaYDGZPPFdXETIdNYMPWGIFcFUY"],["YJWTRXDJSNASBWMJWGdSKYDATDFRcMdWTAbQSDXHYTGSGMFJIWBZUZHAZMBBadIPGQHZcHPbDQULBDDTBBDUGCJSGEJTBbcJ","JJFKDYXHLYLBQCFDbdRHHJTNcIXdSdJYIcBTITSSaAKUGFMEAZSJFEFBOHAVEYBPXMRLEXTaGBDaXAZYFDIQDJSKOAJGBQbD"],["FKcBEYaNEYPMLAPaYWTMdFDYYKQGHYWSFTTAXaYFYXWECTKWaQcHUGFNYSKXTXcTdNDZUCHDTCRaBDZMHTYcDUFKSEScVNaK","GGOULBbKFPADGUELBLFWVGPDWTLcZNAaCTYTObPYAUHBbMGESTDYTGLQRLJMZGLKVOBKIKGYNTDYHDddSGKdZFDBFBEIaABA"],["NbKOUQaEIaYAXWTLbILSWFFOWXUNUFJSDCJdEcPTGZHDVKDDUTFSNbIGWaCUPZGEBBcJTUEGHTDMLAUYSYFBQYUYNPaKLHcS","TaUUJEUEYGZcWSPKKNaBdGYGUTJTWaWTZGWcTKHACEQPPDXJCJPTWLOUHFNGaLQFQYGLALAUCUcDLTYcDSTYWOBKYPMCYcZZ"],["TZFYUUYWHcZDGBGDZUSQMFQIPJENdADNaMMJPFUcHFUQNGYIXBGBTdGCdcKYBAKHTCPTdBKDGKDZHCXKUABUPZMTGDDTBcaA","CDaFLdTTFYQLYQEbBcdXYCFTSDTLXRYYUYDKBcBNdUHGKXCLVKPPCWMOCaYaXGADMUDHFEYGQMFTDdHBUXCCNJSKKFXFLRFZ"]],"rush":[["FBaABEURWFQVYdZDFCLHccYFUNUaYOMJGPULKVSUCYWLTUVNJYHGAaGJMaGGFdUUcBKDQTTRaUXMKdDLXTBYYYVTGcbZEHHG","dPRUCJbFXRBcTDITBBJOTYSXNSXBQXJJCXFIYaWFaWQNTIJOVNTPAYGCFBKDNGFBLRTQQBaHJdGIAXIQHYXMdFKDbZYSZBRJ"],["LJCCFdWAYWdZEKSTYJcMKdLGWBSYBPJGUFEaaCWSOaTTAJPPacMYSPTcYTWTFUCTTEJGYBBAcHEUPDSHACPTKAZYLScXTZKd","PFXBZQZBYCTMcYOJZSKaUBFXLFXNHXAJBDUBaBKCdTNUUMGNYTBaWUZaGYEcTKSbYETIGDdBXDacDBUYGMAMJTPHTFDKaPMK"],["ZRKEZWcOdBCcEHLMBbaVPPSJTZBUWFUJXGHMBFQZGGUTYWBODEMZWZUcHBUBXEUDWBGJBLXPHEDEEFNAQacVLUWRHJUaYWUD","JdYUWPMaUDZVAYEYWGMFFDSBdFACRBbELKJMNVaCYWGHGHdGIKdGFYLSLXTcKaYCTGUCOXBHHcNbTZFBGDLSPCNCPDdLLYFd"],["LSFTBAENDPcDUdRWTcXCIZBJHRPUYGaUcaGGGcUYScGKUSXTFPGdTCYdGGEOcRMCGQFOUWaJdAbUDPSKEaAWFAPOTUFFJAPZ","FAYGBdABLBQHVTZGHDYGAYOCYMYBSaSCHCZLZZcBOGNJBOBYCaGbTPTJPHGUAFVDALFYGMBMSPMBMNaNLWTdZGWWPRNZCFUS"],["aDcBERDNXRPATcBTMNGUUdEBdcKITLEQaKYTYMLNdDFBUQSKDKZGLaGVIXPRPRMJXXZXXKFaTEDSWYDMHKWFTVGLSSVGXXET","cETRYBGLFBHAdGScBcBFZCcJWKJDaaGJECdTdMbKHBTEZFJbEPdAPaKTbbdJaBGAKXaFHAUaSAYXGGGdSOQKIFEPTUAcXXJP"],["SWBGYBGMCGPGZSXADKXRZWGFNLQOUXXTXYFJGTGKcGUWGUUZaLTTUWcSUHAbETTbWYQaGYBCaGUbUPUDCYCDXOMQKKYYQcRB","BEMDGIVKXTUKIGBASSLBCaYVOWGQZYHUEFPWNHFWNCbccMDKdadSXGURWcSWWCDYPPAKUVQCGCBANDTSTDPDIGKQOPWGNKRX"],["cUEHACEFKAPALRaDKBNMADEGRGbWcUKCFYBEDYNZQCLdBBQdIOVCZNGISIYGGbDFITKADBHWAaZCGUPYSCAKcWGULYEFCPMd","MTSdBHcGTYZDLQCQCaFXQcYDCTFFDaBZcKXDMaVNFZCJcdHYcCUGWCKHJVLDOHUbFFYFFVYUPFDWUTUSFYLBFAPFQZEFaWAb"],["MZbTTHYMdLBJUHFUZUFJSETGUONSDAEVHGaCYJEAKTPFOMKbJHZFHMPTVdEMHUEFXBTFCWcDTUDPDUTbENUYCXCSDYZCNGGC","JTWDBSYAKTaEJUcTBcSUIYdBBUAFWMCKMRBLZFQPZcFRJBLTcTTJGDKZKBZGDaEEEPBAYJDGUOYLBKOWXcTPbPWccRTGPTYU"],["SEPaNBNYFJUEbKTTddPFHYETJaGMFWKTFPUUGKSdSTcDSBRGCGSXPFDJCUAMUTQBJKcFXYDKWdPXWWLSTXDZMTCYOdYTHWHM","UXGbATDXHMbPZSFVSMEDaTIFSDFGGGGbJTGNVYDKFWPKVTUGFDNdGUdCKLNHcEKcUNUWMCUIaGBaVTYLUBbFHMKDacOWAUVK"],["VRJFZdYZHdSTBSBOADLCFaAdBLFNGFTKYSVFTbEZXHKYYPFEDAaTbOVXHDcTBVUASEGBQDbPHTdAAACVYdFLUdLLFMCRLMGH","IaQEaYUFQGSWUBEDQHFAEHIFALYFaVTJBdOaJXFECCLXEKCWMVIEaKBKUIFXJCTKRUUAAXOYVSBZPBIKJLBBMULMLcYQbbTS"],["cWADHBcBNKCXTXdaFHHPFdWZHEDMDCMHGDQMKUBLWRUULOBDTMTGdBZVMSCETWaHBHVULBJHGWKcGXGaHMBCJPBUdZHaFdTW","dPKQFFXPTaMZVNGUADEFXGNcTFPLSGMWUUdHKNPCWCLPMNBAUdMaLJQOWARUaUTHTJLEZXMBMDMGTGTUILWMKaEUFYEBaKNJ"],["ZPSCdYTaaTYDOJPCAPaZYHGZUWaAcSPbXUDDZEdBOYWHLbXCTBFPKYbULBYdXZOaCUGPXFATTUJTMVUAPKDLaWcYTUaZQGES","GYNXNTZATPLGFBaUFVUaDaACFUYNADJASYCPVCXFBTJGcaSGPXLaFJcBdZUBDDYGMLcYTCDDLTAWVaSUFYJPcaRXbMcaWcPL"],["INDLFDCGYDCUUFKJCNVLDAYLBYSAURPLHKXVaZDUTJWcGGaaMSGLSLTYOPbURSSAFXbXYDJYGcJFLAMOVMJBCAXAKTFCTKZI","NNTELYJYBFUPELJZSZLYAAXWHHGccJLYBdTDaANWCKGLRFLDEWDZGAdCZcFOFGSaBHaDRHURXBBaYCYWZPWUKUcYdAUdXGQY"],["FSGUTYEbZKHGbYWcZQWGVTZTOUYWFYKYXHFJaJXHWLZYHadXPaHJEXSHTAWGPYUPMDOCLYQBSUTNEaYBKFUHLHSQUQIEJTCB","KTDPWFUYLTZdAPcKLUWEMDTWYdKOcUNHPTEEYdYBFUWPLWQbZDMBcSTHBECGLOOaDUDBSLSZcXaFFBWNWPLaDUdIJHUNbUFB"],["SPYMYLMYWWBWPXMYJCUMSXQdFbSZMGLMHRFDJYaQHDDdRURCUWRYaCBaBaAZFSBUdTFUJDJEEMDDBJJGJcKaRcVWGZHZBLGB","FcDNZJZcYCcDBMGFcFHQVIHWSWYTUUAOUSGFMTLaZZKaVHJRDIGMcAcUaSNDDJJTYUZEPUULTBbXNPBEEDScPAOAYDZZSZMZ"],["WDVQYDFKaYFBDATUFZXaGKDZHDDPOJaBXMERGFbZYFcUQCVGEMWBcSGDDWaSPFEBVCRHKQTbHDcaYOcAFYCKKSKJWaVLOZQX","XbJLVMTMPCYMWddTGaFYZBRVJIWHKQGLSLHWZBWRUTVBTXFEGQSSBBAcdMXTQcPTGAHKSEPGDGbBENCUSXUGDdDDDZZDaXEZ"],["UIcGEBAZKAGUUCUZEGJBEQRXSAXHJDMCBGWBKYEXOPTFYHBNZUHBWWDJUFIBELcVMULQTJYYCZKaYYUbTDUDPATcABSTGBNM","MEPRcYcLTMPVXYGKXBBcBZSUXXZbHNPZYHWEPIXSGWEEELTDbWaAMZVMYHNFAXTMGMMZDcWcBLWMMANBbDcGALFUYAMPGFUD"],["BHFPNbHcFKYWZETLHBdPWGEHBGCEcDTMSELbaFJMXXUDSKGWZWPUNNcUbUQOJWDHcSHBDDFUYKXSMFLJECDbFYDBXOUBMXUa","KGGJHDBLZOEWAQCBaHZaJTPXUUYGSaIRGGSPABKLaKKPFFZBGTdAOGbUKAPYBdZJTYABTFIUYKMXdcDDXEEbTLXaDMdaBBTH"],["LDEaWFBZUaXEVcASSBVaFaLZAZXaIELPaFSZMYCMRIQZYYKdFFFabVCKFLFadCFJXcMMHdGHYKCUDKFYKZSZBTWdDYXaTMBD","CaccJZYEPbBTDULSbBMLBPKdFFZdHcMRYdaTMaUTNSaJDXZSTZKFKEYTdHcVEUBYYDGLOBFAVTLEdTOAUHTWZWCbWbTGQNPH"],["OPVLDKBDYFEPdDEdSYSCBUIEaTHHCSTNSBCGEBLKbXFTWMXLXKFHWSMPPLWFHdMDFDXAXdAaNUPSMHGPbTAAYBLGPaMdXBcK","UHMHHFQWMUYTcUUaJTRHELEBFBMFGDMPAWYNUTXZdJXMUHZXFYZYMNWZWPWBGJFAGXZPJVPZBAJbcSZNHYVDYSYWPKZTCNKT"],["PLdEAKSMCLBTEMYPDSBJAUaaYScMYYJGEdEXXIDFbYNUYEadPVGFHZTaJTQWXJUYRCaSQBAKAaJQLFSVLCSYIaTKBaETCMaV","KUIPJADIWXJUTBAMXYMacQWQZaXFOAbXPKZIIYGZaGFYPDIZPQTQKIXECTYcUFGCGYDYGLCDYUcCETBUdaWTGYIBWHAUbZKT"],["YJKLGFYMBFYccFDNDAUPTMVCIGDcXRLLdYCGcZWPcdQMEIPHaUHFLSEGGEGGYVdSUTKFLaPHLGBRSVEFUTAcRaRbAFTAKKBU","KRHPUPACTSGaDZHGPOLcDZWBDGXKYUIXBBXMPMZAZcABTCXUYFGOUELSYcXBPCJBZGASdKALbOFXTaYMHAHFPSSaXLDKHRUX"],["UDaFDWZITRUKSZbUDdPLQSaGcUESTVAFKabOTVBMBbCXcZSYTaBRBXBdUMGLDKEPDLOXYaYWdTWdHCWDGFBWZBBBUZJXQEHJ","TCZCZAQZVYALVEcYdcBFPWSDJYWJFPDFRaPZCGUVDHXTFdYXECdWBSaEAQULaSJWIZFCFBHYcFScHCZaYcaANUDRDJDTBLaE"],["WONYDPRTDCFYXLaBbTdFPYBWAJAHDRDFJIEcBCQQBSFEbDVUVGJBFHOTTaDBPTEBTAZDSbDcHKCJBJPXdddJEBATTGaBFFcZ","BNAADcXIABEcTKbHLUSbSWUPTbFFYaKETAGLYGYBQEOLBPWFWMYAcZNJPFPaUGTTYZXWEDCMJGFWDELaAYXdLBLKGZPULAdS"],["JZXXGRabXZKaCCGKTUNJBccadYbGdFDFCDBBRNBdcQDVSEYLZPbcETQWYFaCOCbXDGYINCSHSGXENJZcaEJDGQDRBCCTYcRX","GccQGLaMQAQCECaJTdcBANNFICSDFHJCLZFLdIScBdVIAcUVWdLcPBZFKRCIadCZMJQHYKTAFPTLUFYKGBNJCIHDUOHRdKcS"],["YFTAYbDTSVRaKBCYcJYXFHbPUGKUBSHYGYUcNGZNDAOTTFBcZbBSPBLECBTHBLXBYFYdJQEDHHAWWMTFJHUHUPFXVNUFXCdZ","aCZTAZUTUWLXBFWTKFJLYCQGGaccSGDSBUAUaaTVLDMSEUHNDaWFHFDXLDMVQBRUNBLUFPRaZHNFEFUEJSTAbBaFbKMJXPFW"],["UZEZWSEISFVcWGcEcNTaEBYJUOJLcKFUFXJGMZTHEBKPcFcLLEJYHULDbTJGbJAcYFFFNFUDINCABFUFCYFaORHIIAOdDSaA","LLaOLDCULWFFXMUYEHdPUNGZHKUZUGBOFPCBBbLFBKWCXAGdcYTPaACDSINMBEVaEDPLcDGSOVZKEMLdDRGDDWZSWSJYGaGN"],["BIUaUHMLXMTQFGLGRJOSGFDaZKGKGKPDMCKEZXMTYTLFUTGKITaHcPDGBFYMSSJDDTIMdFBSFZJOHGBQBIYAYQcMSZUMCYSO","VZNDTPDWTKFJDXDUFJKQXVVFTUEPNAJTGSGAPZSIDWXaSGDHYAYNLEVZTANDLHOXadEYCYJFaaPGYbYSDLGUYKdLEcaAKLWE"],["CaaCYaDcSRFLDMAOYZUFEdCJYKWGXHGbdKFZBJcbJBGXKSaTENDaELHLHBaDMNYdYHILBZHQYAKZNaZZZYWUQUUDMRcWDDDH","VAcUcYYEbcTJYZVMYPQdTBECDBDQcFJUBXSbXKBFUDBBFTJUaPUBAKVPYTWOTGHRFTUAYcTPHDAHYaYGRFHGFNRSFdIZYZUN"],["JJJFHSWBXYLUPcBFdBIHKGGddUFCDRFGMUUNLAKdKMUFBRXMaLPPPUVdYCUKSCSWRCUTUHbATGNOCPXDBUWXBcYZZOWcVFUP","NPPUETEPCJAAUSRFFOMbBFYScdBQFWbELLFccFMaUUFdYGUCDFWaSJDXVKPCcSQSBGGJUcUCBLGSLBCKRXFZTCYLZGNDFWDH"],["BNHBCaPcMFcLUXbSUdVCIVJBUEHMZKCUQDdBLdBIYTPYJXLFBQZZZTBdLUBMSSFTdFLYaTTRYRZQYEZdGdBHDFSYUETFDBQP","DGAWLKGAYHFDDbIGXXUdZZGUDACaLRCPDZMaKDBaZHHMOFUPcEDBUZDVJJZdDICNacRHDAEUGJQAWTQYMADaBBMZaHaIJWMV"],["OZMZDSCKKcUKJTWTFUGcaacBWccaYVcFZDQFDIKXJdGEKMcHWJBQHSYGUdHTYQLMJTdPMPPLMBUHBAFKFAOcAOYdKdGFCSFJ","BaUMYMUMaFTaLGPKTaNGFLFPBEOAPMdLJKZDddQYLBLQSZbCFaAQSPVCKYCKUEPKdaUaSOZZNcJMDPVKTYcGLTTGXLFLTNKA"],["bZTZPBGCcFQaFGPPOXcYNQdGUGZALFOMKXLGBDGJNGFScbdRYPVPaFBZaFDDTXPBdaLRYUVXJZDTMSDZGaadSSUGUTRdNdJU","ZPZLUHWHGZUXGaOJSUWSPELWEbEKKAVWWWMQYDDbRAZFEUGcUYTYPTBUMFOOLSdWDdVdDUBUOPVNDHHbDMaFTHHUTRdTYTEW"],["XGGQFKVYUCMXJUQZKYMYMKKNGTIdNHVTJOZUDDdHNaLZJQbGcGILdJPDGHEHGDYLTFKcJUUDFYBRNcaLdAJXEHWIVBFZLaaE","dEYdKGYEBWWFFAFLEdKYDEUDBALFSDDDCWSSBTLEScNAETSGUFNcDZSGKYJZEcYFDVbZJJFEVUUGBFUMJcKJXKHOCEHcCLUZ"],["GTWaKWTEIBBLLddGCNFAAVDUDYFXWCdPMUcLEHLEGBZTQEXFXCWdWYPMLDLPKKGTDLVJMJBDNTUCQGUFACXdLYTYUUESRZTB","SGdYcbAQFDHDGNZKYcEAAXWBDYBcDSGJBLOZALHcFCNYAHULSAJEMTVCaUTRWBdMODLWNLITMYaZdETHWbaUcEDTdJGDQPTS"],["URTCMWBaRSDVFYGECJXJCNSUFBLUaDHZOGIaUYYdcULFGTSAMWDKJYYVGXSYGKZXWcUVRYPcBBHcSYVPaGOHBRCLTUcGLbKH","UXBGBXEYOIcDMQGEFHZYQLCCUcWCYJHWMFdOdTabbbGNKAWcJBEddGWFUIRFbBMLBKITGcKYURGTLCMMYCTVCFdLXKFCRTaF"],["BWKGcUEEHDHGGIUHPFdCaDSNICBdABLcLDXHBXBYEYaVadEMPaPDWLODSMWTEUcUZDXQEBDVWMWLDGYbJUDMJWTAMOQJQFNZ","PSPAcAELZYEEYDMMDLBPEcTZFFHAWDDNGUMacQKbMRCGWbXGadZMdCEBdcaBZZTQFVSaJFdYAAPPLRSKSZGQZYLcTLDTBHTU"],["UDKIbGJBSXTcRYRYcUbAXXZSUFTTTKOVUTFUFIDVMTACJAAXcGKATCAESEdPEObJZYAZZEWGOLCSCaZAGDXUcYdOZaMYUcBQ","UFYKZdCHFGRDXGDQdTcFDLdMIPcDHUFVATUCADYBYTUIUYSGHNbPMYdcDGYGBGTYQMJXTGVKYYCCMTLEYUWEFFAKTdPDWaIA"],["EdGUMNFXYMVQdDPWJKWBaZUXEaNBHUXPDQKYULDXZYDcYPTNJKdYZELdaBbUEaBAEGdMGZQGTGUaHFFEGTABWDdUGWJPIaUQ","FIEDFKTHVZYARGJTPTDMXMZGUDQKEQJVSTZYANFCaWSYQZYdUTXSBPMPMFBDZYGBOUSDDILFFOSTaaSJWQTNTYDBEZWFBTKL"],["UKMEEYPKCYZKMRVTBbYHZTZcFTFDYKYRabXNEWLSMUMDFGcKEJKVBPBPVJCJGDPAHYFUIdZFdAXSbTWXUJCABaJFJDbUMJHG","aBUGXVOWDERXTPcRZFOYcSRGaFVFTEDUXKLRWGBZHXLGTTFYUKHBBKBTPXYaVTYUTFAVXSMGUTEDGFUPFPFFKMZBdPaKOTCM"]]}}};</script>
+<script>// engine/ の移植。battle.py / data.py / policy.py / human.py と同じ振る舞いをする。
+//
+// **数値はひとつもここに書かない。** 全部 DATA（game/data/*.json）から来る。
+// Python 版が正で、この移植が合っているかは game/tools/conform.py が
+// 1tickずつ突き合わせて確かめる ―― 実装が2つある以上、
+// 「たぶん同じ」では意味がないので。
+//
+// 浮動小数点は両方とも IEEE754 の倍精度で、演算の順序も同じに揃えてある。
+// 並べ替えは Python の sorted も JS の sort も安定なので、同着の順も一致する。
+
+'use strict';
+
+// 位置の比較に使う許容差。左右のユニットは逆向きに動くので、同じ地点でも
+// 浮動小数点の下位桁が一致しない（battle.py と同じ理由・同じ値）。
+const EPS = 1e-6;
+
+// ------------------------------------------------------------------ 二分探索
+// Python の bisect と同じ意味。ソート済みの配列に対してのみ使う。
+function bisectLeft(xs, x) {
+  let lo = 0, hi = xs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < x) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+
+function bisectRight(xs, x) {
+  let lo = 0, hi = xs.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (x < xs[mid]) hi = mid; else lo = mid + 1;
+  }
+  return lo;
+}
+
+// ------------------------------------------------------------------ データ
+// data.py の load() にあたる。JSON の構造を知っているのはここだけ。
+function makeUnit(u, extra) {
+  const spec = {
+    id: u.id, name: u.name, tier: u.tier, cost: u.cost,
+    cooldown_sec: u.cooldown_sec, hp: u.hp, attack: u.attack,
+    attack_interval_sec: u.attack_interval_sec,
+    attack_windup_sec: u.attack_windup_sec,
+    near: u.attack_band_m[0], far: u.attack_band_m[1],
+    pierce: u.pierce, knockback: u.knockback, speed_mps: u.speed_mps,
+    siege_mult: u.siege_mult, anti_wall_mult: u.anti_wall_mult,
+    family: u.family || '人', role: u.role || '',
+    lifespan_sec: 0, summon_sec: 0,
+  };
+  return Object.assign(spec, extra || {});
+}
+
+// 壁かどうかは対拠点倍率で決まる。別のタグは持たせない（data.py と同じ）。
+function isWall(spec, threshold) {
+  return spec.siege_mult <= threshold;
+}
+
+// 効果の大きさ。倍率のずれ×持続。ノックバック加算だけ別尺度（data.py と同じ）。
+function cardPower(card) {
+  if (card.apply.mult !== null) {
+    return Math.abs(card.apply.mult - 1.0) * card.duration_sec;
+  }
+  return Math.abs(card.apply.add || 0) * 2 * card.duration_sec / 10;
+}
+
+function loadGame(raw) {
+  const units = {};
+  for (const u of raw.characters.characters) units[u.id] = makeUnit(u);
+
+  const trumps = {};
+  for (const t of raw.trumps.trumps) {
+    trumps[t.id] = makeUnit(
+      Object.assign({}, t, { tier: 'T', cooldown_sec: 0.0 }),
+      { lifespan_sec: t.lifespan_sec, summon_sec: t.summon_sec });
+  }
+
+  const cards = {};
+  for (const c of raw.cards.cards) {
+    cards[c.id] = {
+      id: c.id, name: c.name, family: c.family, target: c.target,
+      duration_sec: c.duration_sec, cooldown_sec: c.cooldown_sec,
+      cast_sec: c.cast_sec, effect: c.effect, cost: c.cost, band: c.band,
+      apply: {
+        scope: c.apply.scope, stat: c.apply.stat,
+        // JSON に無いものは Python では None。ここでは null に揃える。
+        mult: c.apply.mult === undefined ? null : c.apply.mult,
+        add: c.apply.add === undefined ? null : c.apply.add,
+      },
+    };
+  }
+
+  const perks = {};
+  for (const p of raw.perks.perks) perks[p.id] = p;
+
+  const avatars = {};
+  for (const a of raw.avatars.avatars) avatars[a.id] = a;
+
+  const match = raw.match;
+  return {
+    units, cards, trumps, perks, avatars, match,
+    laneLength: match.field.length_m,
+    baseHp: match.avatar.hp,
+    timeLimit: match.victory.time_limit_sec,
+    economy: match.economy,
+    levels: match.economy.growth.levels,
+    cardRules: match.cards,
+    trumpRules: match.trump,
+    readability: match.readability,
+    combat: match.combat,
+    wallThreshold: match.roster.wall_threshold,
+    stockSlots: match.cards.stock_slots,
+  };
+}
+
+// ------------------------------------------------------------------ 場の1体
+class Fighter {
+  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft) {
+    this.spec = spec;
+    this.side = side;
+    this.x = x;
+    this.hp = hp;
+    this.facing = facing;
+    this.windup_left = 0.0;
+    this.recover_left = 0.0;
+    this.stun_left = 0.0;
+    this.knockbacks_done = 0;
+    this.summon_left = summonLeft === undefined ? 0.0 : summonLeft;
+    this.lifespan_left = lifespanLeft === undefined ? Infinity : lifespanLeft;
+  }
+
+  get alive() { return this.hp > 0; }
+
+  // 召喚演出が終わって、実際に戦える状態か。
+  get ready() { return this.summon_left <= 0; }
+
+  // 世界座標での攻撃が当たる帯。向きで反転する。
+  band() {
+    const near = this.spec.near, far = this.spec.far;
+    if (this.facing > 0) return [this.x + near, this.x + far];
+    return [this.x - far, this.x - near];
+  }
+}
+
+// ------------------------------------------------------------------ 片方の陣
+class Side {
+  // stockSeq は Python の stock_sequence() が返す並びをそのまま渡したもの。
+  // Python の乱数（Mersenne Twister）を JS で再現するのは危ないので、
+  // 並びは作らずに **同じものを持ってくる**（build_web.py が焼き込む）。
+  constructor(game, loadout, index, stockSeq) {
+    this.game = game;
+    this.loadout = loadout;
+    this.index = index;
+    this.base_x = index === 0 ? 0.0 : game.laneLength;
+    this.facing = index === 0 ? 1 : -1;
+
+    this.base_hp = game.baseHp;
+    this.level = 1;
+    this.money = game.economy.start;
+    // 資金は連続では増えない。何秒かごとに +N という刻みで貯まる。
+    // 素の間隔を使う ―― この時点ではまだ効果がひとつも乗っていない。
+    this.income_left = this.levelRow.income_every_sec;
+
+    this.fighters = [];
+    this.deploy_cd = {};
+    this.gcd_left = 0.0;
+    this.casting = null;
+    this.cast_source = null;
+    this.cast_left = 0.0;
+    this.cast_started = 0.0;
+    this.effects = [];
+
+    const rules = game.cardRules;
+    this.brought = loadout.brought;
+    this.brought_cd = 0.0;
+    this.restock_sec = rules.restock_sec;
+    this._queue = stockSeq.slice();
+    this._head = 0;
+    this.stock = [];
+    this.restock = new Array(rules.stock_slots).fill(0.0);
+    for (let i = 0; i < rules.stock_slots; i++) this.stock.push(this._draw());
+
+    this.trump_used = false;
+    this.deploy_lock_left = 0.0;
+    this.upgrading_left = 0.0;
+
+    const avatar = game.avatars[loadout.avatar];
+    this.perks = new Set(avatar.perks);
+    this.parry_charges = this._perkParam('parry', 'charges', 0);
+    this.parry_until = -1.0;
+    this.surge_charges = this._perkParam('surge', 'charges', 0);
+    this.last_stand_used = false;
+
+    if (this.perks.has('head_start')) {
+      this.money += game.perks.head_start.params.start_money;
+    }
+  }
+
+  // ---------------------------------------------------------------- 呪文
+  // ストックに1枚流し込む。いま並んでいる札とは重ならないようにする。
+  // Python は deque を popleft→append で回すので、頭を進めるのと同じ。
+  _draw() {
+    const n = this._queue.length;
+    for (let k = 0; k < n; k++) {
+      const cardId = this._queue[this._head % n];
+      this._head++;
+      if (this.stock.indexOf(cardId) < 0) return cardId;
+    }
+    return null;
+  }
+
+  cardOf(source) {
+    const kind = source[0], index = source[1];
+    if (kind === 'brought') return this.game.cards[this.brought];
+    if (index >= 0 && index < this.stock.length && this.stock[index]) {
+      return this.game.cards[this.stock[index]];
+    }
+    return null;
+  }
+
+  // いま撃てるか。資金・詠唱中・共通CD・育成中・個別CDを全部見る。
+  castable(source) {
+    if (this.casting !== null || this.gcd_left > 0 || this.busy) return false;
+    if (source[0] === 'brought' && this.brought_cd > 0) return false;
+    const card = this.cardOf(source);
+    return card !== null && this.money >= card.cost;
+  }
+
+  sources() {
+    const out = [['brought', 0]];
+    for (let i = 0; i < this.stock.length; i++) out.push(['stock', i]);
+    return out;
+  }
+
+  // ---------------------------------------------------------------- 特典
+  _perkParam(perkId, key, fallback) {
+    if (!this.perks.has(perkId)) return fallback;
+    const params = this.game.perks[perkId].params;
+    return key in params ? params[key] : fallback;
+  }
+
+  // ---------------------------------------------------------------- 効果
+  // かかっている効果を掛けたあとの値。掛けてから足す。
+  stat(name, base) {
+    let value = base;
+    for (const e of this.effects) {
+      if (e.stat !== name) continue;
+      if (e.mult !== null) value *= e.mult;
+      if (e.add !== null) value += e.add;
+    }
+    return value;
+  }
+
+  addEffect(effect) { this.effects.push(effect); }
+
+  // ---------------------------------------------------------------- 資金
+  get levelRow() { return this.game.levels[this.level - 1]; }
+  get money_cap() { return this.levelRow.max; }
+  get income_amount() { return this.levelRow.income_amount; }
+
+  // 次に資金が入るまでの秒数。増収などのカードはここを縮める。
+  get income_every() {
+    return this.levelRow.income_every_sec / Math.max(this.stat('income', 1.0), 1e-6);
+  }
+
+  // 表示と検算のための実効値（毎秒いくら）。刻みの実体は上の2つ。
+  get income() { return this.income_amount / this.income_every; }
+
+  // 時間を進めて、刻みが来ていれば資金を足す。上限は超えない。
+  tickIncome(dt) {
+    this.income_left -= dt;
+    if (this.income_left > 0) return false;
+    this.money = Math.min(this.money + this.income_amount, this.money_cap);
+    this.income_left += this.income_every;
+    return true;
+  }
+
+  get upgrade_cost() {
+    const row = this.levelRow;
+    return 'upgrade_cost' in row ? row.upgrade_cost : null;
+  }
+
+  canUpgrade() {
+    const cost = this.upgrade_cost;
+    return cost !== null && this.money >= cost;
+  }
+
+  // レベルアップ中。設計書4.3の「育てている間は何も出せない」の実体。
+  get busy() { return this.upgrading_left > 0; }
+
+  upgrade() {
+    this.money -= this.upgrade_cost;
+    this.level += 1;
+    this.upgrading_left = this.game.economy.growth.upgrade_sec;
+    // 刻みが速くなるので、次の1回までを新しい間隔で測り直す
+    this.income_left = Math.min(this.income_left, this.income_every);
+  }
+
+  unitCost(spec) { return this.stat('cost', spec.cost); }
+  deployCooldown(spec) { return this.stat('deploy_cooldown', spec.cooldown_sec); }
+}
+
+// ------------------------------------------------------------------ 1試合
+class Battle {
+  constructor(game, a, b, policyA, policyB, stockA, stockB) {
+    this.game = game;
+    this.sides = [new Side(game, a, 0, stockA), new Side(game, b, 1, stockB)];
+    this.policies = [policyA, policyB];
+    this.tick = game.combat.tick_sec;
+    this.kb_distance = game.combat.knockback_distance_m;
+    this.spacing = game.combat.unit_spacing_m;
+    this.kb_stun = game.combat.knockback_stun_sec;
+    this.max_units = game.match.field.max_units_per_side;
+    this.t = 0.0;
+    this.drops = (game.economy.milestones || []).slice();
+    this._next_drop = 0;
+    // そのtickの世界の見え方。全員が同じ盤面を見て動くので、
+    // 「先に処理された側が先に殴れる」という順番の有利が出ない。
+    this._snap = [[], []];
+    this._damage = [];
+    this._base_damage = [];
+    this.events = [];
+  }
+
+  note(side, text) { this.events.push([this.t, side, text]); }
+
+  enemyOf(side) { return this.sides[1 - side.index]; }
+
+  // ------------------------------------------------------------ 出撃・行動
+  deploy(side, unitId) {
+    const spec = this.game.units[unitId];
+    if (!spec) return false;
+    const cost = side.unitCost(spec);
+    if (side.money < cost || (side.deploy_cd[unitId] || 0.0) > 0
+        || side.deploy_lock_left > 0 || side.busy
+        || side.fighters.length >= this.max_units) {
+      return false;
+    }
+    side.money -= cost;
+    side.deploy_cd[unitId] = side.deployCooldown(spec);
+    side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
+                                   side.facing));
+    return true;
+  }
+
+  summonTrump(side) {
+    const spec = this.game.trumps[side.loadout.trump];
+    const rules = this.game.trumpRules;
+    if (side.trump_used || this.t < rules.unlock_at_sec
+        || side.money < spec.cost || side.deploy_lock_left > 0 || side.busy) {
+      return false;
+    }
+    side.money -= spec.cost;
+    side.trump_used = true;
+    side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
+                                   side.facing, spec.summon_sec,
+                                   spec.lifespan_sec + spec.summon_sec));
+    this.note(side.index, `切り札 ${spec.name} を召喚（演出 ${spec.summon_sec}秒）`);
+    return true;
+  }
+
+  // 詠唱。短縮しても床は割らない（設計書7.5の契約）。
+  castTime(side, card) {
+    let seconds = card.cast_sec;
+    if (side.perks.has('quick_cast')) {
+      seconds *= this.game.perks.quick_cast.params.cast_time_mult;
+    }
+    return Math.max(seconds, this.game.readability.min_cast_sec);
+  }
+
+  // 詠唱に入る。**資金と札はこの時点で消える。** 見切られても戻らない。
+  startCast(side, source) {
+    if (!side.castable(source)) return false;
+    const card = side.cardOf(source);
+    side.money -= card.cost;
+
+    const kind = source[0], index = source[1];
+    if (kind === 'brought') {
+      side.brought_cd = card.cooldown_sec;
+    } else {
+      side.stock[index] = null;
+      side.restock[index] = side.restock_sec;
+    }
+
+    side.casting = card;
+    side.cast_source = source;
+    side.cast_left = this.castTime(side, card);
+    side.cast_started = this.t;
+    const where = kind === 'brought' ? '持ち込み' : `ストック${index + 1}`;
+    this.note(side.index,
+              `${card.name} を詠唱（${where}・${card.cost} / ${side.cast_left.toFixed(2)}秒）`);
+    return true;
+  }
+
+  resolveCast(side) {
+    const card = side.casting;
+    side.casting = null;
+    side.cast_source = null;
+    const enemy = this.enemyOf(side);
+    side.gcd_left = this.game.cardRules.global_cooldown_sec;
+
+    // 見切りは「呪文を潰す」。無敵の窓が詠唱の完了を覆っていれば不発。
+    if (enemy.parry_until >= this.t) {
+      const reward = this.game.perks.parry.params.money_on_success;
+      enemy.money = Math.min(enemy.money + reward, enemy.money_cap);
+      enemy.parry_until = -1.0;
+      this.note(enemy.index,
+                `見切り成功 — ${card.name}（${card.cost}）を潰した（資金 +${reward}）`);
+      return;
+    }
+
+    const target = card.apply.scope.startsWith('own') ? side : enemy;
+    target.addEffect({
+      stat: card.apply.stat, mult: card.apply.mult, add: card.apply.add,
+      until: this.t + card.duration_sec, source: card.id,
+    });
+    this.note(side.index, `${card.name} 発動（${card.duration_sec}秒）`);
+  }
+
+  useParry(side) {
+    if (side.parry_charges <= 0) return false;
+    const params = this.game.perks.parry.params;
+    side.parry_charges -= 1;
+    side.parry_until = this.t + params.invuln_sec;
+    side.deploy_lock_left = params.deploy_lock_sec;
+    this.note(side.index, `見切り（無敵 ${params.invuln_sec}秒）`);
+    return true;
+  }
+
+  useSurge(side) {
+    if (side.surge_charges <= 0) return false;
+    const params = this.game.perks.surge.params;
+    side.surge_charges -= 1;
+    side.addEffect({
+      stat: 'speed', mult: params.speed_mult, add: null,
+      until: this.t + params.duration_sec, source: 'surge',
+    });
+    this.note(side.index,
+              `突撃（速度 ×${params.speed_mult} / ${params.duration_sec}秒）`);
+    return true;
+  }
+
+  // ---------------------------------------------------------------- 戦闘
+  // tickの頭で盤面を固定する。全員がこれを見て動く。
+  snapshot() {
+    this._snap = this.sides.map(side => {
+      const rows = [];
+      for (const f of side.fighters) if (f.alive && f.ready) rows.push([f.x, f]);
+      rows.sort((p, q) => p[0] - q[0]);      // 安定ソート（Python の sorted と同じ）
+      return rows;
+    });
+  }
+
+  // そのtickの頭で場に居た側のユニット。方針もここを見る。
+  live(index) { return this._snap[index].map(pair => pair[1]); }
+
+  targetsInBand(fighter) {
+    const band = fighter.band();
+    const rows = this._snap[1 - fighter.side];
+    const xs = rows.map(pair => pair[0]);
+    const loI = bisectLeft(xs, band[0] - EPS);
+    const hiI = bisectRight(xs, band[1] + EPS);
+    const found = rows.slice(loI, hiI);
+    found.sort((p, q) => Math.abs(p[0] - fighter.x) - Math.abs(q[0] - fighter.x));
+    return found.map(pair => pair[1]);
+  }
+
+  baseInBand(fighter) {
+    const band = fighter.band();
+    const baseX = this.sides[1 - fighter.side].base_x;
+    return band[0] - EPS <= baseX && baseX <= band[1] + EPS;
+  }
+
+  // 前を行く味方に詰まる位置。これが無いと全員が同じ点に重なり、
+  // 攻撃範囲の設計（前線範囲・後方範囲）が意味を失う。
+  advanceLimit(fighter) {
+    const rows = this._snap[fighter.side];
+    const xs = rows.map(pair => pair[0]);
+    if (fighter.facing > 0) {
+      const idx = bisectRight(xs, fighter.x + EPS);
+      if (idx >= xs.length) return this.game.laneLength;
+      return xs[idx] - this.spacing;
+    }
+    const idx = bisectLeft(xs, fighter.x - EPS) - 1;
+    if (idx < 0) return 0.0;
+    return xs[idx] + this.spacing;
+  }
+
+  applyDamage(victim, amount) {
+    const side = this.sides[victim.side];
+    victim.hp -= amount;
+    if (victim.hp <= 0) return;
+
+    const kb = side.stat('knockback', victim.spec.knockback);
+    if (kb < 1) return;                            // 堅陣：後退しなくなる
+    const segment = victim.spec.hp / kb;
+    const crossed = Math.floor((victim.spec.hp - victim.hp) / segment);
+    if (crossed > victim.knockbacks_done) {
+      victim.knockbacks_done = crossed;
+      victim.x -= victim.facing * this.kb_distance;
+      victim.x = Math.max(0.0, Math.min(this.game.laneLength, victim.x));
+      victim.stun_left = this.kb_stun;
+      victim.windup_left = 0.0;
+    }
+  }
+
+  resolveAttack(fighter) {
+    const side = this.sides[fighter.side];
+    const enemy = this.enemyOf(side);
+    const power = side.stat('attack', fighter.spec.attack);
+
+    if (enemy.parry_until >= this.t) return;
+
+    const wallLine = this.game.wallThreshold;
+
+    // 拠点も帯の中の「的」のひとつ。近い順に、貫通の数だけ当たる。
+    // 敵ユニットが1体でも居れば拠点が絶対に安全、だと両者が安い壁を
+    // 出し続ける限り拠点に永久に触れられない（実測で36試合中28が0対0）。
+    const targets = this.targetsInBand(fighter)
+      .map(f => [Math.abs(f.x - fighter.x), f]);
+    if (this.baseInBand(fighter)) {
+      targets.push([Math.abs(enemy.base_x - fighter.x), null]);
+    }
+    targets.sort((p, q) => p[0] - q[0]);       // 同着は先に入った敵が優先
+
+    for (const pair of targets.slice(0, fighter.spec.pierce)) {
+      const victim = pair[1];
+      if (victim === null) {
+        this._base_damage.push([enemy, power * fighter.spec.siege_mult]);
+      } else {
+        const bonus = isWall(victim.spec, wallLine) ? fighter.spec.anti_wall_mult : 1.0;
+        this._damage.push([victim, power * bonus]);
+      }
+    }
+  }
+
+  stepFighter(fighter) {
+    const side = this.sides[fighter.side];
+    const dt = this.tick;
+
+    if (fighter.summon_left > 0) { fighter.summon_left -= dt; return; }
+    if (fighter.stun_left > 0) { fighter.stun_left -= dt; return; }
+
+    const intervalMult = side.stat('attack_interval', 1.0);
+    if (fighter.recover_left > 0) { fighter.recover_left -= dt; return; }
+    if (fighter.windup_left > 0) {
+      fighter.windup_left -= dt;
+      if (fighter.windup_left <= 0) {
+        this.resolveAttack(fighter);
+        const cycle = fighter.spec.attack_interval_sec * intervalMult;
+        const windup = fighter.spec.attack_windup_sec * intervalMult;
+        fighter.recover_left = Math.max(0.0, cycle - windup);
+      }
+      return;
+    }
+
+    if (this.targetsInBand(fighter).length > 0 || this.baseInBand(fighter)) {
+      fighter.windup_left = fighter.spec.attack_windup_sec * intervalMult;
+      return;
+    }
+
+    const speed = side.stat('speed', fighter.spec.speed_mps);
+    const moved = fighter.x + fighter.facing * speed * dt;
+    const limit = this.advanceLimit(fighter);
+    fighter.x = fighter.facing > 0 ? Math.min(moved, limit) : Math.max(moved, limit);
+    fighter.x = Math.max(0.0, Math.min(this.game.laneLength, fighter.x));
+  }
+
+  // ---------------------------------------------------------------- 進行
+  step() {
+    const dt = this.tick;
+
+    // 盤面の固定は判断より前。あとにすると、先に動いた側の出撃が
+    // 同じtickの相手の判断に見えてしまい、後手だけが得をする。
+    this.snapshot();
+
+    // 時間の節目の配布。左右対称の試合が割れないよう、互角なら誰にも入らない。
+    while (this._next_drop < this.drops.length
+           && this.t >= this.drops[this._next_drop].at_sec) {
+      const drop = this.drops[this._next_drop];
+      this._next_drop += 1;
+      this.payDrop(drop);
+    }
+
+    for (const side of this.sides) {
+      side.tickIncome(dt);
+      side.effects = side.effects.filter(e => e.until > this.t);
+      side.gcd_left = Math.max(0.0, side.gcd_left - dt);
+      side.deploy_lock_left = Math.max(0.0, side.deploy_lock_left - dt);
+      side.upgrading_left = Math.max(0.0, side.upgrading_left - dt);
+      for (const uid of Object.keys(side.deploy_cd)) {
+        side.deploy_cd[uid] = Math.max(0.0, side.deploy_cd[uid] - dt);
+      }
+
+      side.brought_cd = Math.max(0.0, side.brought_cd - dt);
+      for (let i = 0; i < side.restock.length; i++) {
+        if (side.stock[i] !== null && side.stock[i] !== undefined) continue;
+        const left = Math.max(0.0, side.restock[i] - dt);
+        side.restock[i] = left;
+        if (left <= 0) side.stock[i] = side._draw();
+      }
+
+      if (side.perks.has('last_stand') && !side.last_stand_used
+          && side.base_hp <= this.game.baseHp
+             * this.game.perks.last_stand.params.threshold) {
+        side.last_stand_used = true;
+        const gain = this.game.perks.last_stand.params.money_gain;
+        side.money = Math.min(side.money + gain, side.money_cap);
+        this.note(side.index, `起死回生（資金 +${gain}）`);
+      }
+    }
+
+    for (let i = 0; i < this.sides.length; i++) {
+      this.policies[i](this, this.sides[i]);
+    }
+
+    for (const side of this.sides) {
+      if (side.casting !== null) {
+        side.cast_left -= dt;
+        if (side.cast_left <= 0) this.resolveCast(side);
+      }
+    }
+
+    this._damage.length = 0;
+    this._base_damage.length = 0;
+    for (const side of this.sides) {
+      for (const fighter of side.fighters.slice()) {
+        if (fighter.lifespan_left !== Infinity) fighter.lifespan_left -= dt;
+        this.stepFighter(fighter);
+      }
+    }
+
+    // 両者ぶんまとめて適用する。片方の攻撃が先に通って相手が
+    // 撃ち返せない、という順番の有利をなくすため。
+    for (const pair of this._damage) this.applyDamage(pair[0], pair[1]);
+    for (const pair of this._base_damage) pair[0].base_hp -= pair[1];
+
+    for (const side of this.sides) {
+      const enemy = this.enemyOf(side);
+      const survivors = [];
+      for (const fighter of side.fighters) {
+        if (!fighter.alive) {
+          const reward = fighter.spec.cost * this.game.economy.kill_reward_ratio;
+          enemy.money = Math.min(enemy.money + reward, enemy.money_cap);
+          continue;
+        }
+        if (fighter.lifespan_left <= 0) {
+          this.note(side.index, `${fighter.spec.name} が寿命で退場`);
+          continue;
+        }
+        survivors.push(fighter);
+      }
+      side.fighters = survivors;
+    }
+
+    this.t += dt;
+  }
+
+  // 自陣からどれだけ前に出ているか。押し込んでいる側を決める物差し。
+  advanceOf(side) {
+    let best = 0.0;
+    for (const f of side.fighters) {
+      if (!f.alive || !f.ready) continue;
+      const reach = Math.abs(f.x - side.base_x);
+      if (reach > best) best = reach;
+    }
+    return best;
+  }
+
+  // いま押し込んでいる側。互角なら null。
+  leader() {
+    const a = this.advanceOf(this.sides[0]);
+    const b = this.advanceOf(this.sides[1]);
+    if (Math.abs(a - b) <= EPS) return null;
+    return a > b ? this.sides[0] : this.sides[1];
+  }
+
+  payDrop(drop) {
+    const amount = drop.amount, at = drop.at_sec;
+    if (drop.to === 'leader') {
+      // **押し込んでいる側だけ**に入る。安いユニットを早く出して線を
+      // 上げることが、そのまま資金として返ってくる。
+      const winner = this.leader();
+      if (winner === null) {
+        this.note(0, `${at.toFixed(0)}秒の陣地ボーナス — 互角なので配布なし`);
+        return;
+      }
+      winner.money = Math.min(winner.money + amount, winner.money_cap);
+      this.note(winner.index,
+                `${at.toFixed(0)}秒の陣地ボーナス — 押し込んでいるので +${amount}`);
+      return;
+    }
+    for (const side of this.sides) {
+      side.money = Math.min(side.money + amount, side.money_cap);
+    }
+    this.note(0, `${at.toFixed(0)}秒の配布 — 両者に +${amount}`);
+  }
+
+  // 次の配布（残り秒, 額）。画面で読ませるために要る。
+  nextDrop() {
+    if (this._next_drop >= this.drops.length) return null;
+    const drop = this.drops[this._next_drop];
+    return [Math.max(0.0, drop.at_sec - this.t), drop.amount];
+  }
+
+  nextDropIsContested() {
+    if (this._next_drop >= this.drops.length) return false;
+    return this.drops[this._next_drop].to === 'leader';
+  }
+
+  finished() {
+    return this.t >= this.game.timeLimit
+        || this.sides.some(s => s.base_hp <= 0);
+  }
+}
+
+// ------------------------------------------------------------------ 結果
+function resultOf(battle) {
+  const a = battle.sides[0], b = battle.sides[1];
+  const hp = [Math.max(0.0, a.base_hp), Math.max(0.0, b.base_hp)];
+  let winner, reason;
+  if (hp[0] <= 0 || hp[1] <= 0) {
+    winner = hp[1] <= 0 ? 0 : 1;
+    reason = '拠点撃破';
+  } else {
+    const full = battle.game.baseHp;
+    const dealt = [(full - hp[1]) / full, (full - hp[0]) / full];
+    if (Math.abs(dealt[0] - dealt[1]) < 1e-9) {
+      winner = null; reason = '時間切れ・与ダメージ同率';
+    } else {
+      winner = dealt[0] > dealt[1] ? 0 : 1;
+      reason = '時間切れ・与ダメージ割合';
+    }
+  }
+  return {
+    winner, reason, seconds: battle.t, base_hp: hp,
+    level: [a.level, b.level], events: battle.events,
+  };
+}
+
+// ------------------------------------------------------------------ 方針
+// policy.py の移植。
+
+// 自陣の近くまで敵が来ているか。
+function pressure(battle, side, within) {
+  return battle.live(1 - side.index)
+    .some(f => Math.abs(f.x - side.base_x) <= within);
+}
+
+// 相手の詠唱に合わせる。反応時間を待ってから、窓が完了を覆う位置で押す。
+function tryParry(battle, side) {
+  if (side.parry_charges <= 0) return false;
+  const enemy = battle.enemyOf(side);
+  if (enemy.casting === null) return false;
+  const reaction = battle.game.readability.human_reaction_sec;
+  const window = battle.game.perks.parry.params.invuln_sec;
+  if (battle.t - enemy.cast_started < reaction) return false;  // まだ見えていない
+  if (enemy.cast_left > window * 0.5) return false;            // 早すぎる
+  return battle.useParry(side);
+}
+
+// 呪文はユニットと同じ資金を食う。**出撃ぶんを残してから撃つ。**
+function tryCard(battle, side) {
+  if (side.casting !== null || side.gcd_left > 0) return false;
+  const ownUnits = battle.live(side.index).length;
+  const foeUnits = battle.live(1 - side.index).length;
+
+  let cheapest = Infinity;
+  for (const uid of side.loadout.roster) {
+    const c = side.unitCost(battle.game.units[uid]);
+    if (c < cheapest) cheapest = c;
+  }
+  if (cheapest === Infinity) cheapest = 0.0;
+  const reserve = cheapest * 3;        // 壁を切らさないぶんは手を付けない
+
+  let best = null, bestCard = null;
+  for (const source of side.sources()) {
+    if (!side.castable(source)) continue;
+    const card = side.cardOf(source);
+    if (side.money - card.cost < reserve) continue;
+    const scope = card.apply.scope;
+    if (scope.startsWith('own') && scope.endsWith('units') && ownUnits < 2) continue;
+    if (scope === 'enemy_units' && foeUnits < 2) continue;
+    if (bestCard === null || cardPower(card) > cardPower(bestCard)) {
+      best = source; bestCard = card;
+    }
+  }
+  return best ? battle.startCast(side, best) : false;
+}
+
+function tryDeploy(battle, side) {
+  let alive = 0;
+  for (const f of side.fighters) if (f.alive) alive++;
+  const affordable = side.loadout.roster.filter(uid =>
+    (side.deploy_cd[uid] || 0.0) <= 0
+    && side.money >= side.unitCost(battle.game.units[uid]));
+  if (affordable.length === 0) return false;
+  // 壁が足りない時は一番安いものを、足りている時は一番高いものを出す。
+  // 同点は Python の min/max と同じく「先に出てきたほう」を採る。
+  const cheap = alive < 2;
+  let pick = affordable[0];
+  for (const uid of affordable) {
+    const c = battle.game.units[uid].cost;
+    const p = battle.game.units[pick].cost;
+    if (cheap ? c < p : c > p) pick = uid;
+  }
+  return battle.deploy(side, pick);
+}
+
+// 資金をどこまで育ててから戦うか、で性格が変わる。
+function makePolicy(targetLevel, defendWithin) {
+  return function (battle, side) {
+    tryParry(battle, side);
+    if (side.busy) return;                    // レベルアップ中は手が空かない
+
+    const underPressure = pressure(battle, side, defendWithin);
+    let alive = 0;
+    for (const f of side.fighters) if (f.alive) alive++;
+
+    if (!underPressure && side.level < targetLevel) {
+      if (side.canUpgrade()) { side.upgrade(); return; }
+      // 貯めている間は出撃を控える。これをしないと毎tick使い切って
+      // いつまでも上のレベルに届かない。
+      if (alive >= 1) return;
+    }
+
+    battle.summonTrump(side);
+    tryCard(battle, side);
+
+    if (side.surge_charges > 0 && !underPressure) {
+      const front = battle.live(side.index).map(f => f.x);
+      if (front.length > 0) {
+        // 前線が自陣寄りで止まっているなら押し上げる
+        let deepest = front[0];
+        for (const x of front) {
+          if (Math.abs(x - side.base_x) > Math.abs(deepest - side.base_x)) deepest = x;
+        }
+        if (Math.abs(deepest - side.base_x) < battle.game.laneLength * 0.4) {
+          battle.useSurge(side);
+        }
+      }
+    }
+
+    tryDeploy(battle, side);
+  };
+}
+
+const POLICIES = {
+  rush: makePolicy(2, 50.0),
+  balanced: makePolicy(4, 40.0),
+  greed: makePolicy(6, 30.0),
+};
+
+// ------------------------------------------------------------------ 人の操作
+// human.py の移植。人もAIも同じ入口（policy(battle, side)）を通る。
+// 押した内容はいったん待ち行列に入り、次のtickの頭で使われるので、
+// 画面のフレームレートと試合の進みが分かれている。
+class Controller {
+  constructor() {
+    this.pending = [];
+    this.history = [];
+    this.rejected = 0;
+    this.ticks = 0;
+  }
+
+  deploy(unitId) { this.pending.push(['deploy', unitId]); }
+  cast(source) { this.pending.push(['cast', `${source[0]}:${source[1]}`]); }
+  upgrade() { this.pending.push(['upgrade', '']); }
+  trump() { this.pending.push(['trump', '']); }
+
+  _run(battle, side, command) {
+    const kind = command[0], arg = command[1];
+    if (kind === 'deploy') return battle.deploy(side, arg);
+    if (kind === 'cast') {
+      const parts = arg.split(':');
+      return battle.startCast(side, [parts[0], parseInt(parts[1], 10)]);
+    }
+    if (kind === 'upgrade') {
+      if (side.busy || !side.canUpgrade()) return false;
+      side.upgrade();
+      return true;
+    }
+    if (kind === 'trump') return battle.summonTrump(side);
+    return false;
+  }
+
+  asPolicy() {
+    const self = this;
+    return function (battle, side) {
+      self.ticks += 1;
+      while (self.pending.length > 0) {
+        const command = self.pending.shift();
+        if (self._run(battle, side, command)) {
+          self.history.push([self.ticks, command[0], command[1]]);
+        } else {
+          // 通らなかった操作は捨てる。持ち越すと、資金が貯まった
+          // 瞬間に覚えのない出撃や詠唱が走る。
+          self.rejected += 1;
+        }
+      }
+    };
+  }
+}
+
+const ENGINE = {
+  EPS, bisectLeft, bisectRight, loadGame, isWall, cardPower,
+  Fighter, Side, Battle, resultOf, POLICIES, makePolicy, Controller,
+};
+
+if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;
+if (typeof globalThis !== 'undefined') globalThis.ENGINE = ENGINE;
+</script>
+<script>// play/view.py の移植。Canvas に1フレーム描くだけで、盤面は書き換えない。
+//
+// engine.js は画面のことを何ひとつ知らない。ここが唯一その二つを繋ぐ場所で、
+// **逆向きの依存は作らない** ―― Python 版と同じ約束。
+//
+// 寸法・色・並びは view.py と同じ数字を使っている。片方だけ動かすと
+// 「手元で見た絵」と「Webで見た絵」が別物になるので。
+
+'use strict';
+
+// ---------------------------------------------------------------- 画面の寸法
+// にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
+const W = 1140, H = 712;
+const GROUND_Y = 400;          // ユニットが立つ線
+const HUD_Y = 434;             // ここから下が操作盤
+const SPELL_Y = 440;           // 呪文の段
+const SUMMON_Y = 548;          // 資金と召喚の段
+const LANE_LEFT = 100, LANE_RIGHT = W - 100;
+const SCALE = 2;               // 仮絵は48px。等倍だと画面に対して小さすぎる
+
+// ---------------------------------------------------------------- 色
+// art/palette.json と同じ出どころ。機械=水色、人=金、精霊=青緑、獣=橙。
+const BG = '#171c22';
+const SKY = '#1e2731';
+const GROUND = '#252f3a';
+const INK = '#dfe6ec';
+const MUTED = '#7d8d9c';
+const RULE = '#2b343e';
+const PANEL = '#1b232c';
+const ACCENT = '#3ecad9';
+const GOLD = '#e0aa46';
+const GREEN = '#4fa196';
+const RED = '#e2622f';
+
+const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+const F_SMALL = `15px ${JP}`;
+const F_BODY = `18px ${JP}`;
+const F_BOLD = `700 20px ${JP}`;
+const F_BIG = `900 34px ${JP}`;
+const F_NUM = `700 24px ${JP}`;
+
+// ---------------------------------------------------------------- 絵
+// PNG は data: URI で焼き込んである（build_web.py）。向きごとに使い回す。
+class Sprites {
+  constructor(art) {
+    this.art = art;                 // {units:{id:dataURI}, avatars:{...}, bbox:{id:top}}
+    this._cache = new Map();
+    this._ready = false;
+  }
+
+  // 画像の読み込みが終わるまで待つ。終わるまでは色の塊で代用する。
+  load() {
+    const jobs = [];
+    const take = (kind, id, src) => {
+      const img = new Image();
+      const done = new Promise(res => { img.onload = res; img.onerror = res; });
+      img.src = src;
+      this._cache.set(`${kind}:${id}`, img);
+      jobs.push(done);
+    };
+    for (const id in this.art.units) take('unit', id, this.art.units[id]);
+    for (const id in this.art.avatars) take('avatar', id, this.art.avatars[id]);
+    return Promise.all(jobs).then(() => { this._ready = true; });
+  }
+
+  unit(id) { return this._cache.get(`unit:${id}`); }
+  avatar(id) { return this._cache.get(`avatar:${id}`); }
+
+  // 48×48 の余白ぶん。絵の実体がどこから始まるかを見ないと、
+  // 体力の棒が頭の遥か上に浮く。
+  bboxTop(id) {
+    const top = this.art.bbox[id];
+    return (top === undefined ? 0 : top) * SCALE;
+  }
+}
+
+// ---------------------------------------------------------------- 画面
+class View {
+  constructor(ctx, roster, game, art) {
+    this.ctx = ctx;
+    this.game = game;
+    this.sprites = new Sprites(art);
+    this.families = art.families;
+
+    // ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
+    const slots = game.stockSlots;
+    this.spells = [{
+      rect: [66, SPELL_Y + 8, 158, 92], source: ['brought', 0],
+      key: 'q', label: '持ち込み',
+    }];
+    const stockKeys = ['w', 'e', 'r'];
+    for (let i = 0; i < slots; i++) {
+      this.spells.push({
+        rect: [240 + i * 168, SPELL_Y + 8, 158, 92], source: ['stock', i],
+        key: stockKeys[i] || null, label: `ストック${i + 1}`,
+      });
+    }
+    this.trumpRect = [W - 182, SPELL_Y + 8, 158, 92];
+
+    // ── 召喚の段：財布 ＋ 出撃ボタン ─────────────────────────
+    this.upgradeRect = [24, SUMMON_Y + 44, 118, 100];
+    const span = W - 24 - 158;
+    const width = Math.min(114, Math.floor(span / Math.max(roster.length, 1)) - 8);
+    this.buttons = roster.map((spec, i) => ({
+      rect: [158 + i * (width + 8), SUMMON_Y + 44, width, 100],
+      spec, key: String(i + 1), label: String(i + 1),
+    }));
+  }
+
+  ready() { return this.sprites.load(); }
+
+  // -------------------------------------------------------------- 座標
+  px(xM, laneLength) {
+    const span = LANE_RIGHT - LANE_LEFT;
+    return Math.trunc(LANE_LEFT + (xM / laneLength) * span);
+  }
+
+  // 奥行き。攻撃範囲から出すので、後衛が後ろに立つのが形で分かる。
+  static row(spec) {
+    if (spec.near > 0 || spec.far > 50) return 2;
+    if (spec.far > 20) return 1;
+    return 0;
+  }
+
+  // -------------------------------------------------------------- 部品
+  fill(rect, color) {
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(rect[0], rect[1], rect[2], rect[3]);
+  }
+
+  stroke(rect, color, width) {
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = width || 1;
+    // 1px の線をぼかさないよう半ピクセルずらす
+    const o = (width || 1) / 2;
+    this.ctx.strokeRect(rect[0] + o, rect[1] + o, rect[2] - o * 2, rect[3] - o * 2);
+  }
+
+  text(str, font, color, x, y, align) {
+    const ctx = this.ctx;
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(str, x, y);
+  }
+
+  bar(rect, ratio, color, back, border) {
+    this.fill(rect, back || RULE);
+    const w = Math.trunc(rect[2] * Math.max(0.0, Math.min(1.0, ratio)));
+    if (w > 0) this.fill([rect[0], rect[1], w, rect[3]], color);
+    if (border) this.stroke(rect, border, 1);
+  }
+
+  // -------------------------------------------------------------- 場
+  field(battle) {
+    const ctx = this.ctx;
+    this.fill([0, 0, W, GROUND_Y], SKY);
+    this.fill([0, GROUND_Y, W, HUD_Y - GROUND_Y], GROUND);
+    this.fill([0, GROUND_Y, W, 1], RULE);
+
+    // 20mごとの目盛り。距離感が無いと射程の帯が読めない。
+    const lane = battle.game.laneLength;
+    for (let metre = 0; metre <= lane; metre += 20) {
+      const x = this.px(metre, lane);
+      this.fill([x, GROUND_Y - 6, 1, 12], '#3a4653');
+      this.text(`${metre}m`, F_SMALL, '#566472', x, GROUND_Y + 20, 'center');
+    }
+
+    for (const side of battle.sides) {
+      const img = this.sprites.avatar(side.loadout.avatar);
+      const x = this.px(side.base_x, lane);
+      if (img && img.complete && img.naturalWidth) {
+        const w = img.naturalWidth * SCALE, h = img.naturalHeight * SCALE;
+        this.blit(img, x - w / 2, GROUND_Y - h, w, h, side.index === 1);
+      } else {
+        this.fill([x - 24, GROUND_Y - 96, 48, 96], MUTED);
+      }
+    }
+  }
+
+  // 仮絵をドットのまま拡大して置く。flip のときだけ左右を返す。
+  blit(img, x, y, w, h, flip) {
+    const ctx = this.ctx;
+    ctx.imageSmoothingEnabled = false;
+    if (flip) {
+      ctx.save();
+      ctx.translate(x + w, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, x, y, w, h);
+    }
+  }
+
+  fighters(battle) {
+    const lane = battle.game.laneLength;
+    // 奥の列から描く。前に立つものが手前に重なる。
+    for (const row of [2, 1, 0]) {
+      for (const side of battle.sides) {
+        for (const f of side.fighters) {
+          if (!f.alive || View.row(f.spec) !== row) continue;
+          this.fighter(f, lane, row);
+        }
+      }
+    }
+  }
+
+  fighter(f, lane, row) {
+    const ctx = this.ctx;
+    const mine = f.side === 0;
+    const flip = !mine;                    // 敵は左を向く
+    const img = this.sprites.unit(f.spec.id);
+    const lift = row * 14;
+    const x = this.px(f.x, lane);
+    const feet = GROUND_Y - lift;
+    const team = mine ? GREEN : RED;
+    const w = (img && img.naturalWidth ? img.naturalWidth : 48) * SCALE;
+    const h = (img && img.naturalHeight ? img.naturalHeight : 48) * SCALE;
+    const top = feet - h;
+
+    // 足元の楕円1枚。にゃんこ大戦争のやり方をそのまま採る。
+    // 影を陣営の色で塗ると、同じ絵でもどちら側かが一目で分かる。
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = team;
+    ctx.beginPath();
+    ctx.ellipse(x, feet - 2, w / 2, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = team;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    if (img && img.complete && img.naturalWidth) {
+      ctx.save();
+      if (f.summon_left > 0) ctx.globalAlpha = 0.35;   // 召喚演出のあいだは半透明
+      this.blit(img, x - w / 2, top, w, h, flip);
+      ctx.restore();
+    } else {
+      this.fill([x - 14, feet - 40, 28, 40],
+                this.families[f.spec.family] || MUTED);
+    }
+
+    const head = top + this.sprites.bboxTop(f.spec.id);
+    if (f.hp < f.spec.hp) {
+      this.bar([x - 22, head - 9, 44, 4], f.hp / f.spec.hp, team, '#12161b');
+    }
+
+    // 振りかぶり。設計書7.5の「大きい一撃は発生0.6秒以上」を画面に出す。
+    // ここが見えないと、見切りの読み合いが嘘になる。
+    if (f.windup_left > 0) {
+      const total = Math.max(f.spec.attack_windup_sec, 1e-6);
+      this.bar([x - 22, head - 17, 44, 5], 1.0 - f.windup_left / total,
+               GOLD, '#12161b');
+    }
+
+    if (f.stun_left > 0) {
+      ctx.fillStyle = GOLD;
+      ctx.beginPath();
+      ctx.arc(x, head - 24, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // -------------------------------------------------------------- 拠点HP
+  header(battle, player) {
+    this.fill([0, 0, W, 68], PANEL);
+    this.fill([0, 68, W, 1], RULE);
+    const full = battle.game.baseHp;
+
+    for (const side of battle.sides) {
+      const mine = side.index === player;
+      const hp = Math.max(0.0, side.base_hp);
+      const avatar = battle.game.avatars[side.loadout.avatar];
+      const name = `${mine ? '自陣' : '敵陣'}  ${avatar.name}`;
+      const color = mine ? GREEN : RED;
+      const shown = Math.round(hp).toLocaleString('en-US');
+
+      let bar;
+      if (mine) {
+        bar = [26, 32, 330, 20];
+        this.text(name, F_SMALL, MUTED, 26, 18);
+        this.text(shown, F_BODY, INK, bar[0] + bar[2] + 12, 42);
+      } else {
+        bar = [W - 356, 32, 330, 20];
+        this.text(name, F_SMALL, MUTED, W - 26, 18, 'right');
+        this.text(shown, F_BODY, INK, bar[0] - 12, 42, 'right');
+      }
+      this.bar(bar, hp / full, color, RULE, RULE);
+    }
+
+    const left = Math.max(0.0, battle.game.timeLimit - battle.t);
+    const mm = Math.trunc(left) / 60 | 0;
+    const ss = String(Math.trunc(left) % 60).padStart(2, '0');
+    this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
+
+    // 次の配布。陣地ボーナスは**いま押し込んでいる側だけ**に入るので、
+    // 誰が取りそうかを出す ―― これが見えないと、取りに行く判断ができない。
+    const drop = battle.nextDrop();
+    if (drop === null) {
+      this.text('残り', F_SMALL, MUTED, W / 2, 50, 'center');
+      return;
+    }
+    const seconds = drop[0], amount = drop[1];
+    if (battle.nextDropIsContested()) {
+      const lead = battle.leader();
+      let who, tint;
+      if (lead === null) { who = '互角'; tint = MUTED; }
+      else if (lead.index === player) { who = '自分が優勢'; tint = GREEN; }
+      else { who = '相手が優勢'; tint = RED; }
+      this.text(`陣地 +${amount}  あと${seconds.toFixed(0)}秒`, F_SMALL, GOLD,
+                W / 2, 48, 'center');
+      this.text(who, F_SMALL, tint, W / 2, 64, 'center');
+    } else {
+      this.text(`両者 +${amount}  あと${seconds.toFixed(0)}秒`, F_SMALL, MUTED,
+                W / 2, 52, 'center');
+    }
+  }
+
+  // ---------------------------------------------------------- 操作盤：呪文
+  spellRow(battle, side) {
+    this.fill([0, HUD_Y, W, H - HUD_Y], PANEL);
+    this.fill([0, HUD_Y, W, 1], RULE);
+    this.text('呪文', F_SMALL, MUTED, 22, SPELL_Y + 44);
+    for (const slot of this.spells) this.spell(slot, battle, side);
+    this.trump(battle, side);
+  }
+
+  spell(slot, battle, side) {
+    const rect = slot.rect;
+    const card = side.cardOf(slot.source);
+    const ready = side.castable(slot.source);
+    const kind = slot.source[0], index = slot.source[1];
+    const cx = rect[0] + rect[2] / 2;
+
+    this.fill(rect, ready ? '#212b36' : '#181f27');
+
+    // 空きストックは下から補充されていく。持ち込みは自分のクールタイム。
+    let left = 0.0, total = 0.0;
+    if (kind === 'stock' && !side.stock[index]) {
+      left = side.restock[index]; total = side.restock_sec;
+    } else if (kind === 'brought') {
+      left = side.brought_cd; total = this.game.cards[side.brought].cooldown_sec;
+    }
+    if (left > 0) {
+      const h = Math.trunc(rect[3] * Math.min(1.0, left / Math.max(total, 1e-6)));
+      this.fill([rect[0], rect[1] + rect[3] - h, rect[2], h], '#121a1e');
+    }
+
+    const edge = kind === 'brought' ? GOLD : (ready ? ACCENT : RULE);
+    this.stroke(rect, edge, 2);
+    this.text(slot.label, F_SMALL, edge, rect[0] + 8, rect[1] + 13);
+
+    if (card === null) {
+      this.text('補充中', F_BODY, MUTED, cx, rect[1] + rect[3] / 2, 'center');
+      this.text(`${left.toFixed(1)}秒`, F_SMALL, MUTED, cx,
+                rect[1] + rect[3] - 14, 'center');
+      return;
+    }
+
+    this.text(card.name, F_BOLD, ready ? INK : MUTED, cx, rect[1] + 38, 'center');
+    this.text(String(card.cost), F_BODY, ready ? GOLD : RULE, cx,
+              rect[1] + 62, 'center');
+    let note = card.band;
+    if (left > 0) note = `${left.toFixed(1)}秒`;
+    else if (side.money < card.cost) note = '資金不足';
+    this.text(note, F_SMALL, MUTED, cx, rect[1] + rect[3] - 10, 'center');
+  }
+
+  trump(battle, side) {
+    const rect = this.trumpRect;
+    const spec = this.game.trumps[side.loadout.trump];
+    const unlock = this.game.trumpRules.unlock_at_sec;
+    const locked = battle.t < unlock;
+    const ready = !side.trump_used && !locked && side.money >= spec.cost
+                  && !side.busy;
+    const cx = rect[0] + rect[2] / 2;
+
+    this.fill(rect, ready ? '#241e16' : '#181f27');
+    this.stroke(rect, ready ? GOLD : RULE, 2);
+    this.text('切り札', F_SMALL, ready ? GOLD : MUTED, rect[0] + 8, rect[1] + 13);
+    if (side.trump_used) {
+      this.text('使用済み', F_BODY, MUTED, cx, rect[1] + rect[3] / 2, 'center');
+      return;
+    }
+    this.text(spec.name, F_BOLD, ready ? INK : MUTED, cx, rect[1] + 38, 'center');
+    this.text(String(spec.cost), F_BODY, ready ? GOLD : RULE, cx,
+              rect[1] + 62, 'center');
+    const note = locked ? `${(unlock - battle.t).toFixed(0)}秒後`
+      : (side.money < spec.cost ? '資金不足' : '1試合1回');
+    this.text(note, F_SMALL, MUTED, cx, rect[1] + rect[3] - 10, 'center');
+  }
+
+  // ------------------------------------------------------ 操作盤：資金と召喚
+  summonRow(battle, side) {
+    // 資金は1〜14の整数なので、**マス目で数えられる**ように描く。
+    // 棒が滑らかに伸びるのではなく1マスずつ点くので、
+    // 「あと2マスで臼砲」が目で分かる。
+    const cap = Math.trunc(side.money_cap);
+    const have = Math.trunc(side.money);
+    const cell = 26, gap = 4;
+    for (let i = 0; i < cap; i++) {
+      const box = [24 + i * (cell + gap), SUMMON_Y, cell, 26];
+      this.fill(box, i < have ? GOLD : '#1e262f');
+      this.stroke(box, RULE, 1);
+    }
+
+    const right = 24 + cap * (cell + gap);
+    this.text(`${have} / ${cap}`, F_NUM, INK, right + 12, SUMMON_Y + 13);
+    this.text(`財布 Lv${side.level}   ${side.income_amount.toFixed(0)} / `
+              + `${side.income_every.toFixed(1)}秒`,
+              F_SMALL, MUTED, right + 88, SUMMON_Y + 13);
+    if (side.busy) {
+      this.text(`育成中 ${side.upgrading_left.toFixed(1)}秒 — 何も出せない`,
+                F_SMALL, RED, right + 250, SUMMON_Y + 13);
+    }
+
+    this.upgrade(side);
+    for (const button of this.buttons) this.button(button, side);
+  }
+
+  upgrade(side) {
+    const rect = this.upgradeRect;
+    const cost = side.upgrade_cost;
+    const ready = cost !== null && side.canUpgrade() && !side.busy;
+    const cx = rect[0] + rect[2] / 2;
+
+    this.fill(rect, ready ? '#1a2828' : '#181f27');
+    this.stroke(rect, ready ? GREEN : RULE, 2);
+    this.text('0', F_SMALL, ready ? GREEN : MUTED, rect[0] + 8, rect[1] + 13);
+    this.text('財布', F_BOLD, ready ? INK : MUTED, cx, rect[1] + 38, 'center');
+    if (cost === null) {
+      this.text('最大', F_BODY, MUTED, cx, rect[1] + 62, 'center');
+      return;
+    }
+    this.text(String(cost), F_BODY, ready ? GREEN : RULE, cx, rect[1] + 62, 'center');
+    this.text(`Lv${side.level + 1} へ`, F_SMALL, MUTED, cx,
+              rect[1] + rect[3] - 13, 'center');
+  }
+
+  button(button, side) {
+    const rect = button.rect;
+    const cd = side.deploy_cd[button.spec.id] || 0.0;
+    const cost = side.unitCost(button.spec);
+    const overCap = cost > side.money_cap;        // 財布のレベルが足りない
+    const blocked = this.blockedBy(button, side);
+    const ready = blocked === null && cd <= 0;
+    const cx = rect[0] + rect[2] / 2;
+
+    this.fill(rect, ready ? '#212b36' : '#181f27');
+    if (cd > 0) {                    // 再出撃までを下から塗り戻す
+      const total = Math.max(side.deployCooldown(button.spec), 1e-6);
+      const h = Math.trunc(rect[3] * Math.min(1.0, cd / total));
+      this.fill([rect[0], rect[1] + rect[3] - h, rect[2], h], '#121a1e');
+    }
+
+    const edge = overCap ? RED : (ready ? ACCENT : RULE);
+    this.stroke(rect, edge, 2);
+    this.text(button.label, F_SMALL, edge, rect[0] + 8, rect[1] + 13);
+    this.text(button.spec.name, F_BOLD, ready ? INK : MUTED, cx,
+              rect[1] + 38, 'center');
+    this.text(cost.toFixed(0), F_BODY, ready ? GOLD : RULE, cx,
+              rect[1] + 62, 'center');
+
+    let note = '';
+    if (overCap) note = '財布 Lv不足';
+    else if (cd > 0) note = `${cd.toFixed(1)}秒`;
+    else note = blocked || '';
+    if (note) {
+      this.text(note, F_SMALL, overCap ? RED : MUTED, cx,
+                rect[1] + rect[3] - 13, 'center');
+    }
+  }
+
+  // 押せない理由。押せるなら null（view.py の Button.blocked_by と同じ）。
+  blockedBy(button, side) {
+    if (side.busy) return '育成中';
+    if (side.deploy_lock_left > 0) return '硬直';
+    if ((side.deploy_cd[button.spec.id] || 0.0) > 0) return null;
+    if (side.money < side.unitCost(button.spec)) return '資金不足';
+    return null;
+  }
+
+  // -------------------------------------------------------------- 決着
+  result(battle, player) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,14,18,0.75)';
+    ctx.fillRect(0, 0, W, HUD_Y);
+    ctx.restore();
+
+    const r = ENGINE.resultOf(battle);
+    let headline, color;
+    if (r.winner === null) { headline = '引き分け'; color = MUTED; }
+    else if (r.winner === player) { headline = '勝ち'; color = ACCENT; }
+    else { headline = '負け'; color = RED; }
+
+    this.text(headline, F_BIG, color, W / 2, 190, 'center');
+    this.text(r.reason, F_BODY, INK, W / 2, 232, 'center');
+    this.text(`${r.seconds.toFixed(0)}秒`, F_SMALL, MUTED, W / 2, 258, 'center');
+    this.text('R でもう1回', F_SMALL, MUTED, W / 2, 296, 'center');
+  }
+
+  // -------------------------------------------------------------- 1フレーム
+  draw(battle, player, paused) {
+    this.fill([0, 0, W, H], BG);
+    this.field(battle);
+    this.fighters(battle);
+    this.header(battle, player);
+    this.spellRow(battle, battle.sides[player]);
+    this.summonRow(battle, battle.sides[player]);
+    if (battle.finished()) this.result(battle, player);
+    else if (paused) {
+      this.text('一時停止（Space）', F_BOLD, GOLD, W / 2, 120, 'center');
+    }
+  }
+
+  // ------------------------------------------------------------ 当たり判定
+  // クリックとキーを同じ「操作」に畳んで返す。呼ぶ側は中身を知らなくていい。
+  static hit(rect, x, y) {
+    return x >= rect[0] && x < rect[0] + rect[2]
+        && y >= rect[1] && y < rect[1] + rect[3];
+  }
+
+  actionAt(x, y) {
+    if (View.hit(this.upgradeRect, x, y)) return ['upgrade', null];
+    if (View.hit(this.trumpRect, x, y)) return ['trump', null];
+    for (const slot of this.spells) {
+      if (View.hit(slot.rect, x, y)) return ['cast', slot.source];
+    }
+    for (const button of this.buttons) {
+      if (View.hit(button.rect, x, y)) return ['deploy', button.spec.id];
+    }
+    return null;
+  }
+
+  actionForKey(key) {
+    if (key === '0') return ['upgrade', null];
+    if (key === 't') return ['trump', null];
+    for (const slot of this.spells) {
+      if (slot.key === key) return ['cast', slot.source];
+    }
+    for (const button of this.buttons) {
+      if (button.key === key) return ['deploy', button.spec.id];
+    }
+    return null;
+  }
+}
+
+const VIEW = { View, Sprites, W, H, HUD_Y, GROUND_Y };
+if (typeof module !== 'undefined' && module.exports) module.exports = VIEW;
+if (typeof globalThis !== 'undefined') globalThis.VIEW = VIEW;
+</script>
+<script>// play/__main__.py の移植。実時間を溜めて、溜まったぶんだけ battle.step() を呼ぶ。
+//
+// **フレームレートと試合の進みは別物。** 画面が重くなっても試合の中身は
+// 変わらない ―― engine の決定論はここで壊さない（Python 版と同じ作り）。
+
+'use strict';
+
+(function () {
+  const { View, W, H } = VIEW;
+
+  const canvas = document.getElementById('screen');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  canvas.width = W;
+  canvas.height = H;
+
+  const game = ENGINE.loadGame(DATA.raw);
+  const trial = DATA.preset.trial;
+  const unitIds = trial.roster.map(u => u.id);
+  const roster = unitIds.map(id => game.units[id]);
+  const view = new View(ctx, roster, game, DATA.art);
+
+  // 呪文ストックの並びは Python 側で引いたものを焼き込んである（build_web.py）。
+  // Mersenne Twister を移植すると、そこが Python 版との食い違いの種になる。
+  // 1枚1文字に畳んであるので、ここで呪文の名前に戻す。
+  const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const STOCKS = {};
+  for (const name in DATA.stocks.matches) {
+    STOCKS[name] = DATA.stocks.matches[name].map(pair => pair.map(packed => {
+      const out = [];
+      for (const ch of packed) out.push(DATA.stocks.cards[ALPHABET.indexOf(ch)]);
+      return out;
+    }));
+  }
+  const MATCHES = STOCKS.balanced.length;
+
+  let enemy = 'balanced';
+  let matchNo = 0;
+  let speed = 1.0;
+  let paused = false;
+  let battle = null;
+  let controller = null;
+  const record = [];             // 遊んだ試合の結果（工程表 A-4 の記録用）
+
+  function newBattle() {
+    const pair = STOCKS[enemy][matchNo % MATCHES];
+    controller = new ENGINE.Controller();
+    const me = {
+      avatar: trial.avatar, roster: unitIds,
+      brought: trial.brought, trump: trial.trump,
+    };
+    // 既定で**相手もまったく同じ持ち物**（工程表 塊A-3）。
+    // 相手だけ8種＋切り札という状態では、負けても何が悪いのか分からない。
+    battle = new ENGINE.Battle(game, me, me, controller.asPolicy(),
+                               ENGINE.POLICIES[enemy], pair[0], pair[1]);
+    paused = false;
+    accumulator = 0.0;
+    counted = false;
+    syncChrome();
+  }
+
+  function send(action) {
+    if (!action) return;
+    const kind = action[0], arg = action[1];
+    if (kind === 'deploy') controller.deploy(arg);
+    else if (kind === 'cast') controller.cast(arg);
+    else if (kind === 'upgrade') controller.upgrade();
+    else if (kind === 'trump') controller.trump();
+  }
+
+  // ---------------------------------------------------------------- 入力
+  function canvasPoint(event) {
+    const box = canvas.getBoundingClientRect();
+    return [(event.clientX - box.left) * (W / box.width),
+            (event.clientY - box.top) * (H / box.height)];
+  }
+
+  canvas.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    if (battle.finished()) { restart(); return; }
+    const p = canvasPoint(event);
+    send(view.actionAt(p[0], p[1]));
+  });
+
+  window.addEventListener('keydown', event => {
+    const key = event.key.toLowerCase();
+    if (key === ' ' || event.code === 'Space') {
+      event.preventDefault();
+      paused = !paused;
+      syncChrome();
+      return;
+    }
+    if (key === 'r') {
+      // 決着後の R は次の試合。試合中の R はストック3枠目。
+      if (battle.finished()) { restart(); return; }
+    }
+    const action = view.actionForKey(key);
+    if (action) { event.preventDefault(); send(action); }
+  });
+
+  function restart() {
+    matchNo += 1;
+    newBattle();
+  }
+
+  // ---------------------------------------------------------------- 操作盤
+  const els = {
+    enemy: document.getElementById('enemy'),
+    speed: document.getElementById('speed'),
+    pause: document.getElementById('pause'),
+    again: document.getElementById('again'),
+    tally: document.getElementById('tally'),
+    log: document.getElementById('log'),
+  };
+
+  els.enemy.addEventListener('change', () => {
+    enemy = els.enemy.value;
+    matchNo += 1;
+    newBattle();
+  });
+  els.speed.addEventListener('change', () => {
+    speed = parseFloat(els.speed.value);
+  });
+  els.pause.addEventListener('click', () => { paused = !paused; syncChrome(); });
+  els.again.addEventListener('click', restart);
+
+  function syncChrome() {
+    els.pause.textContent = paused ? '再開' : '一時停止';
+  }
+
+  // 記録はこの端末の中だけに置く。どこにも送らない。
+  // 読めなくても落ちない（プライベートウィンドウなど、例外を投げる環境がある）。
+  const STORE = 'siege.record.v1';
+  function loadRecord() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE) || '[]');
+      if (Array.isArray(saved)) record.push(...saved);
+    } catch (e) { /* 読めなければ空のまま始める */ }
+  }
+  function saveRecord() {
+    try { localStorage.setItem(STORE, JSON.stringify(record.slice(-50))); }
+    catch (e) { /* 書けなくても遊べる */ }
+  }
+
+  // 決着したら1行だけ残す。工程表 A-4 は「1試合ごとに終わった直後に1行書く」
+  // なので、機械で書ける半分（結果と時間）はこちらで持っておく。
+  let counted = false;
+  function noteResult() {
+    if (counted) return;
+    counted = true;
+    const r = ENGINE.resultOf(battle);
+    const full = game.baseHp;
+    record.push({
+      enemy,
+      win: r.winner === 0 ? '勝ち' : (r.winner === null ? '分け' : '負け'),
+      seconds: r.seconds,
+      dealt: (full - r.base_hp[1]) / full,
+      taken: (full - r.base_hp[0]) / full,
+      level: r.level[0],
+    });
+    saveRecord();
+    renderRecord();
+  }
+
+  function renderRecord() {
+    const wins = record.filter(r => r.win === '勝ち').length;
+    const draws = record.filter(r => r.win === '分け').length;
+    els.tally.textContent =
+      `${record.length}試合  ${wins}勝 ${record.length - wins - draws}敗 ${draws}分`;
+    els.log.innerHTML = '';
+    record.slice().reverse().forEach((r, i) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML =
+        `<b>${record.length - i}</b>` +
+        `<span class="${r.win === '勝ち' ? 'w' : (r.win === '分け' ? 'd' : 'l')}">${r.win}</span>` +
+        `<span>${r.enemy}</span>` +
+        `<span>${r.seconds.toFixed(0)}秒</span>` +
+        `<span>与 ${(r.dealt * 100).toFixed(0)}%</span>` +
+        `<span>被 ${(r.taken * 100).toFixed(0)}%</span>` +
+        `<span>財布 Lv${r.level}</span>`;
+      els.log.appendChild(row);
+    });
+  }
+
+  // ---------------------------------------------------------------- 本体
+  const TICK = game.combat.tick_sec;
+  let accumulator = 0.0;
+  let last = 0;
+
+  function frame(now) {
+    // 実時間。0.25秒より大きく飛んだぶんは捨てる（タブを戻した後など、
+    // 一気に何十tickも進むのを防ぐ）。
+    const dt = last ? Math.min((now - last) / 1000.0, 0.25) : 0.0;
+    last = now;
+
+    if (!paused && !battle.finished()) {
+      accumulator += dt * speed;
+      while (accumulator >= TICK && !battle.finished()) {
+        battle.step();
+        accumulator -= TICK;
+      }
+    }
+    if (battle.finished()) noteResult();
+
+    view.draw(battle, 0, paused);
+    requestAnimationFrame(frame);
+  }
+
+  // 絵とフォントが揃ってから始める。揃う前に描くと、文字幅が後でずれる。
+  const fonts = document.fonts ? document.fonts.ready : Promise.resolve();
+  loadRecord();
+  renderRecord();
+  Promise.all([view.ready(), fonts]).then(() => {
+    newBattle();
+    requestAnimationFrame(frame);
+  });
+})();
+</script>

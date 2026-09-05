@@ -1,0 +1,303 @@
+{
+  "_comment": "試合フォーマットの調整値。すべて仮置き。にゃんこ大戦争型の1レーン攻城戦。",
+  "field": {
+    "_comment": "横1レーン。両端に拠点（＝アバター）。ユニットは自動で前進し自動で戦う",
+    "lanes": 1,
+    "length_m": 120,
+    "deploy_from": "own_base",
+    "same_unit_simultaneous": "unlimited",
+    "max_units_per_side": 18,
+    "_max_units_note": "レーン 120m ÷ 隊列間隔 6m = 20体しか物理的に並べない。上限がこれを超えると、入りきらないぶんが前線に詰まって誰も攻め落とせなくなる"
+  },
+  "avatar": {
+    "_comment": "アバターは拠点そのもの。ダメージはここに入る。HPは全アバター共通で、差は特典だけ",
+    "per_player": 1,
+    "is_base": true,
+    "hp": 10000,
+    "hp_identical_for_all": true,
+    "revealed": "match_start",
+    "changeable_between_matches": true
+  },
+  "victory": {
+    "_comment": "体力制。相手アバターのHPを0にすれば即勝ち",
+    "condition": "enemy_avatar_hp_zero",
+    "time_limit_sec": 210,
+    "on_timeout": "damage_percent_dealt",
+    "tie": "draw"
+  },
+  "roster": {
+    "_comment": "出撃できるユニットの種類。試合中は何度でも出せる（コストとクールダウンの範囲で）",
+    "slots": 8,
+    "chosen_slots": 6,
+    "random_slots": 2,
+    "unit_cost_range": [
+      1,
+      10
+    ],
+    "unit_cooldown_range_sec": [
+      2,
+      35
+    ],
+    "min_hp_per_knockback": 200,
+    "siege_mult_range": [
+      0.3,
+      2.0
+    ],
+    "wall_threshold": 0.6,
+    "anti_wall_mult_range": [
+      0.5,
+      2.5
+    ],
+    "tier_cooldown_bands": {
+      "B": [
+        2,
+        8
+      ],
+      "A": [
+        9,
+        18
+      ],
+      "S": [
+        20,
+        35
+      ]
+    },
+    "max_reach_m": 110,
+    "_max_reach_note": "射程の奥はレーン長より短いこと。自陣に立ったまま敵拠点を叩けると、前に出る理由が消える"
+  },
+  "trump": {
+    "_comment": "出撃8枠とは別枠。1試合に1回だけ出せる切り札。寿命が切れると撃破されなくても退場する",
+    "slots": 1,
+    "separate_from_roster": true,
+    "uses_per_match": 1,
+    "unlock_at_sec": 60,
+    "summon_sec": 3.0,
+    "identity_hidden_until_summon": true,
+    "readiness_visible_to_opponent": true,
+    "affordable_by_fraction": 0.7,
+    "_affordable_note": "解禁した瞬間に払える必要はない ―― 貯めること自体が択なので。ただし使う時間が残っているうちには届くこと"
+  },
+  "economy": {
+    "_comment": "資金は出撃・呪文・切り札で共用。今出すか、呪文を撃つか、貯めて大技か、財布を育てるか ―― すべて同じ1本の資金を奪い合う",
+    "start": 3,
+    "_kill_reward": "撃破しても資金は入らない。この仕組みは将来、特定キャラの特性として使う予定なので全体ルールからは外してある",
+    "kill_reward_ratio": 0.0,
+    "growth": {
+      "_comment": "にゃんこ大戦争の働きネコ。**コストは1〜10**で、資金は時間で刻んで貯まる（何秒かごとに +2）。1段上げると、貯まる上限と刻みの速さの両方が少しずつ上がる。上限が「どのユニットを出せるか」を決める",
+      "player_controlled": true,
+      "upgrade_sec": 6.0,
+      "max_level": 8,
+      "levels": [
+        {
+          "level": 1,
+          "max": 5,
+          "income_every_sec": 3.0,
+          "income_amount": 2,
+          "upgrade_cost": 4
+        },
+        {
+          "level": 2,
+          "max": 6,
+          "income_every_sec": 2.7,
+          "income_amount": 2,
+          "upgrade_cost": 5
+        },
+        {
+          "level": 3,
+          "max": 7,
+          "income_every_sec": 2.4,
+          "income_amount": 2,
+          "upgrade_cost": 6
+        },
+        {
+          "level": 4,
+          "max": 8,
+          "income_every_sec": 2.2,
+          "income_amount": 2,
+          "upgrade_cost": 7
+        },
+        {
+          "level": 5,
+          "max": 9,
+          "income_every_sec": 2.0,
+          "income_amount": 2,
+          "upgrade_cost": 8
+        },
+        {
+          "level": 6,
+          "max": 10,
+          "income_every_sec": 1.8,
+          "income_amount": 2,
+          "upgrade_cost": 9
+        },
+        {
+          "level": 7,
+          "max": 12,
+          "income_every_sec": 1.6,
+          "income_amount": 2,
+          "upgrade_cost": 11
+        },
+        {
+          "level": 8,
+          "max": 14,
+          "income_every_sec": 1.4,
+          "income_amount": 2
+        }
+      ]
+    },
+    "milestones": [
+      {
+        "at_sec": 10,
+        "amount": 3,
+        "to": "both"
+      },
+      {
+        "at_sec": 15,
+        "amount": 4,
+        "to": "leader"
+      },
+      {
+        "at_sec": 45,
+        "amount": 5,
+        "to": "leader"
+      },
+      {
+        "at_sec": 60,
+        "amount": 5,
+        "to": "both"
+      },
+      {
+        "at_sec": 100,
+        "amount": 6,
+        "to": "leader"
+      },
+      {
+        "at_sec": 120,
+        "amount": 6,
+        "to": "both"
+      },
+      {
+        "at_sec": 150,
+        "amount": 7,
+        "to": "leader"
+      },
+      {
+        "at_sec": 180,
+        "amount": 8,
+        "to": "both"
+      }
+    ],
+    "_milestones_note": "時間の節目の配布。刻みで貯まるのとは別枠で、試合の速度を上げるためのもの。to=both は両者に同額。to=leader は**そのとき前線を押し込んでいる側だけ**に入る（互角なら誰にも入らない）。leader があるおかげで、序盤に安いユニットを出して線を押し上げることが資金として返ってくる ―― これが無いと、何も出さずに財布だけ育てるのが常に正解になる。"
+  },
+  "phases": [
+    {
+      "id": "avatar_reveal",
+      "seconds": 5,
+      "note": "アバターと保有特典を相互公開。切り札は「持っている」ことだけ公開"
+    },
+    {
+      "id": "draft",
+      "seconds": 45,
+      "note": "出撃6枠＋カード3枚＋切り札1体。すべて非公開"
+    },
+    {
+      "id": "lock_commit",
+      "seconds": 2,
+      "note": "commit提出→共通シード→ランダム枠確定"
+    },
+    {
+      "id": "intel",
+      "seconds": 12,
+      "note": "情報系特典の解決"
+    },
+    {
+      "id": "battle",
+      "seconds": 210,
+      "note": "1レーン攻城戦"
+    }
+  ],
+  "random_slot_draw": {
+    "mirrored_tier_templates": [
+      [
+        "A",
+        "B"
+      ],
+      [
+        "A",
+        "A"
+      ],
+      [
+        "S",
+        "B"
+      ]
+    ],
+    "exclude_chosen": true,
+    "lend_from_common_pool_if_short": true,
+    "seed": "sha256(commitA || commitB || matchId)"
+  },
+  "cards": {
+    "_comment": "持ち込み1枚＋ランダムに補充されるストック3枠。どちらもユニットと同じ資金を払う。持ち込みは確実に手に入る代わりに個別クールタイムが長く、ストックは運だが資金さえあれば続けて撃てる",
+    "brought": 1,
+    "stock_slots": 3,
+    "uses_money": true,
+    "restock_sec": 8.0,
+    "global_cooldown_sec": 3.0,
+    "stock_weight": {
+      "軽": 3,
+      "中": 2,
+      "重": 1
+    },
+    "cost_bands": {
+      "軽": [
+        1,
+        2
+      ],
+      "中": [
+        3,
+        5
+      ],
+      "重": [
+        8,
+        10
+      ]
+    },
+    "power_bands": {
+      "軽": [
+        0.0,
+        3.4
+      ],
+      "中": [
+        3.4,
+        5.4
+      ],
+      "重": [
+        5.4,
+        99.0
+      ]
+    },
+    "cooldown_by_band": {
+      "軽": 18.0,
+      "中": 20.0,
+      "重": 24.0
+    },
+    "max_uptime": 0.6,
+    "heavy_min_cast_sec": 0.8,
+    "opponent_sees": "stock_bands_and_brought_cooldown",
+    "upkeep_ratio_min": 3.0,
+    "_upkeep_note": "重の維持費は軽の3倍以上。収入に対する割合ではなく倍率で縛るのは、コストの尺度を変えても規則が壊れないため"
+  },
+  "combat": {
+    "_comment": "シミュレータの刻み幅とノックバックの挙動。全ユニット共通",
+    "tick_sec": 0.05,
+    "unit_spacing_m": 6,
+    "knockback_distance_m": 12,
+    "knockback_stun_sec": 0.4
+  },
+  "readability": {
+    "_comment": "見切り(0.3秒)を成立させるための床。詠唱短縮などの修正後もここを下回らない",
+    "human_reaction_sec": 0.25,
+    "big_hit_threshold": 300,
+    "min_charge_windup_sec": 0.6,
+    "min_cast_sec": 0.35
+  }
+}
