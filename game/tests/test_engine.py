@@ -9,13 +9,14 @@ from game.engine.battle import Battle, Fighter, Loadout
 from game.engine.data import load
 from game.engine.draft import draw_random_slots, match_seed, pick_template
 from game.engine.policy import POLICIES
+from game.engine.presets import trial_roster
 from game.tools import validate
 
 
 GAME = load()
 
 
-def loadout(avatar="bulwark", roster=("grunt", "shield", "archer"),
+def loadout(avatar="bulwark", roster=("grunt", "shieldman", "archer"),
             brought="warcry", trump="colossus", stock_seed="t"):
     return Loadout(avatar=avatar, roster=tuple(roster), brought=brought,
                    trump=trump, stock_seed=stock_seed)
@@ -44,7 +45,7 @@ class TestSymmetry(unittest.TestCase):
     def test_identical_sides_draw(self):
         for name in ("rush", "balanced", "greed"):
             with self.subTest(policy=name):
-                same = loadout(roster=("grunt", "spear", "shield", "archer"))
+                same = loadout(roster=("grunt", "spear", "shieldman", "archer"))
                 result = battle(same, same, policy=name).run()
                 self.assertIsNone(result.winner)
                 self.assertEqual(result.base_hp[0], result.base_hp[1])
@@ -70,7 +71,7 @@ class TestAttackBand(unittest.TestCase):
 
     def setUp(self):
         self.bt = battle()
-        self.mortar = GAME.units["mortar"]      # [70, 150]
+        self.mortar = GAME.units["mortar"]      # [42, 80]
         self.grunt = GAME.units["grunt"]        # [0, 12]
 
     def place(self, spec, side, x):
@@ -81,13 +82,13 @@ class TestAttackBand(unittest.TestCase):
 
     def test_blind_spot_blocks_close_targets(self):
         shooter = self.place(self.mortar, 0, 0.0)
-        self.place(self.grunt, 1, 30.0)         # 死角70mの内側
+        self.place(self.grunt, 1, 20.0)         # 死角42mの内側
         self.bt.snapshot()
         self.assertEqual(self.bt.targets_in_band(shooter), [])
 
     def test_band_hits_beyond_the_blind_spot(self):
         shooter = self.place(self.mortar, 0, 0.0)
-        far = self.place(self.grunt, 1, 100.0)  # 帯の中
+        far = self.place(self.grunt, 1, 60.0)   # 帯[42,80]の中
         self.bt.snapshot()
         self.assertEqual(self.bt.targets_in_band(shooter), [far])
 
@@ -109,7 +110,7 @@ class TestWalls(unittest.TestCase):
 
     def test_wall_is_defined_by_siege_mult(self):
         self.assertTrue(GAME.units["grunt"].is_wall(self.line))
-        self.assertTrue(GAME.units["shield"].is_wall(self.line))
+        self.assertTrue(GAME.units["shieldman"].is_wall(self.line))
         self.assertFalse(GAME.units["twin"].is_wall(self.line))
         self.assertFalse(GAME.units["mortar"].is_wall(self.line))
 
@@ -143,7 +144,8 @@ class TestWalls(unittest.TestCase):
         breakers = [u for u in GAME.units.values() if u.anti_wall_mult > 1.5]
         self.assertTrue(breakers, "壁を崩す答えが1体も無いと、壁を並べるだけで前線が保たれる")
         for unit in breakers:
-            self.assertLessEqual(unit.far, 50, f"{unit.name}: 壁特攻は接近戦の役割に限る")
+            self.assertLessEqual(unit.far, GAME.far_threshold,
+                                 f"{unit.name}: 壁特攻は接近戦の役割に限る")
 
 
 class TestParry(unittest.TestCase):
@@ -183,14 +185,22 @@ class TestCardsTouchUnitStats(unittest.TestCase):
         self.assertEqual(fighter.x, 50.0)          # 堅陣：後退しない
 
     def test_deploy_cost_discount(self):
-        bt = battle(loadout(brought="levy"), loadout(), money=3000)
+        """徴発はコストを掛け算で下げる。**額は整数に切り上げる。**
+
+        安いユニットで測ると切り上げに埋もれる（兵卒1の7割は0.7→1）ので、
+        差が桁で見える高いユニットで測る。
+        """
+        import math
+        bt = battle(loadout(brought="levy", roster=("grunt", "titan")),
+                    loadout(), money=3000)
         side = bt.sides[0]
-        spec = GAME.units["grunt"]
+        spec = GAME.units["titan"]
         full = side.unit_cost(spec)
         bt.start_cast(side, ("brought", 0))
         side.cast_left = 0
         bt.resolve_cast(side)
-        self.assertAlmostEqual(side.unit_cost(spec), full * 0.7)
+        self.assertEqual(side.unit_cost(spec), math.ceil(full * 0.7 - 1e-9))
+        self.assertLess(side.unit_cost(spec), full)
 
 
 class TestNoStrictUpgrade(unittest.TestCase):
@@ -230,11 +240,81 @@ class TestNoStrictUpgrade(unittest.TestCase):
         """高コストの高火力・高射程が、安い壁より脆いこと。
         これが無いと壁に仕事が無く、前線を取る意味も薄れる。"""
         units = list(GAME.units.values())
+        import statistics
+        rich_line = statistics.median(u.cost for u in units)
         toughest_cheap = max(u.hp for u in units if u.cost <= 2)
         fragile = [u for u in units
-                   if u.cost >= 7 and u.hp < toughest_cheap and u.far > 50]
+                   if u.cost >= rich_line and u.hp < toughest_cheap
+                   and u.far > GAME.far_threshold]
         self.assertTrue(fragile,
                         f"安い壁（体力{toughest_cheap}）より脆い高コストの遠距離が居ない")
+
+
+class TestGatedCards(unittest.TestCase):
+    """拠点が削られてから開く札。**押し込まれている側だけが持てる手。**"""
+
+    def test_gate_blocks_while_healthy(self):
+        bt = battle(loadout(brought="backwater"), loadout(), money=3000)
+        side = bt.sides[0]
+        card = GAME.cards["backwater"]
+        self.assertTrue(card.gated)
+        self.assertFalse(side.unlocked(card))
+        self.assertFalse(bt.start_cast(side, ("brought", 0)))
+
+    def test_gate_opens_once_the_base_is_hurt(self):
+        bt = battle(loadout(brought="backwater"), loadout(), money=3000)
+        side = bt.sides[0]
+        card = GAME.cards["backwater"]
+        side.base_hp = GAME.base_hp * card.base_hp_gate
+        self.assertTrue(side.unlocked(card))
+        self.assertTrue(bt.start_cast(side, ("brought", 0)))
+
+    def test_someone_can_come_back(self):
+        gated = [c for c in GAME.cards.values() if c.gated]
+        self.assertTrue(gated, "押し込まれた側だけが持てる札が1枚も無い")
+        for card in gated:
+            self.assertEqual(card.target, "own")
+
+
+class TestTraits(unittest.TestCase):
+    """特性が触れるのは**出撃コストだけ**。戦闘の数字には一切効かない。"""
+
+    EVIL = ("ghoul", "hexer", "wraith", "warlock",
+            "assassin", "revenant", "warlord", "oni")
+
+    def test_kinship_pays_off_for_a_single_race_roster(self):
+        spec = GAME.units["warlord"]
+        mixed = battle(loadout(roster=("grunt", "hound", "archer", "sweeper",
+                                       "mortar", "siegetower", "warlord",
+                                       "titan"))).sides[0]
+        same = battle(loadout(roster=self.EVIL)).sides[0]
+        self.assertEqual(mixed.unit_cost(spec), spec.cost)
+        self.assertLess(same.unit_cost(spec), spec.cost * 0.7)
+
+    def test_chain_reads_the_last_deployment(self):
+        bt = battle(loadout(roster=("grunt", "titan")), loadout(), money=9000)
+        side = bt.sides[0]
+        spec = GAME.units["titan"]
+        self.assertEqual(side.unit_cost(spec), spec.cost)
+        self.assertTrue(bt.deploy(side, "titan"))       # 直前が古代兵器になる
+        self.assertEqual(side.unit_cost(spec),
+                         spec.cost - GAME.traits["chain"].params["amount"])
+
+    def test_desperate_only_helps_the_losing_side(self):
+        bt = battle(loadout(roster=("grunt", "ballista")), loadout(), money=9000)
+        side = bt.sides[0]
+        spec = GAME.units["ballista"]
+        self.assertEqual(side.unit_cost(spec), spec.cost)
+        gate = GAME.traits["desperate"].params["base_hp_at_most"]
+        side.base_hp = GAME.base_hp * gate
+        self.assertLess(side.unit_cost(spec), spec.cost)
+
+    def test_traits_never_touch_combat(self):
+        """特性はコスト以外の項目を持たない、を機械で押さえる。"""
+        from game.engine import data as D
+        for trait in GAME.traits.values():
+            self.assertIn(trait.kind, D.TRAIT_KINDS)
+            self.assertTrue(trait.kind.startswith("cost_"), trait.name)
 
 
 class TestSpells(unittest.TestCase):
@@ -280,12 +360,18 @@ class TestSpells(unittest.TestCase):
         self.assertNotEqual(b[0].stock, b[1].stock)
 
     def test_cost_rises_with_power(self):
-        """コストの高さがそのまま強さの帯になっている（あなたの設計）。"""
+        """コストの高さがそのまま強さの帯になっている（あなたの設計）。
+
+        条件付きの札（拠点が減っていないと撃てない）は、撃てないまま終わる
+        試合があるぶんだけ効果が大きい。帯を見るときはその差を引く。
+        """
+        bonus = GAME.gate_power_bonus
         for lower, upper in (("軽", "中"), ("中", "重")):
             low = GAME.cards_in_band(lower)
             high = GAME.cards_in_band(upper)
             self.assertLess(max(c.cost for c in low), min(c.cost for c in high))
-            self.assertLess(max(c.power for c in low), min(c.power for c in high))
+            self.assertLess(max(c.rated_power(bonus) for c in low),
+                            min(c.rated_power(bonus) for c in high))
 
 
 class TestWallet(unittest.TestCase):
@@ -360,12 +446,37 @@ class TestWallet(unittest.TestCase):
         self.assertFalse(bt.start_cast(side, ("brought", 0)))
 
 
-class TestFieldFits(unittest.TestCase):
-    def test_cap_fits_in_the_lane(self):
-        """入りきらない数を上限にすると、前線が詰まって誰も攻め落とせない。
-        実測で、上限30体（入るのは20体）のとき与ダメージが平均7%だった。"""
-        fits = int(GAME.lane_length / GAME.combat["unit_spacing_m"])
-        self.assertLessEqual(GAME.match["field"]["max_units_per_side"], fits)
+class TestField(unittest.TestCase):
+    def test_lane_is_three_times_the_longest_reach(self):
+        """レーンは最長射程の3倍以上。
+
+        110m対120mだった頃は、自陣に立った砲が敵拠点の10m手前まで届き、
+        押し込んだ側が一歩も動かずに拠点を削れた ―― 「先に押し込んだ側の勝ち」
+        の正体がこれ。射程がレーンの一部にしかならない長さが要る。
+        """
+        ratio = GAME.roster_rules["lane_per_reach_min"]
+        self.assertGreaterEqual(GAME.lane_length, GAME.max_reach * ratio)
+        longest = max(list(GAME.units.values()) + list(GAME.trumps.values()),
+                      key=lambda u: u.far)
+        self.assertLessEqual(longest.far, GAME.max_reach, longest.name)
+
+    def test_units_do_not_queue_behind_each_other(self):
+        """味方どうしは詰まらない。**立ち位置は射程が決める。**
+
+        隊列間隔で並ばせていた頃は、自陣に押し込まれた側の20体が数十mに
+        詰まって前の1体しか殴れず、どんなに強い編成でも拠点に1ダメージも
+        入らなかった（36試合すべて0対0の引き分け）。
+        """
+        bt = battle()
+        spec = GAME.units["grunt"]
+        crowd = [Fighter(spec=spec, side=0, x=0.0, hp=float(spec.hp), facing=1)
+                 for _ in range(5)]
+        bt.sides[0].fighters.extend(crowd)
+        for _ in range(20):
+            bt.step()
+        # 敵が居ないので全員が同じだけ進む。誰も互いを塞がない。
+        self.assertTrue(all(f.x > 0 for f in crowd))
+        self.assertEqual(len({round(f.x, 6) for f in crowd}), 1)
 
 
 class TestDraft(unittest.TestCase):
@@ -373,7 +484,7 @@ class TestDraft(unittest.TestCase):
         seed = match_seed("x", "y", "m")
         template = pick_template(GAME, seed)
         owned = list(GAME.units)
-        chosen = ("grunt", "spear", "archer", "shield", "twin", "sweeper")
+        chosen = ("grunt", "spear", "archer", "shieldman", "twin", "sweeper")
         a = draw_random_slots(GAME, seed, "a", owned, chosen, template)
         b = draw_random_slots(GAME, seed, "b", owned, chosen, template)
         self.assertEqual([GAME.units[u].tier for u in a],
@@ -393,6 +504,12 @@ class TestData(unittest.TestCase):
         validate.check_avatars(GAME, report)
         validate.check_cards(GAME, report)
         validate.check_characters(GAME, report)
+        validate.check_range_price(GAME, report)
+        validate.check_races(GAME, report)
+        validate.check_traits(GAME, report)
+        validate.check_field(GAME, report)
+        validate.check_roster_size(GAME, report)
+        validate.check_milestones(GAME, report)
         validate.check_economy(GAME, report)
         validate.check_trumps(GAME, report)
         validate.check_readability(GAME, report)

@@ -65,16 +65,26 @@ def _try_card(battle: Battle, side: Side) -> bool:
 
 
 def _try_deploy(battle: Battle, side: Side) -> bool:
-    alive = sum(1 for f in side.fighters if f.alive)
+    """前に立つ者を切らさないまま、余った資金で高いものを出す。
+
+    「一番高いものを出す」だけにしていたときは、両軍とも遠距離だけの隊列に
+    なって、80mの空きを挟んで撃ち合ったまま試合が終わった（実測で決着率0%）。
+    遠距離は前に立つ者が居て初めて仕事になるので、頭数の下限を先に埋める。
+    """
+    game = battle.game
+    line = game.far_threshold
+    front = sum(1 for f in side.fighters if f.alive and f.spec.far <= line)
     affordable = [uid for uid in side.loadout.roster
                   if side.deploy_cd.get(uid, 0.0) <= 0
-                  and side.money >= side.unit_cost(battle.game.units[uid])]
+                  and side.money >= side.unit_cost(game.units[uid])]
     if not affordable:
         return False
-    # 壁が足りない時は一番安いものを、足りている時は一番高いものを出す
-    cheap = alive < 2
-    pick = (min if cheap else max)(
-        affordable, key=lambda uid: battle.game.units[uid].cost)
+
+    close = [uid for uid in affordable if game.units[uid].far <= line]
+    if front < max(2, battle.max_units // 3) and close:
+        pick = min(close, key=lambda uid: game.units[uid].cost)
+    else:
+        pick = max(affordable, key=lambda uid: game.units[uid].cost)
     return battle.deploy(side, pick)
 
 
@@ -116,8 +126,12 @@ def make_policy(target_level: int, defend_within: float = 40.0):
     return policy
 
 
+# 「どこまで育ててから戦うか」と「どこまで来られたら守りに戻るか」。
+# **どちらも data の尺度に合わせて置き直すもの。** 財布の上限は 6〜46、
+# レーンは360m。ここが古い尺度のままだと、方針が一番安いユニットしか
+# 買えなくなり、試合が「兵卒の押し合い」で固まる（実測で決着率0%）。
 POLICIES = {
-    "rush":     make_policy(target_level=2, defend_within=50.0),
-    "balanced": make_policy(target_level=4, defend_within=40.0),
-    "greed":    make_policy(target_level=6, defend_within=30.0),
+    "rush":     make_policy(target_level=4, defend_within=150.0),
+    "balanced": make_policy(target_level=6, defend_within=120.0),
+    "greed":    make_policy(target_level=8, defend_within=90.0),
 }

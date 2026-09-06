@@ -28,12 +28,13 @@ sys.path.insert(0, str(ROOT))
 
 from game.engine.data import DATA_DIR, load                 # noqa: E402
 from game.engine.draft import commit, match_seed, stock_sequence  # noqa: E402
-from game.engine.presets import PRESETS, trial_six          # noqa: E402
+from game.engine.presets import PRESETS, trial_roster       # noqa: E402
 from game.tools import sprites as S                         # noqa: E402
 
 WEB = ROOT / "game" / "web"
 OUT = WEB / "out"
-DATA_NAMES = ("characters", "cards", "trumps", "perks", "avatars", "match")
+DATA_NAMES = ("characters", "cards", "trumps", "perks", "avatars",
+              "traits", "match")
 
 
 def bbox_top(canvas) -> int:
@@ -67,13 +68,13 @@ def art_bundle(game, unit_ids: list[str], avatar_ids: list[str]) -> dict:
         return "data:image/png;base64," + base64.b64encode(
             path.read_bytes()).decode("ascii")
 
-    out = {"units": {}, "avatars": {}, "bbox": {}, "families": {}}
+    out = {"units": {}, "avatars": {}, "bbox": {}, "races": {}}
     tmp = OUT / "_png"
     for uid in unit_ids:
         unit = game.units[uid]
         canvas = S.draw_unit(unit, bounds, game.wall_threshold)
         path = tmp / f"{uid}.png"
-        S.write_png(path, canvas.to_rgba(ramp(palettes["families"][unit.family])))
+        S.write_png(path, canvas.to_rgba(ramp(palettes["races"][unit.race])))
         out["units"][uid] = uri(path)
         out["bbox"][uid] = bbox_top(canvas)
 
@@ -84,8 +85,8 @@ def art_bundle(game, unit_ids: list[str], avatar_ids: list[str]) -> dict:
         S.write_png(path, canvas.to_rgba(ramp(palettes["looks"][avatar.look])))
         out["avatars"][aid] = uri(path)
 
-    for name, entry in palettes["families"].items():
-        out["families"][name] = entry["base"]
+    for name, entry in palettes["races"].items():
+        out["races"][name] = entry["base"]
     return out
 
 
@@ -129,12 +130,13 @@ def stock_table(game, trial: dict, matches: int) -> dict:
 
 def build(matches: int) -> Path:
     game = load()
-    trial = trial_six()
+    trial = trial_roster()
     unit_ids = [u["id"] for u in trial["roster"]]
 
     raw = {name: json.loads((DATA_DIR / f"{name}.json").read_text(encoding="utf-8"))
            for name in DATA_NAMES}
-    preset = json.loads((DATA_DIR / "preset_six.json").read_text(encoding="utf-8"))
+    preset = json.loads(
+        (DATA_DIR / "preset_roster.json").read_text(encoding="utf-8"))
 
     OUT.mkdir(parents=True, exist_ok=True)
     payload = {

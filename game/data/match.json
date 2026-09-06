@@ -3,11 +3,12 @@
   "field": {
     "_comment": "横1レーン。両端に拠点（＝アバター）。ユニットは自動で前進し自動で戦う",
     "lanes": 1,
-    "length_m": 120,
+    "length_m": 240,
+    "_length_note": "レーンは**最長射程の3倍**。120mだった頃は最長射程110mがレーンとほぼ同じで、自陣に立った砲がそのまま敵拠点の手前まで届いた。押し込んだ側の後衛が安全なまま拠点を削れるので、先に前線を上げた側がそのまま勝つ。長くしたのは距離を稼ぐためではなく、**射程と隊列がレーンの一部にしかならない**ようにするため。一度360mまで伸ばして測ったが、前線が押し合ったまま動かず36試合すべてが0対0の引き分けになった ―― 押し込む速さ（撃破1回あたり隊列間隔6m）に対してレーンが長すぎると、勝っている側でも拠点まで届かない。240mはその実測から戻した値",
     "deploy_from": "own_base",
     "same_unit_simultaneous": "unlimited",
-    "max_units_per_side": 18,
-    "_max_units_note": "レーン 120m ÷ 隊列間隔 6m = 20体しか物理的に並べない。上限がこれを超えると、入りきらないぶんが前線に詰まって誰も攻め落とせなくなる"
+    "max_units_per_side": 20,
+    "_max_units_note": "場に同時に出せる数。味方どうしは重なれるので物理的な上限ではなく、**画面と読み合いのための上限**。増やすほど1レーンが見えなくなり、減らすほど「1体ずつの決闘」に寄る"
   },
   "avatar": {
     "_comment": "アバターは拠点そのもの。ダメージはここに入る。HPは全アバター共通で、差は特典だけ",
@@ -21,7 +22,8 @@
   "victory": {
     "_comment": "体力制。相手アバターのHPを0にすれば即勝ち",
     "condition": "enemy_avatar_hp_zero",
-    "time_limit_sec": 210,
+    "time_limit_sec": 300,
+    "_time_limit_note": "レーンが3倍になり、速度は下げたので、端から端までは4倍かかる。試合も伸ばす（210 → 300秒）。歩く時間が試合の中で意味を持つ長さになったので、押し込まれた側は『増援が即前線に届く／押している側は増援が長い距離を歩く』という差で押し返せる",
     "on_timeout": "damage_percent_dealt",
     "tie": "draw"
   },
@@ -30,14 +32,22 @@
     "slots": 8,
     "chosen_slots": 6,
     "random_slots": 2,
+    "min_types_per_match": 8,
+    "_min_types_note": "1試合に出せる種類がこれを下回ると読み合いにならない。相手の手が数えられてしまい、出す順番の択が消える。試遊用の見本編成もこの数を満たすこと",
     "unit_cost_range": [
       1,
-      10
+      40
     ],
+    "_cost_range_note": "上限を10から40に広げた。10までだと上位のキャラが同じ値段に固まり、「強いから高い」が読めない。1〜40なら、削り役（1〜3）・壁（2〜13）・前線（4〜20）・要（21〜30）・決め手（31〜40）が値段だけで分かる。**特性でコストが下がるキャラ**（同胞・連携）は、この幅があって初めて成立する ―― 素で31、同種族で固めれば17、という落差が編成の択になる",
     "unit_cooldown_range_sec": [
       2,
-      35
+      45
     ],
+    "speed_range_mps": [
+      3,
+      12
+    ],
+    "_speed_note": "全体的に遅くした（旧 2〜14）。速いキャラが1秒で射程ぶん詰めてしまうと、射程の差も死角も意味を失う。上を下げ、下は上げて幅を4倍に締める ―― レーン240mを端から端まで20〜80秒。画面の幅はレーン長に合わせて描くので、レーンが2倍になった時点で見た目の速さは半分になっている",
     "min_hp_per_knockback": 200,
     "siege_mult_range": [
       0.3,
@@ -51,19 +61,49 @@
     "tier_cooldown_bands": {
       "B": [
         2,
-        8
+        10
       ],
       "A": [
-        9,
-        18
+        11,
+        24
       ],
       "S": [
-        20,
-        35
+        25,
+        45
       ]
     },
-    "max_reach_m": 110,
-    "_max_reach_note": "射程の奥はレーン長より短いこと。自陣に立ったまま敵拠点を叩けると、前に出る理由が消える"
+    "max_reach_m": 80,
+    "lane_per_reach_min": 3.0,
+    "_max_reach_note": "射程の奥の上限。レーン長はこの **3倍以上**（lane_per_reach_min）であること。『レーン長より短ければよい』では足りなかった ―― 110m対120mでは、自陣に立った砲が敵拠点の10m手前まで届き、押し込んだ側が安全なまま拠点を削れた",
+    "far_threshold_m": 42,
+    "_far_threshold_note": "ここを超えたら遠距離扱い。遠距離には死角・体力・手数のどれかを必ず空ける。最長射程80mのおよそ半分に置いてあるので、『届く側』と『殴られる側』がはっきり割れる",
+    "area_pierce_min": 2,
+    "blind_spot_ratio_min": 0.45,
+    "_blind_spot_note": "**遠距離（far_threshold_m 超）で貫通2以上なら、必ず死角を持つ。** 遠くまで届く範囲攻撃が足元まで拾えると、前に出ても後ろに回っても倒せない。死角は奥行きの45%以上 ―― 浅すぎると『懐に入る』が成立しない。死角が浅い順に貫通を減らすので、安全な範囲攻撃ほど巻き込める数が少ない",
+    "range_families": {
+      "接近戦": [
+        0,
+        20
+      ],
+      "前線範囲": [
+        20,
+        42
+      ],
+      "遠距離": [
+        42,
+        80
+      ],
+      "遠方範囲": "遠距離のうち死角を持つもの"
+    },
+    "races": [
+      "王国軍",
+      "動物",
+      "探検家",
+      "古代兵器",
+      "悪の組織"
+    ],
+    "_races_note": "種族。見た目の区分ではなく**編成の材料**。特性（同胞・連携）が種族を見るので、『同じ種族で固めるか、役割で散らすか』が編成そのものの択になる。1種族につき出撃枠ぶん（8体）は揃えること ―― 揃わない種族があると、その種族の同胞持ちだけが割を食う",
+    "dps_per_cost_ceiling_note": "**射程が長いほど、同じ値段で買えるDPSは低い。** 遠距離は被弾しないので、その安全がそのまま値段に乗る。逆に接近戦は殴られながら殴るので、同じ値段でも手数を多くしてよい。検査は射程帯ごとの中央値で見る"
   },
   "trump": {
     "_comment": "出撃8枠とは別枠。1試合に1回だけ出せる切り札。寿命が切れると撃破されなくても退場する",
@@ -83,108 +123,132 @@
     "_kill_reward": "撃破しても資金は入らない。この仕組みは将来、特定キャラの特性として使う予定なので全体ルールからは外してある",
     "kill_reward_ratio": 0.0,
     "growth": {
-      "_comment": "にゃんこ大戦争の働きネコ。**コストは1〜10**で、資金は時間で刻んで貯まる（何秒かごとに +2）。1段上げると、貯まる上限と刻みの速さの両方が少しずつ上がる。上限が「どのユニットを出せるか」を決める",
+      "_comment": "にゃんこ大戦争の働きネコ。**コストは1〜40**で、資金は時間で刻んで貯まる。1段上げると、貯まる上限・刻みの速さ・1回の額のすべてが上がる。上限が「どのユニットを出せるか」を決める。最終上限46はコスト最大40より広い ―― 決め手を1体抱えたまま呪文も撃てる余白",
       "player_controlled": true,
       "upgrade_sec": 6.0,
-      "max_level": 8,
+      "max_level": 10,
       "levels": [
         {
           "level": 1,
-          "max": 5,
-          "income_every_sec": 3.0,
-          "income_amount": 2,
-          "upgrade_cost": 4
-        },
-        {
-          "level": 2,
           "max": 6,
-          "income_every_sec": 2.7,
+          "income_every_sec": 3.0,
           "income_amount": 2,
           "upgrade_cost": 5
         },
         {
-          "level": 3,
-          "max": 7,
-          "income_every_sec": 2.4,
-          "income_amount": 2,
-          "upgrade_cost": 6
-        },
-        {
-          "level": 4,
-          "max": 8,
-          "income_every_sec": 2.2,
+          "level": 2,
+          "max": 9,
+          "income_every_sec": 2.8,
           "income_amount": 2,
           "upgrade_cost": 7
         },
         {
+          "level": 3,
+          "max": 12,
+          "income_every_sec": 2.6,
+          "income_amount": 3,
+          "upgrade_cost": 10
+        },
+        {
+          "level": 4,
+          "max": 16,
+          "income_every_sec": 2.4,
+          "income_amount": 3,
+          "upgrade_cost": 13
+        },
+        {
           "level": 5,
-          "max": 9,
-          "income_every_sec": 2.0,
-          "income_amount": 2,
-          "upgrade_cost": 8
+          "max": 20,
+          "income_every_sec": 2.2,
+          "income_amount": 4,
+          "upgrade_cost": 17
         },
         {
           "level": 6,
-          "max": 10,
-          "income_every_sec": 1.8,
-          "income_amount": 2,
-          "upgrade_cost": 9
+          "max": 25,
+          "income_every_sec": 2.0,
+          "income_amount": 4,
+          "upgrade_cost": 21
         },
         {
           "level": 7,
-          "max": 12,
-          "income_every_sec": 1.6,
-          "income_amount": 2,
-          "upgrade_cost": 11
+          "max": 30,
+          "income_every_sec": 1.8,
+          "income_amount": 5,
+          "upgrade_cost": 26
         },
         {
           "level": 8,
-          "max": 14,
+          "max": 35,
+          "income_every_sec": 1.6,
+          "income_amount": 5,
+          "upgrade_cost": 31
+        },
+        {
+          "level": 9,
+          "max": 40,
+          "income_every_sec": 1.5,
+          "income_amount": 6,
+          "upgrade_cost": 36
+        },
+        {
+          "level": 10,
+          "max": 46,
           "income_every_sec": 1.4,
-          "income_amount": 2
+          "income_amount": 6
         }
       ]
     },
     "milestones": [
       {
         "at_sec": 10,
-        "amount": 3,
+        "amount": 4,
         "to": "both"
       },
       {
-        "at_sec": 15,
-        "amount": 4,
+        "at_sec": 20,
+        "amount": 6,
         "to": "leader"
       },
       {
         "at_sec": 45,
-        "amount": 5,
-        "to": "leader"
+        "amount": 9,
+        "to": "both"
       },
       {
-        "at_sec": 60,
-        "amount": 5,
-        "to": "both"
+        "at_sec": 70,
+        "amount": 12,
+        "to": "leader"
       },
       {
         "at_sec": 100,
-        "amount": 6,
-        "to": "leader"
-      },
-      {
-        "at_sec": 120,
-        "amount": 6,
+        "amount": 15,
         "to": "both"
       },
       {
-        "at_sec": 150,
-        "amount": 7,
+        "at_sec": 135,
+        "amount": 18,
         "to": "leader"
       },
       {
-        "at_sec": 180,
-        "amount": 8,
+        "at_sec": 170,
+        "amount": 21,
         "to": "both"
+      },
+      {
+        "at_sec": 205,
+        "amount": 24,
+        "to": "leader"
+      },
+      {
+        "at_sec": 240,
+        "amount": 27,
+        "to": "both"
+      },
+      {
+        "at_sec": 270,
+        "amount": 30,
+        "to": "leader"
       }
     ],
     "_milestones_note": "時間の節目の配布。刻みで貯まるのとは別枠で、試合の速度を上げるためのもの。to=both は両者に同額。to=leader は**そのとき前線を押し込んでいる側だけ**に入る（互角なら誰にも入らない）。leader があるおかげで、序盤に安いユニットを出して線を押し上げることが資金として返ってくる ―― これが無いと、何も出さずに財布だけ育てるのが常に正解になる。"
@@ -212,7 +276,7 @@
     },
     {
       "id": "battle",
-      "seconds": 210,
+      "seconds": 300,
       "note": "1レーン攻城戦"
     }
   ],
@@ -236,7 +300,7 @@
     "seed": "sha256(commitA || commitB || matchId)"
   },
   "cards": {
-    "_comment": "持ち込み1枚＋ランダムに補充されるストック3枠。どちらもユニットと同じ資金を払う。持ち込みは確実に手に入る代わりに個別クールタイムが長く、ストックは運だが資金さえあれば続けて撃てる",
+    "_comment": "持ち込み1枚＋ランダムに補充されるストック3枠。どちらもユニットと同じ資金を払う。持ち込みは確実に手に入る代わりに個別クールタイムが長く、ストックは運だが資金さえあれば続けて撃てる。効果の説明は data に書かない ―― apply の数字から毎回組み立てる（DPS と同じ扱い。両方書くと必ずどちらかがズレる）",
     "brought": 1,
     "stock_slots": 3,
     "uses_money": true,
@@ -284,20 +348,23 @@
     "heavy_min_cast_sec": 0.8,
     "opponent_sees": "stock_bands_and_brought_cooldown",
     "upkeep_ratio_min": 3.0,
+    "gate_power_bonus": 2.5,
+    "_gate_note": "**拠点が削られている時しか撃てない札**（require.own_base_hp_at_most）は、同じ値段でも効果を大きくしてよい。撃てないまま終わる試合があるぶんの対価で、その差がここ。押し込まれている側だけが持てる手なので、『先に押し込んだ側がそのまま勝つ』に対する数字上の答えになる。検査では power からこのぶんを引いて帯を見る",
     "_upkeep_note": "重の維持費は軽の3倍以上。収入に対する割合ではなく倍率で縛るのは、コストの尺度を変えても規則が壊れないため"
   },
   "combat": {
-    "_comment": "シミュレータの刻み幅とノックバックの挙動。全ユニット共通",
+    "_comment": "シミュレータの刻み幅とノックバックの挙動。全ユニット共通。**味方どうしは重ならないように詰まらない** ―― 立ち位置は射程が決める（接近戦は接触点まで、遠距離はその手前で止まる）。隊列間隔で並ばせていた頃は、自陣に押し込まれた側の20体が数十mに詰まって前の1体しか殴れず、どんなに強い編成でも拠点に1ダメージも入らなかった",
     "tick_sec": 0.05,
-    "unit_spacing_m": 6,
-    "knockback_distance_m": 12,
+    "knockback_distance_m": 20,
+    "_knockback_note": "速度を落としたぶん、後退の距離は伸ばす。20m は一番速いキャラでも1.7秒、遅いキャラなら7秒の歩き直し ―― 後退が『押し合いの巻き戻し』として効く長さ",
     "knockback_stun_sec": 0.4
   },
   "readability": {
     "_comment": "見切り(0.3秒)を成立させるための床。詠唱短縮などの修正後もここを下回らない",
     "human_reaction_sec": 0.25,
-    "big_hit_threshold": 300,
+    "big_hit_threshold": 420,
     "min_charge_windup_sec": 0.6,
-    "min_cast_sec": 0.35
+    "min_cast_sec": 0.35,
+    "_big_hit_note": "ここを超える一撃は、必ず min_charge_windup_sec 以上の予備動作を持つ。接近戦と前線範囲の攻撃力を上げたので、閾値も同じ割合で上げてある ―― 『大きい一撃は読める』という約束は、攻撃力の目盛りが変わっても同じ意味であること"
   }
 }

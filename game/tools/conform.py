@@ -28,7 +28,7 @@ from game.engine.battle import Battle, Loadout          # noqa: E402
 from game.engine.data import DATA_DIR, load             # noqa: E402
 from game.engine.draft import commit, match_seed, stock_sequence  # noqa: E402
 from game.engine.policy import POLICIES                 # noqa: E402
-from game.engine.presets import PRESETS, build, trial_six  # noqa: E402
+from game.engine.presets import PRESETS, build, trial_roster  # noqa: E402
 
 WEB = ROOT / "game" / "web"
 SAMPLE_EVERY = 10          # 何tickごとに指紋を取るか（0.5秒ごと）
@@ -72,7 +72,7 @@ def setup(game, enemy: str, match_id: str, mirror: bool) -> dict:
     JS には**引いた結果**だけを渡す。Mersenne Twister を移植すると、
     そこが新しい食い違いの種になるので、乱数は移植しない。
     """
-    trial = trial_six()
+    trial = trial_roster()
     unit_ids = tuple(u["id"] for u in trial["roster"])
     brought, avatar, trump = trial["brought"], trial["avatar"], trial["trump"]
 
@@ -196,7 +196,8 @@ process.stdout.write(JSON.stringify(results));
 
 
 def raw_data(data_dir: Path = DATA_DIR) -> dict:
-    names = ("characters", "cards", "trumps", "perks", "avatars", "match")
+    names = ("characters", "cards", "trumps", "perks", "avatars",
+             "traits", "match")
     out = {}
     for name in names:
         with open(data_dir / f"{name}.json", encoding="utf-8") as f:
@@ -261,7 +262,7 @@ def main(argv=None) -> int:
     bad = []
     for job, py, js in zip(plans, py_frames, js_frames):
         label = (f"{job['policy_a']} vs {job['plan']['enemy']}"
-                 f"{'（同じ6種）' if job['plan']['mirror'] else '（見本編成）'}"
+                 f"{'（同じ8種）' if job['plan']['mirror'] else '（見本編成）'}"
                  f" {job['plan']['match_id']}")
         problem = compare(label, py, js)
         if problem:

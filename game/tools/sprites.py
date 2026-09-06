@@ -200,15 +200,14 @@ def draw_unit(unit: Unit, bounds: dict, wall_line: float) -> Canvas:
     leg_top = ground - height // 3
     c.rect(cx - girth + 1, leg_top, cx - girth + 3, ground, BASE)
     c.rect(cx + girth - 3, leg_top, cx + girth - 1, ground, BASE)
-    if unit.family == "精霊":                         # 精霊は浮く
-        c.rect(cx - girth + 1, leg_top, cx + girth - 1, ground, CLEAR)
-        c.ellipse(cx, ground - 1, girth - 1, 2, BASE)
+    if unit.race == "探検家":                         # 探検家は荷を背負う
+        c.rect(cx - girth - 2, leg_top - 6, cx - girth + 1, leg_top, DARKACC)
 
     # 胴
     body_top = top + height // 4
     c.ellipse(cx + lean // 2, (body_top + leg_top) // 2,
               girth, (leg_top - body_top) // 2 + 1, BASE)
-    if unit.family == "機械":                         # 機械は角張らせる
+    if unit.race == "古代兵器":                       # 古代兵器は角張らせる
         c.rect(cx - girth + lean // 2, body_top,
                cx + girth + lean // 2, leg_top, BASE)
 
@@ -216,21 +215,25 @@ def draw_unit(unit: Unit, bounds: dict, wall_line: float) -> Canvas:
     head_r = int(3 + 3 * big)
     hx, hy = cx + lean, top + head_r
     c.ellipse(hx, hy, head_r, head_r, BASE)
-    if unit.family == "獣":                           # 獣は耳と尾
+    if unit.race == "動物":                           # 動物は耳と尾
         c.line(hx - head_r + 1, hy - head_r, hx - head_r - 1, hy - head_r - 3, BASE, 2)
         c.line(hx + 1, hy - head_r, hx + 2, hy - head_r - 4, BASE, 2)
         c.line(cx - girth, leg_top - 2, cx - girth - 5, leg_top - 6, BASE, 2)
-    if unit.family == "不死":                         # 不死は裾がほつれる
+    if unit.race == "悪の組織":                       # 悪の組織は裾がほつれる
         for x in range(cx - girth, cx + girth + 1, 3):
             c.set(x, ground, CLEAR)
             c.set(x, ground - 1, CLEAR)
-    if unit.family == "機械":
+    if unit.race == "古代兵器":
         c.line(hx, hy - head_r, hx, hy - head_r - 4, ACCENT, 1)
         c.set(hx, hy - head_r - 5, ACCENT)
 
+    if unit.race == "探検家":                         # 探検家はつば広の帽子
+        c.line(hx - head_r - 2, hy - head_r + 1, hx + head_r + 2,
+               hy - head_r + 1, DARKACC, 1)
+
     # 目（向きを出す）
     c.set(hx + head_r - 2, hy - 1, ACCENT)
-    if unit.family != "不死":
+    if unit.race != "悪の組織":
         c.set(hx + head_r - 2, hy, DARKACC)
 
     # ---- 得物：帯の数字がそのまま形になる ----
@@ -380,7 +383,7 @@ def main() -> int:
 
     unit_tiles = []
     for unit in units:
-        pal = ramp(palettes["families"][unit.family])
+        pal = ramp(palettes["races"][unit.race])
         rgba = draw_unit(unit, bounds, wall_line).to_rgba(pal)
         unit_tiles.append((unit.id, rgba))
         if not args.sheet:

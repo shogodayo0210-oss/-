@@ -25,9 +25,9 @@ ART = Path(__file__).resolve().parent.parent / "art"
 # にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
 # 操作盤は2段：**呪文を選ぶところ**と、**キャラを召喚するところ**。
 W, H = 1140, 712
-GROUND_Y = 400          # ユニットが立つ線
-HUD_Y = 434             # ここから下が操作盤
-SPELL_Y = 440           # 呪文の段
+GROUND_Y = 380          # ユニットが立つ線
+HUD_Y = 412             # ここから下が操作盤
+SPELL_Y = 418           # 呪文の段。札には効果の説明まで載せるので背を高くしてある
 SUMMON_Y = 548          # 資金と召喚の段
 LANE_LEFT, LANE_RIGHT = 100, W - 100
 
@@ -39,7 +39,7 @@ AVATAR_PX = 64
 SCALE = 2
 
 # ---------------------------------------------------------------- 色
-# art/palette.json と同じ出どころ。機械=水色、人=金、精霊=青緑、獣=橙。
+# art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
 BG = (23, 28, 34)       # palette.json の sheet.background
 SKY = (30, 39, 49)
 GROUND = (37, 47, 58)
@@ -57,6 +57,11 @@ JP_FONTS = ("ipagothic", "ipapgothic", "notosanscjkjp", "notosansjp",
             "vlgothic", "takaogothic", "wenquanyizenheimono", "unifontjp")
 
 
+def grid_step(lane: float) -> int:
+    """目盛りの刻み。レーン長が変わっても本数がだいたい一定になるように。"""
+    return max(20, int(round(lane / 8 / 20)) * 20)
+
+
 def load_font(size: int, bold: bool = False) -> pygame.font.Font:
     for name in JP_FONTS:
         path = pygame.font.match_font(name, bold=bold)
@@ -65,10 +70,10 @@ def load_font(size: int, bold: bool = False) -> pygame.font.Font:
     return pygame.font.Font(None, size)
 
 
-def _family_colors() -> dict[str, tuple[int, int, int]]:
-    """仮絵が無いとき（切り札）に使う、系統ごとの色。"""
+def _race_colors() -> dict[str, tuple[int, int, int]]:
+    """仮絵が無いとき（切り札）に使う、種族ごとの色。"""
     with open(ART / "palette.json", encoding="utf-8") as f:
-        raw = json.load(f)["families"]
+        raw = json.load(f)["races"]
 
     def rgb(value: str) -> tuple[int, int, int]:
         return tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
@@ -82,7 +87,7 @@ class Sprites:
     def __init__(self):
         self._cache: dict[tuple[str, bool], tuple[pygame.Surface, pygame.Rect]] = {}
         self._avatars: dict[str, pygame.Surface] = {}
-        self._families = _family_colors()
+        self._races = _race_colors()
 
     @staticmethod
     def _grow(surf: pygame.Surface) -> pygame.Surface:
@@ -122,11 +127,11 @@ class Sprites:
 
     def _placeholder(self, spec: Unit) -> pygame.Surface:
         """切り札には仮絵が無い（art/README.md 6章では96pxの別枠）。
-        絵が無いだけで落ちないように、系統色の塊で代用する。"""
+        絵が無いだけで落ちないように、種族色の塊で代用する。"""
         size = 72
         surf = pygame.Surface((size, size), pygame.SRCALPHA)
         body = pygame.Rect(size // 6, size // 5, size * 2 // 3, size * 4 // 5)
-        pygame.draw.rect(surf, self._families.get(spec.family, MUTED), body)
+        pygame.draw.rect(surf, self._races.get(spec.race, MUTED), body)
         pygame.draw.rect(surf, GOLD, body, 2)
         return surf
 
@@ -183,13 +188,13 @@ class View:
 
         # ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
         slots = game.stock_slots
-        self.spells = [Spell(pygame.Rect(66, SPELL_Y + 8, 158, 92),
+        self.spells = [Spell(pygame.Rect(66, SPELL_Y + 8, 196, 108),
                              ("brought", 0), pygame.K_q, "持ち込み")]
         for i in range(slots):
             self.spells.append(Spell(
-                pygame.Rect(240 + i * 168, SPELL_Y + 8, 158, 92),
+                pygame.Rect(272 + i * 206, SPELL_Y + 8, 196, 108),
                 ("stock", i), pygame.K_w + i, f"ストック{i + 1}"))
-        self.trump_rect = pygame.Rect(W - 182, SPELL_Y + 8, 158, 92)
+        self.trump_rect = pygame.Rect(W - 158, SPELL_Y + 8, 134, 108)
         self.trump_key = pygame.K_t
 
         # ── 召喚の段：財布 ＋ 出撃ボタン ─────────────────────────
@@ -209,10 +214,9 @@ class View:
         span = LANE_RIGHT - LANE_LEFT
         return int(LANE_LEFT + (x_m / lane_length) * span)
 
-    @staticmethod
-    def _row(spec: Unit) -> int:
+    def _row(self, spec: Unit) -> int:
         """奥行き。攻撃範囲から出すので、後衛が後ろに立つのが形で分かる。"""
-        if spec.near > 0 or spec.far > 50:
+        if spec.near > 0 or spec.far > self.game.far_threshold:
             return 2
         if spec.far > 20:
             return 1
@@ -246,9 +250,10 @@ class View:
         pygame.draw.rect(self.surface, GROUND, (0, GROUND_Y, W, HUD_Y - GROUND_Y))
         pygame.draw.line(self.surface, RULE, (0, GROUND_Y), (W, GROUND_Y))
 
-        # 20mごとの目盛り。距離感が無いと射程の帯が読めない。
+        # 目盛り。距離感が無いと射程の帯が読めない。レーンが伸びても
+        # 本数が変わらないよう、刻みはレーン長から出す（8〜9本になる）。
         lane = battle.game.lane_length
-        for metre in range(0, int(lane) + 1, 20):
+        for metre in range(0, int(lane) + 1, grid_step(lane)):
             x = self.px(metre, lane)
             pygame.draw.line(self.surface, (58, 70, 83),
                              (x, GROUND_Y - 6), (x, GROUND_Y + 6))
@@ -402,17 +407,30 @@ class View:
                        (rect.centerx, rect.bottom - 14), center=True)
             return
 
-        self._text(card.name, self.f_bold, INK if ready else MUTED,
-                   (rect.centerx, rect.y + 38), center=True)
-        self._text(f"{card.cost}", self.f_body, GOLD if ready else RULE,
-                   (rect.centerx, rect.y + 62), center=True)
+        # 状態は上の隅。下2行は**何が起きる札なのか**の説明で埋める。
         note = card.band
-        if left > 0:
+        tint = MUTED
+        if card.gated and not side.unlocked(card):
+            note, tint = card.condition(), GOLD   # 押し込まれてから開く札
+        elif left > 0:
             note = f"{left:.1f}秒"
         elif side.money < card.cost:
             note = "資金不足"
-        self._text(note, self.f_small, MUTED,
-                   (rect.centerx, rect.bottom - 10), center=True)
+        self._text(note, self.f_small, tint, (rect.right - 8, rect.y + 13),
+                   right=True)
+
+        self._text(card.name, self.f_bold, INK if ready else MUTED,
+                   (rect.centerx, rect.y + 38), center=True)
+        self._text(f"{card.cost}", self.f_body, GOLD if ready else RULE,
+                   (rect.centerx, rect.y + 60), center=True)
+
+        # 文言は data には無く、apply の数字から組み立てたもの
+        # （data.py の change / meaning）。数字と説明を両方 data に持つと、
+        # 必ずどちらかがズレるので。
+        self._text(card.change(), self.f_small, INK if ready else MUTED,
+                   (rect.centerx, rect.y + 82), center=True)
+        self._text(f"{card.duration_sec:g}秒 ― {card.meaning()}", self.f_small,
+                   MUTED, (rect.centerx, rect.y + 98), center=True)
 
     def _trump(self, battle: Battle, side: Side) -> None:
         rect = self.trump_rect
@@ -441,12 +459,14 @@ class View:
 
     # ------------------------------------------------------ 操作盤：資金と召喚
     def _summon(self, battle: Battle, side: Side) -> None:
-        # 資金は1〜14の整数なので、**マス目で数えられる**ように描く。
+        # 資金は整数なので、**マス目で数えられる**ように描く。
         # 棒が滑らかに伸びるのではなく1マスずつ点くので、
-        # 「あと2マスで臼砲」が目で分かる。
+        # 「あと2マスで臼砲」が目で分かる。上限は財布のレベルで 6〜46 と
+        # 4倍以上動くので、マスの幅は入る数から決める。
         cap = int(side.money_cap)
         have = int(side.money)
-        cell, gap = 26, 4
+        pitch = max(7, min(30, 760 // max(cap, 1)))
+        cell, gap = pitch - 4, 4
         for i in range(cap):
             box = pygame.Rect(24 + i * (cell + gap), SUMMON_Y, cell, 26)
             if i < have:

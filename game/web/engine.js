@@ -45,7 +45,7 @@ function makeUnit(u, extra) {
     near: u.attack_band_m[0], far: u.attack_band_m[1],
     pierce: u.pierce, knockback: u.knockback, speed_mps: u.speed_mps,
     siege_mult: u.siege_mult, anti_wall_mult: u.anti_wall_mult,
-    family: u.family || '人', role: u.role || '',
+    race: u.race || '王国軍', trait: u.trait || '', role: u.role || '',
     lifespan_sec: 0, summon_sec: 0,
   };
   return Object.assign(spec, extra || {});
@@ -80,7 +80,10 @@ function loadGame(raw) {
     cards[c.id] = {
       id: c.id, name: c.name, family: c.family, target: c.target,
       duration_sec: c.duration_sec, cooldown_sec: c.cooldown_sec,
-      cast_sec: c.cast_sec, effect: c.effect, cost: c.cost, band: c.band,
+      cast_sec: c.cast_sec, cost: c.cost, band: c.band,
+      // 拠点がこの割合まで減っていないと撃てない。無条件なら null。
+      base_hp_gate: (c.require && c.require.own_base_hp_at_most !== undefined)
+        ? c.require.own_base_hp_at_most : null,
       apply: {
         scope: c.apply.scope, stat: c.apply.stat,
         // JSON に無いものは Python では None。ここでは null に揃える。
@@ -93,12 +96,17 @@ function loadGame(raw) {
   const perks = {};
   for (const p of raw.perks.perks) perks[p.id] = p;
 
+  // 特性。**触れるのは出撃コストだけ**（data.py と同じ約束）。
+  const traits = {};
+  for (const t of raw.traits.traits) traits[t.id] = t;
+
   const avatars = {};
   for (const a of raw.avatars.avatars) avatars[a.id] = a;
 
   const match = raw.match;
   return {
-    units, cards, trumps, perks, avatars, match,
+    units, cards, trumps, perks, avatars, traits, match,
+    traitRules: raw.traits.rules,
     laneLength: match.field.length_m,
     baseHp: match.avatar.hp,
     timeLimit: match.victory.time_limit_sec,
@@ -109,6 +117,7 @@ function loadGame(raw) {
     readability: match.readability,
     combat: match.combat,
     wallThreshold: match.roster.wall_threshold,
+    farThreshold: match.roster.far_threshold_m,
     stockSlots: match.cards.stock_slots,
   };
 }
@@ -184,6 +193,20 @@ class Side {
     this.deploy_lock_left = 0.0;
     this.upgrading_left = 0.0;
 
+    // 特性が見るもの。**特性が触れるのは出撃コストだけ**（battle.py と同じ）。
+    this.last_race = null;              // 直前に出したユニットの種族
+    this.min_deploy_cost = game.traitRules.min_deploy_cost;
+    // 編成の中の同種族の数は試合中変わらないので、ここで数えておく。
+    this.kin = {};
+    for (const uid of loadout.roster) {
+      const spec = game.units[uid];
+      let n = 0;
+      for (const other of loadout.roster) {
+        if (other !== uid && game.units[other].race === spec.race) n++;
+      }
+      this.kin[uid] = n;
+    }
+
     const avatar = game.avatars[loadout.avatar];
     this.perks = new Set(avatar.perks);
     this.parry_charges = this._perkParam('parry', 'charges', 0);
@@ -218,12 +241,19 @@ class Side {
     return null;
   }
 
-  // いま撃てるか。資金・詠唱中・共通CD・育成中・個別CDを全部見る。
+  // 拠点の傷が条件の札か。傷んでいなければ、資金があっても撃てない。
+  // 押し込まれている側だけが持てる手（battle.py の unlocked と同じ）。
+  unlocked(card) {
+    const gate = card.base_hp_gate;
+    return gate === null || this.base_hp <= this.game.baseHp * gate;
+  }
+
+  // いま撃てるか。資金・詠唱中・共通CD・育成中・個別CD・解禁を全部見る。
   castable(source) {
     if (this.casting !== null || this.gcd_left > 0 || this.busy) return false;
     if (source[0] === 'brought' && this.brought_cd > 0) return false;
     const card = this.cardOf(source);
-    return card !== null && this.money >= card.cost;
+    return card !== null && this.money >= card.cost && this.unlocked(card);
   }
 
   sources() {
@@ -296,7 +326,25 @@ class Side {
     this.income_left = Math.min(this.income_left, this.income_every);
   }
 
-  unitCost(spec) { return this.stat('cost', spec.cost); }
+  // いま出すのに払う額。素の値段 → 特性 → カードの倍率、の順（battle.py と同じ）。
+  unitCost(spec) {
+    let base = spec.cost;
+    const trait = spec.trait ? this.game.traits[spec.trait] : null;
+    if (trait) {
+      const params = trait.params;
+      if (trait.kind === 'cost_minus_per_same_race_in_roster') {
+        base -= params.amount * (this.kin[spec.id] || 0);
+      } else if (trait.kind === 'cost_minus_if_last_same_race') {
+        if (this.last_race === spec.race) base -= params.amount;
+      } else if (trait.kind === 'cost_mult_when_hurt') {
+        if (this.base_hp <= this.game.baseHp * params.base_hp_at_most) {
+          base *= params.mult;
+        }
+      }
+    }
+    const value = this.stat('cost', base);
+    return Math.max(this.min_deploy_cost, Math.ceil(value - 1e-9));
+  }
   deployCooldown(spec) { return this.stat('deploy_cooldown', spec.cooldown_sec); }
 }
 
@@ -308,7 +356,6 @@ class Battle {
     this.policies = [policyA, policyB];
     this.tick = game.combat.tick_sec;
     this.kb_distance = game.combat.knockback_distance_m;
-    this.spacing = game.combat.unit_spacing_m;
     this.kb_stun = game.combat.knockback_stun_sec;
     this.max_units = game.match.field.max_units_per_side;
     this.t = 0.0;
@@ -338,6 +385,7 @@ class Battle {
     }
     side.money -= cost;
     side.deploy_cd[unitId] = side.deployCooldown(spec);
+    side.last_race = spec.race;          // 「連携」が次に見るのはこれ
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
                                    side.facing));
     return true;
@@ -471,21 +519,6 @@ class Battle {
     return band[0] - EPS <= baseX && baseX <= band[1] + EPS;
   }
 
-  // 前を行く味方に詰まる位置。これが無いと全員が同じ点に重なり、
-  // 攻撃範囲の設計（前線範囲・後方範囲）が意味を失う。
-  advanceLimit(fighter) {
-    const rows = this._snap[fighter.side];
-    const xs = rows.map(pair => pair[0]);
-    if (fighter.facing > 0) {
-      const idx = bisectRight(xs, fighter.x + EPS);
-      if (idx >= xs.length) return this.game.laneLength;
-      return xs[idx] - this.spacing;
-    }
-    const idx = bisectLeft(xs, fighter.x - EPS) - 1;
-    if (idx < 0) return 0.0;
-    return xs[idx] + this.spacing;
-  }
-
   applyDamage(victim, amount) {
     const side = this.sides[victim.side];
     victim.hp -= amount;
@@ -513,24 +546,17 @@ class Battle {
 
     const wallLine = this.game.wallThreshold;
 
-    // 拠点も帯の中の「的」のひとつ。近い順に、貫通の数だけ当たる。
-    // 敵ユニットが1体でも居れば拠点が絶対に安全、だと両者が安い壁を
-    // 出し続ける限り拠点に永久に触れられない（実測で36試合中28が0対0）。
-    const targets = this.targetsInBand(fighter)
-      .map(f => [Math.abs(f.x - fighter.x), f]);
+    // **帯が敵拠点に届いていれば、拠点には必ず当たる**（battle.py と同じ）。
+    // 拠点はユニットと貫通の枠を奪い合わない ―― 混ぜていた頃は、貫通ぶんの壁が
+    // 拠点の前に並んでいる限り拠点に一発も入らず、自陣に固めた側が絶対に
+    // 落ちなかった。
     if (this.baseInBand(fighter)) {
-      targets.push([Math.abs(enemy.base_x - fighter.x), null]);
+      this._base_damage.push([enemy, power * fighter.spec.siege_mult]);
     }
-    targets.sort((p, q) => p[0] - q[0]);       // 同着は先に入った敵が優先
 
-    for (const pair of targets.slice(0, fighter.spec.pierce)) {
-      const victim = pair[1];
-      if (victim === null) {
-        this._base_damage.push([enemy, power * fighter.spec.siege_mult]);
-      } else {
-        const bonus = isWall(victim.spec, wallLine) ? fighter.spec.anti_wall_mult : 1.0;
-        this._damage.push([victim, power * bonus]);
-      }
+    for (const victim of this.targetsInBand(fighter).slice(0, fighter.spec.pierce)) {
+      const bonus = isWall(victim.spec, wallLine) ? fighter.spec.anti_wall_mult : 1.0;
+      this._damage.push([victim, power * bonus]);
     }
   }
 
@@ -559,11 +585,11 @@ class Battle {
       return;
     }
 
+    // **味方どうしは詰まらない**（battle.py と同じ）。進めるところまで進んで、
+    // 敵が帯に入ったところで止まる ―― 立ち位置は射程が決める。
     const speed = side.stat('speed', fighter.spec.speed_mps);
     const moved = fighter.x + fighter.facing * speed * dt;
-    const limit = this.advanceLimit(fighter);
-    fighter.x = fighter.facing > 0 ? Math.min(moved, limit) : Math.max(moved, limit);
-    fighter.x = Math.max(0.0, Math.min(this.game.laneLength, fighter.x));
+    fighter.x = Math.max(0.0, Math.min(this.game.laneLength, moved));
   }
 
   // ---------------------------------------------------------------- 進行
@@ -788,21 +814,34 @@ function tryCard(battle, side) {
   return best ? battle.startCast(side, best) : false;
 }
 
+// 前に立つ者を切らさないまま、余った資金で高いものを出す（policy.py と同じ）。
+// 「一番高いものを出す」だけだと、両軍とも遠距離だけの隊列になって
+// 空きを挟んで撃ち合ったまま試合が終わる。
 function tryDeploy(battle, side) {
-  let alive = 0;
-  for (const f of side.fighters) if (f.alive) alive++;
+  const game = battle.game;
+  const line = game.farThreshold;
+  let front = 0;
+  for (const f of side.fighters) {
+    if (f.alive && f.spec.far <= line) front++;
+  }
   const affordable = side.loadout.roster.filter(uid =>
     (side.deploy_cd[uid] || 0.0) <= 0
-    && side.money >= side.unitCost(battle.game.units[uid]));
+    && side.money >= side.unitCost(game.units[uid]));
   if (affordable.length === 0) return false;
-  // 壁が足りない時は一番安いものを、足りている時は一番高いものを出す。
+
+  const close = affordable.filter(uid => game.units[uid].far <= line);
   // 同点は Python の min/max と同じく「先に出てきたほう」を採る。
-  const cheap = alive < 2;
-  let pick = affordable[0];
-  for (const uid of affordable) {
-    const c = battle.game.units[uid].cost;
-    const p = battle.game.units[pick].cost;
-    if (cheap ? c < p : c > p) pick = uid;
+  let pick;
+  if (front < Math.max(2, Math.trunc(battle.max_units / 3)) && close.length > 0) {
+    pick = close[0];
+    for (const uid of close) {
+      if (game.units[uid].cost < game.units[pick].cost) pick = uid;
+    }
+  } else {
+    pick = affordable[0];
+    for (const uid of affordable) {
+      if (game.units[uid].cost > game.units[pick].cost) pick = uid;
+    }
   }
   return battle.deploy(side, pick);
 }
@@ -845,10 +884,12 @@ function makePolicy(targetLevel, defendWithin) {
   };
 }
 
+// 「どこまで育ててから戦うか」と「どこまで来られたら守りに戻るか」。
+// **どちらも data の尺度に合わせて置き直すもの**（policy.py と同じ値）。
 const POLICIES = {
-  rush: makePolicy(2, 50.0),
-  balanced: makePolicy(4, 40.0),
-  greed: makePolicy(6, 30.0),
+  rush: makePolicy(4, 150.0),
+  balanced: makePolicy(6, 120.0),
+  greed: makePolicy(8, 90.0),
 };
 
 // ------------------------------------------------------------------ 人の操作

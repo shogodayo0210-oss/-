@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 
 from collections import deque
 
-from .data import Card, GameData, Trump, Unit
+from .data import (COST_MINUS_IF_LAST_SAME_RACE,
+                   COST_MINUS_PER_SAME_RACE_IN_ROSTER, COST_MULT_WHEN_HURT,
+                   Card, GameData, Trump, Unit)
 from .draft import stock_sequence
 
 # 位置の比較に使う許容差。左右のユニットは逆向きに動くので、同じ地点でも
@@ -107,9 +109,9 @@ class Side:
         self.base_hp = float(game.base_hp)
         self.level = 1
         self.money = float(game.economy["start"])
-        # 資金は連続では増えない。**何秒かごとに +2** という刻みで貯まる。
-        # 棒が滑らかに伸びるのではなく段で上がるので、「あと1回ぶんで出せる」が
-        # 目で数えられる（コストが1〜10しかないのはそのため）。
+        # 資金は連続では増えない。**何秒かごとに +2〜6** という刻みで貯まる。
+        # 棒が滑らかに伸びるのではなく段で上がるので、「あと何回ぶんで出せる」が
+        # 目で数えられる（コストが整数なのはそのため）。
         # 素の間隔を使う ―― この時点ではまだ効果がひとつも乗っていない。
         self.income_left = float(self.level_row["income_every_sec"])
 
@@ -138,6 +140,18 @@ class Side:
         self.trump_used = False
         self.deploy_lock_left = 0.0
         self.upgrading_left = 0.0
+
+        # 特性が見るもの。**特性が触れるのは出撃コストだけ** なので、
+        # 戦闘の側にはこの2つ以外の入口が無い。
+        self.last_race: str | None = None      # 直前に出したユニットの種族
+        self.min_deploy_cost = game.trait_rules["min_deploy_cost"]
+        # 編成の中の同種族の数は試合中変わらないので、ここで数えておく。
+        self.kin: dict[str, int] = {}
+        for uid in loadout.roster:
+            spec = game.units[uid]
+            self.kin[uid] = sum(1 for other in loadout.roster
+                                if other != uid
+                                and game.units[other].race == spec.race)
 
         avatar = game.avatars[loadout.avatar]
         self.perks = set(avatar.perks)
@@ -169,14 +183,25 @@ class Side:
             return self.game.cards[self.stock[index]]
         return None
 
+    def unlocked(self, card: Card) -> bool:
+        """拠点の傷が条件の札か。傷んでいなければ、資金があっても撃てない。
+
+        **押し込まれている側だけが持てる手。** 先に前線を上げた側がそのまま
+        勝ち切るのを、押されている側の手数で止めるための唯一の仕組み
+        （設計書5.4）。相手の拠点を削れば削るほど、相手の札が増える。
+        """
+        gate = card.base_hp_gate
+        return gate is None or self.base_hp <= self.game.base_hp * gate
+
     def castable(self, source: tuple[str, int]) -> bool:
-        """いま撃てるか。資金・詠唱中・共通CD・育成中・個別CDを全部見る。"""
+        """いま撃てるか。資金・詠唱中・共通CD・育成中・個別CD・解禁を全部見る。"""
         if self.casting is not None or self.gcd_left > 0 or self.busy:
             return False
         if source[0] == "brought" and self.brought_cd > 0:
             return False
         card = self.card_of(source)
-        return card is not None and self.money >= card.cost
+        return (card is not None and self.money >= card.cost
+                and self.unlocked(card))
 
     def sources(self) -> list[tuple[str, int]]:
         return [("brought", 0)] + [("stock", i) for i in range(len(self.stock))]
@@ -256,7 +281,27 @@ class Side:
         self.income_left = min(self.income_left, self.income_every)
 
     def unit_cost(self, spec: Unit) -> float:
-        return self.stat("cost", spec.cost)
+        """いま出すのに払う額。素の値段 → 特性 → カードの倍率、の順。
+
+        特性を先に当ててからカードを掛けるのは、「同胞で安くしたうえで
+        徴発を重ねる」が読みやすいから。逆順だと、割引がどこから来たのかが
+        画面の数字から追えなくなる。
+        """
+        base = float(spec.cost)
+        trait = self.game.trait_of(spec)
+        if trait is not None:
+            params = trait.params
+            if trait.kind == COST_MINUS_PER_SAME_RACE_IN_ROSTER:
+                base -= params["amount"] * self.kin.get(spec.id, 0)
+            elif trait.kind == COST_MINUS_IF_LAST_SAME_RACE:
+                if self.last_race == spec.race:
+                    base -= params["amount"]
+            elif trait.kind == COST_MULT_WHEN_HURT:
+                if self.base_hp <= self.game.base_hp * params["base_hp_at_most"]:
+                    base *= params["mult"]
+        value = self.stat("cost", base)
+        # 資金のマス目と同じ整数で読めること。半端は切り上げる。
+        return max(float(self.min_deploy_cost), math.ceil(value - 1e-9))
 
     def deploy_cooldown(self, spec: Unit) -> float:
         return self.stat("deploy_cooldown", spec.cooldown_sec)
@@ -272,7 +317,6 @@ class Battle:
         self.policies = (policy_a, policy_b)
         self.tick = game.combat["tick_sec"]
         self.kb_distance = game.combat["knockback_distance_m"]
-        self.spacing = game.combat["unit_spacing_m"]
         self.kb_stun = game.combat["knockback_stun_sec"]
         self.max_units = game.match["field"]["max_units_per_side"]
         self.t = 0.0
@@ -305,6 +349,7 @@ class Battle:
             return False
         side.money -= cost
         side.deploy_cd[unit_id] = side.deploy_cooldown(spec)
+        side.last_race = spec.race          # 「連携」が次に見るのはこれ
         side.fighters.append(Fighter(spec=spec, side=side.index, x=side.base_x,
                                      hp=float(spec.hp), facing=side.facing))
         return True
@@ -428,21 +473,6 @@ class Battle:
         lo, hi = fighter.band()
         return lo - EPS <= self.sides[1 - fighter.side].base_x <= hi + EPS
 
-    def advance_limit(self, fighter: Fighter) -> float:
-        """前を行く味方に詰まる位置。これが無いと全員が同じ点に重なり、
-        攻撃範囲の設計（前線範囲・後方範囲）が意味を失う。"""
-        rows = self._snap[fighter.side]
-        xs = [x for x, _ in rows]
-        if fighter.facing > 0:
-            idx = bisect_right(xs, fighter.x + EPS)
-            if idx >= len(xs):
-                return self.game.lane_length
-            return xs[idx] - self.spacing
-        idx = bisect_left(xs, fighter.x - EPS) - 1
-        if idx < 0:
-            return 0.0
-        return xs[idx] + self.spacing
-
     def apply_damage(self, victim: Fighter, amount: float) -> None:
         side = self.sides[victim.side]
         victim.hp -= amount
@@ -471,27 +501,26 @@ class Battle:
 
         wall_line = self.game.wall_threshold
 
-        # 拠点も帯の中の「的」のひとつ。近い順に、貫通の数だけ当たる。
+        # **帯が敵拠点に届いていれば、拠点には必ず当たる。** 拠点はユニットと
+        # 貫通の枠を奪い合わない。
         #
-        # 以前は「敵ユニットが1体でも帯に居れば拠点は絶対に安全」だった。
-        # これだと両者が安い壁を出し続ける限り拠点に永久に触れられず、
-        # 実測で36試合中28が0対0の引き分けになっていた。
-        # 拠点を的の列に混ぜると、**貫通の余りが拠点に届く** ――
-        # 前線を薙げるユニットだけが攻城できる、という設計どおりの形になる。
-        targets: list[tuple[float, Fighter | None]] = [
-            (abs(f.x - fighter.x), f) for f in self.targets_in_band(fighter)]
+        # 以前は拠点も「的の列」に混ぜて、近い順に貫通の数だけ当てていた。
+        # そうすると貫通ぶんの壁が拠点の前に並んでいる限り拠点に一発も入らず、
+        # **自陣に20体を固めた側は、どれだけ押し込まれても拠点が無傷のまま
+        # 終わる**（実測：圧倒的に強い編成が兵卒と盾兵だけの相手に300秒かけて
+        # 拠点0ダメージ、36試合すべて引き分け）。守り切る手が絶対になると、
+        # 押し合いに勝つ意味そのものが消える。
+        #
+        # 分けたことで、対拠点倍率が全ユニットの生きた数字になった ――
+        # 壁（0.3〜0.5）は届いても削れず、攻城櫓（1.9）は届けば速い。
+        # 守る側の仕事は「拠点に届かせないこと」そのものになる。
         if self.base_in_band(fighter):
-            targets.append((abs(enemy.base_x - fighter.x), None))
-        targets.sort(key=lambda pair: pair[0])   # 同着は先に入った敵が優先
+            self._base_damage.append((enemy, power * fighter.spec.siege_mult))
 
-        for _, victim in targets[: fighter.spec.pierce]:
-            if victim is None:
-                self._base_damage.append(
-                    (enemy, power * fighter.spec.siege_mult))
-            else:
-                bonus = (fighter.spec.anti_wall_mult
-                         if victim.spec.is_wall(wall_line) else 1.0)
-                self._damage.append((victim, power * bonus))
+        for victim in self.targets_in_band(fighter)[: fighter.spec.pierce]:
+            bonus = (fighter.spec.anti_wall_mult
+                     if victim.spec.is_wall(wall_line) else 1.0)
+            self._damage.append((victim, power * bonus))
 
     def step_fighter(self, fighter: Fighter) -> None:
         side = self.sides[fighter.side]
@@ -521,11 +550,18 @@ class Battle:
             fighter.windup_left = fighter.spec.attack_windup_sec * interval_mult
             return
 
+        # **味方どうしは重ならないように詰まらない。** 進めるところまで進んで、
+        # 敵が自分の帯に入ったところで止まる ―― にゃんこ大戦争と同じ形。
+        #
+        # 以前は「前の味方に隊列間隔ぶん詰まる」で並ばせていた。そちらだと、
+        # 自陣に押し込まれた側の20体が数十mに詰まって身動きが取れなくなり、
+        # 前の1体しか殴れない。実測で、圧倒的に強い編成が兵卒と盾兵だけの
+        # 相手に300秒かけて拠点0ダメージ、36試合すべて引き分けになった。
+        # 詰まりを外すと、**立ち位置は射程が決める** ―― 接近戦は接触点まで出て、
+        # 遠距離はその手前で止まる。前線範囲・遠方範囲の設計はこれで成立する。
         speed = side.stat("speed", fighter.spec.speed_mps)
         moved = fighter.x + fighter.facing * speed * dt
-        limit = self.advance_limit(fighter)
-        fighter.x = min(moved, limit) if fighter.facing > 0 else max(moved, limit)
-        fighter.x = max(0.0, min(self.game.lane_length, fighter.x))
+        fighter.x = max(0.0, min(self.game.lane_length, moved))
 
     # ------------------------------------------------------------------ 進行
     def step(self) -> None:

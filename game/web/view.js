@@ -11,15 +11,15 @@
 // ---------------------------------------------------------------- 画面の寸法
 // にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
 const W = 1140, H = 712;
-const GROUND_Y = 400;          // ユニットが立つ線
-const HUD_Y = 434;             // ここから下が操作盤
-const SPELL_Y = 440;           // 呪文の段
+const GROUND_Y = 380;          // ユニットが立つ線
+const HUD_Y = 412;             // ここから下が操作盤
+const SPELL_Y = 418;           // 呪文の段。札には効果の説明まで載せるので背が高い
 const SUMMON_Y = 548;          // 資金と召喚の段
 const LANE_LEFT = 100, LANE_RIGHT = W - 100;
 const SCALE = 2;               // 仮絵は48px。等倍だと画面に対して小さすぎる
 
 // ---------------------------------------------------------------- 色
-// art/palette.json と同じ出どころ。機械=水色、人=金、精霊=青緑、獣=橙。
+// art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
 const BG = '#171c22';
 const SKY = '#1e2731';
 const GROUND = '#252f3a';
@@ -38,6 +38,59 @@ const F_BODY = `18px ${JP}`;
 const F_BOLD = `700 20px ${JP}`;
 const F_BIG = `900 34px ${JP}`;
 const F_NUM = `700 24px ${JP}`;
+
+// 目盛りの刻み。レーン長が変わっても本数がだいたい一定になるように。
+function gridStep(lane) {
+  return Math.max(20, Math.round(lane / 8 / 20) * 20);
+}
+
+// 数字を Python の :g と同じ見た目に（8.0 → 8）。
+function fmt(x) {
+  return String(Number(x));
+}
+
+// ---- カードの説明。data には持たせず、apply の数字から組み立てる ----
+// data.py の STAT_LABELS / SCOPE_LABELS / STAT_MEANING と同じ表。
+const STAT_LABELS = {
+  attack: '攻撃力', attack_interval: '攻撃間隔', speed: '移動速度',
+  knockback: 'ノックバック', cost: '出撃コスト',
+  deploy_cooldown: '再出撃の待ち', income: '収入',
+};
+const SCOPE_LABELS = {
+  own_units: '自軍', enemy_units: '敵軍', own_deploy: '自分の出撃',
+  enemy_deploy: '敵の出撃', own_economy: '自分の財布',
+  enemy_economy: '敵の財布',
+};
+const STAT_MEANING = {
+  'attack:up': '殴りが強くなる', 'attack:down': '殴りが弱くなる',
+  'attack_interval:up': '手数が減る', 'attack_interval:down': '手数が増える',
+  'speed:up': '前線が上がる', 'speed:down': '足が止まる',
+  'knockback:up': '押し戻されやすくなる',
+  'knockback:down': '押し戻されにくくなる',
+  'cost:up': '出撃が高くつく', 'cost:down': '安く出せる',
+  'deploy_cooldown:up': '続けて出せなくなる',
+  'deploy_cooldown:down': '続けて出せる',
+  'income:up': '資金が速く貯まる', 'income:down': '資金が止まる',
+};
+
+function cardChange(card) {
+  const stat = STAT_LABELS[card.apply.stat] || card.apply.stat;
+  const who = SCOPE_LABELS[card.apply.scope] || card.apply.scope;
+  if (card.apply.mult !== null) return `${who}の${stat} ×${fmt(card.apply.mult)}`;
+  const add = card.apply.add || 0;
+  return `${who}の${stat} ${add > 0 ? '+' : ''}${fmt(add)}`;
+}
+
+function cardMeaning(card) {
+  const rises = card.apply.mult !== null
+    ? card.apply.mult > 1.0 : (card.apply.add || 0) > 0;
+  return STAT_MEANING[`${card.apply.stat}:${rises ? 'up' : 'down'}`] || '';
+}
+
+function cardCondition(card) {
+  if (card.base_hp_gate === null) return '';
+  return `自拠点 ${Math.round(card.base_hp_gate * 100)}% 以下で解禁`;
+}
 
 // ---------------------------------------------------------------- 絵
 // PNG は data: URI で焼き込んである（build_web.py）。向きごとに使い回す。
@@ -80,22 +133,22 @@ class View {
     this.ctx = ctx;
     this.game = game;
     this.sprites = new Sprites(art);
-    this.families = art.families;
+    this.races = art.races;
 
     // ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
     const slots = game.stockSlots;
     this.spells = [{
-      rect: [66, SPELL_Y + 8, 158, 92], source: ['brought', 0],
+      rect: [66, SPELL_Y + 8, 196, 108], source: ['brought', 0],
       key: 'q', label: '持ち込み',
     }];
     const stockKeys = ['w', 'e', 'r'];
     for (let i = 0; i < slots; i++) {
       this.spells.push({
-        rect: [240 + i * 168, SPELL_Y + 8, 158, 92], source: ['stock', i],
+        rect: [272 + i * 206, SPELL_Y + 8, 196, 108], source: ['stock', i],
         key: stockKeys[i] || null, label: `ストック${i + 1}`,
       });
     }
-    this.trumpRect = [W - 182, SPELL_Y + 8, 158, 92];
+    this.trumpRect = [W - 158, SPELL_Y + 8, 134, 108];
 
     // ── 召喚の段：財布 ＋ 出撃ボタン ─────────────────────────
     this.upgradeRect = [24, SUMMON_Y + 44, 118, 100];
@@ -116,8 +169,8 @@ class View {
   }
 
   // 奥行き。攻撃範囲から出すので、後衛が後ろに立つのが形で分かる。
-  static row(spec) {
-    if (spec.near > 0 || spec.far > 50) return 2;
+  row(spec) {
+    if (spec.near > 0 || spec.far > this.game.farThreshold) return 2;
     if (spec.far > 20) return 1;
     return 0;
   }
@@ -159,9 +212,10 @@ class View {
     this.fill([0, GROUND_Y, W, HUD_Y - GROUND_Y], GROUND);
     this.fill([0, GROUND_Y, W, 1], RULE);
 
-    // 20mごとの目盛り。距離感が無いと射程の帯が読めない。
+    // 目盛り。距離感が無いと射程の帯が読めない。レーンが伸びても
+    // 本数が変わらないよう、刻みはレーン長から出す（view.py と同じ）。
     const lane = battle.game.laneLength;
-    for (let metre = 0; metre <= lane; metre += 20) {
+    for (let metre = 0; metre <= lane; metre += gridStep(lane)) {
       const x = this.px(metre, lane);
       this.fill([x, GROUND_Y - 6, 1, 12], '#3a4653');
       this.text(`${metre}m`, F_SMALL, '#566472', x, GROUND_Y + 20, 'center');
@@ -200,7 +254,7 @@ class View {
     for (const row of [2, 1, 0]) {
       for (const side of battle.sides) {
         for (const f of side.fighters) {
-          if (!f.alive || View.row(f.spec) !== row) continue;
+          if (!f.alive || this.row(f.spec) !== row) continue;
           this.fighter(f, lane, row);
         }
       }
@@ -241,7 +295,7 @@ class View {
       ctx.restore();
     } else {
       this.fill([x - 14, feet - 40, 28, 40],
-                this.families[f.spec.family] || MUTED);
+                this.races[f.spec.race] || MUTED);
     }
 
     const head = top + this.sprites.bboxTop(f.spec.id);
@@ -361,13 +415,24 @@ class View {
       return;
     }
 
+    // 状態は上の隅。下2行は**何が起きる札なのか**の説明で埋める。
+    let note = card.band, tint = MUTED;
+    if (card.base_hp_gate !== null && !side.unlocked(card)) {
+      note = cardCondition(card); tint = GOLD;   // 押し込まれてから開く札
+    } else if (left > 0) note = `${left.toFixed(1)}秒`;
+    else if (side.money < card.cost) note = '資金不足';
+    this.text(note, F_SMALL, tint, rect[0] + rect[2] - 8, rect[1] + 13, 'right');
+
     this.text(card.name, F_BOLD, ready ? INK : MUTED, cx, rect[1] + 38, 'center');
     this.text(String(card.cost), F_BODY, ready ? GOLD : RULE, cx,
-              rect[1] + 62, 'center');
-    let note = card.band;
-    if (left > 0) note = `${left.toFixed(1)}秒`;
-    else if (side.money < card.cost) note = '資金不足';
-    this.text(note, F_SMALL, MUTED, cx, rect[1] + rect[3] - 10, 'center');
+              rect[1] + 60, 'center');
+
+    // 文言は data には無く、apply の数字から組み立てたもの
+    // （cardChange / cardMeaning）。
+    this.text(cardChange(card), F_SMALL, ready ? INK : MUTED, cx,
+              rect[1] + 82, 'center');
+    this.text(`${fmt(card.duration_sec)}秒 ― ${cardMeaning(card)}`, F_SMALL,
+              MUTED, cx, rect[1] + 98, 'center');
   }
 
   trump(battle, side) {
@@ -396,12 +461,14 @@ class View {
 
   // ------------------------------------------------------ 操作盤：資金と召喚
   summonRow(battle, side) {
-    // 資金は1〜14の整数なので、**マス目で数えられる**ように描く。
+    // 資金は整数なので、**マス目で数えられる**ように描く。
     // 棒が滑らかに伸びるのではなく1マスずつ点くので、
-    // 「あと2マスで臼砲」が目で分かる。
+    // 「あと2マスで臼砲」が目で分かる。上限は財布のレベルで4倍以上動くので、
+    // マスの幅は入る数から決める（view.py と同じ式）。
     const cap = Math.trunc(side.money_cap);
     const have = Math.trunc(side.money);
-    const cell = 26, gap = 4;
+    const pitch = Math.max(7, Math.min(30, Math.trunc(760 / Math.max(cap, 1))));
+    const cell = pitch - 4, gap = 4;
     for (let i = 0; i < cap; i++) {
       const box = [24 + i * (cell + gap), SUMMON_Y, cell, 26];
       this.fill(box, i < have ? GOLD : '#1e262f');

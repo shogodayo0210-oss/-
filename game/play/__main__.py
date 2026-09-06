@@ -27,7 +27,7 @@ from ..engine.battle import Battle, Loadout
 from ..engine.data import load
 from ..engine.draft import commit, match_seed
 from ..engine.policy import POLICIES
-from ..engine.presets import PRESETS, build, trial_six
+from ..engine.presets import PRESETS, build, trial_roster
 from .human import Controller
 
 
@@ -36,7 +36,7 @@ def make_battle(game, unit_ids: tuple[str, ...], enemy: str, match_id: str,
     """人が side 0、engine の方針が side 1。
 
     `mirror` のとき、相手は**まったく同じ持ち物**で戦う（工程表 塊A-3）。
-    違うのはストックの並びだけ ―― 相手だけ8種＋切り札という状態では、
+    違うのはストックの並びだけ ―― 相手だけ違う編成という状態では、
     負けても何が悪いのか分からないので、まず同じ条件で測る。
     """
     seed = match_seed(
@@ -196,17 +196,17 @@ def run_game(game, args, unit_ids) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="game.play")
-    trial = trial_six()
+    trial = trial_roster()
     parser.add_argument("--unit", default=",".join(u["id"] for u in trial["roster"]),
                         help="出撃ボタンにするユニット（カンマ区切り）。"
-                             "既定は data/preset_six.json の6種")
+                             "既定は data/preset_roster.json の8種")
     parser.add_argument("--brought", default=trial["brought"],
                         help="持ち込む呪文1枚")
     parser.add_argument("--avatar", default=trial["avatar"])
     parser.add_argument("--trump", default=trial["trump"])
     parser.add_argument("--enemy-roster", default="same", choices=("same", "full"),
                         dest="enemy_roster",
-                        help="same＝相手も同じ6種（既定）／full＝相手は8枠の見本編成")
+                        help="same＝相手も同じ8種（既定）／full＝相手は見本編成")
     parser.add_argument("--enemy", default="balanced", choices=sorted(POLICIES))
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--fps", type=int, default=60)

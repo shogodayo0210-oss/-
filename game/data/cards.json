@@ -1,12 +1,13 @@
 {
-  "_comment": "呪文カードは戦術の道具。資金は使わず、クールタイムだけで回す。使い切りではなく、時間で戻ってくる。中身は最初に使うまで非公開。詠唱の予兆は必ず残す（見切りが合わせる相手なので）。",
+  "_comment": "呪文カードは戦術の道具。出撃と同じ資金を払い、クールタイムで戻ってくる。中身は最初に使うまで非公開。詠唱の予兆は必ず残す（見切りが合わせる相手なので）。**効果の説明文は持たない** ―― apply の数字から毎回組み立てる（DPS と同じ扱い）。",
   "stat_model": {
     "family": "系統。攻撃 / 機動 / 経済 / 耐久。読心が公開するのはここだけ",
     "target": "own=自軍にかける / enemy=敵軍にかける（補助か妨害か）",
     "duration_sec": "効果の継続時間",
     "cooldown_sec": "そのカード個別の再使用まで",
     "cast_sec": "詠唱。予兆が出て、見切りで合わせられる",
-    "apply": "効果の中身。scope=誰に / stat=どの数字を / mult か add で。stat はユニットが持っている項目そのもの（attack / speed / attack_interval / knockback）"
+    "apply": "効果の中身。scope=誰に / stat=どの数字を / mult か add で。stat はユニットが持っている項目そのもの（attack / speed / attack_interval / knockback）",
+    "require": "撃てる条件。省略すれば無条件。own_base_hp_at_most=自分の拠点がこの割合まで減っていないと撃てない ―― **押し込まれている側だけが持てる手**"
   },
   "cards": [
     {
@@ -22,7 +23,6 @@
         "stat": "attack",
         "mult": 1.4
       },
-      "effect": "自軍の攻撃力 +40%",
       "cost": 4,
       "band": "中"
     },
@@ -39,7 +39,6 @@
         "stat": "attack",
         "mult": 1.2
       },
-      "effect": "自軍の攻撃力 +20%。長く薄くかける",
       "cost": 1,
       "band": "軽"
     },
@@ -56,7 +55,6 @@
         "stat": "attack",
         "mult": 1.8
       },
-      "effect": "自軍の攻撃力 +80%。短く、決めに行く時だけ",
       "cost": 4,
       "band": "中"
     },
@@ -73,7 +71,6 @@
         "stat": "attack",
         "mult": 0.7
       },
-      "effect": "敵の攻撃力 −30%",
       "cost": 2,
       "band": "軽"
     },
@@ -90,7 +87,6 @@
         "stat": "attack",
         "mult": 0.5
       },
-      "effect": "敵の攻撃力 −50%。相手の大型を無力化する",
       "cost": 3,
       "band": "中"
     },
@@ -107,7 +103,6 @@
         "stat": "attack_interval",
         "mult": 0.8
       },
-      "effect": "自軍の攻撃間隔 −20%",
       "cost": 1,
       "band": "軽"
     },
@@ -124,7 +119,6 @@
         "stat": "attack_interval",
         "mult": 0.6
       },
-      "effect": "自軍の攻撃間隔 −40%",
       "cost": 1,
       "band": "軽"
     },
@@ -141,7 +135,6 @@
         "stat": "attack_interval",
         "mult": 1.5
       },
-      "effect": "敵の攻撃間隔 +50%。手数を落とす",
       "cost": 4,
       "band": "中"
     },
@@ -158,7 +151,6 @@
         "stat": "attack_interval",
         "mult": 2.0
       },
-      "effect": "敵の攻撃間隔 +100%。ほぼ止める",
       "cost": 8,
       "band": "重"
     },
@@ -175,7 +167,6 @@
         "stat": "speed",
         "mult": 1.5
       },
-      "effect": "自軍の移動速度 +50%。前線を押し上げる",
       "cost": 4,
       "band": "中"
     },
@@ -192,7 +183,6 @@
         "stat": "speed",
         "mult": 2.0
       },
-      "effect": "自軍の移動速度 +100%。一気に間合いを詰める",
       "cost": 5,
       "band": "中"
     },
@@ -209,7 +199,6 @@
         "stat": "speed",
         "mult": 0.5
       },
-      "effect": "敵の移動速度 −50%",
       "cost": 4,
       "band": "中"
     },
@@ -226,7 +215,6 @@
         "stat": "speed",
         "mult": 0.25
       },
-      "effect": "敵の移動速度 −75%。押し返しを止める",
       "cost": 3,
       "band": "中"
     },
@@ -243,7 +231,6 @@
         "stat": "deploy_cooldown",
         "mult": 0.5
       },
-      "effect": "自軍の再出撃クールタイム −50%",
       "cost": 8,
       "band": "重"
     },
@@ -260,7 +247,6 @@
         "stat": "deploy_cooldown",
         "mult": 0.25
       },
-      "effect": "自軍の再出撃クールタイム −75%",
       "cost": 9,
       "band": "重"
     },
@@ -277,7 +263,6 @@
         "stat": "deploy_cooldown",
         "mult": 1.5
       },
-      "effect": "敵の再出撃クールタイム +50%",
       "cost": 5,
       "band": "中"
     },
@@ -294,7 +279,6 @@
         "stat": "deploy_cooldown",
         "mult": 2.0
       },
-      "effect": "敵の再出撃クールタイム +100%。増援を断つ",
       "cost": 10,
       "band": "重"
     },
@@ -311,7 +295,6 @@
         "stat": "knockback",
         "mult": 0.0
       },
-      "effect": "自軍がノックバックしなくなる。線を保つ",
       "cost": 10,
       "band": "重"
     },
@@ -328,7 +311,6 @@
         "stat": "knockback",
         "mult": 0.5
       },
-      "effect": "自軍のノックバック回数を半分に",
       "cost": 5,
       "band": "中"
     },
@@ -345,7 +327,6 @@
         "stat": "knockback",
         "add": 1
       },
-      "effect": "敵のノックバック回数 +1。押し戻しやすくする",
       "cost": 1,
       "band": "軽"
     },
@@ -362,7 +343,6 @@
         "stat": "knockback",
         "add": 2
       },
-      "effect": "敵のノックバック回数 +2。前線を大きく下げさせる",
       "cost": 2,
       "band": "軽"
     },
@@ -379,7 +359,6 @@
         "stat": "knockback",
         "mult": 0.25
       },
-      "effect": "自軍のノックバック回数を1/4に",
       "cost": 9,
       "band": "重"
     },
@@ -396,7 +375,6 @@
         "stat": "cost",
         "mult": 0.7
       },
-      "effect": "出撃コスト −30%。厚く並べたい時間に合わせる",
       "cost": 3,
       "band": "中"
     },
@@ -413,7 +391,6 @@
         "stat": "cost",
         "mult": 0.5
       },
-      "effect": "出撃コスト −50%。一気に数を出す",
       "cost": 4,
       "band": "中"
     },
@@ -430,7 +407,6 @@
         "stat": "cost",
         "mult": 1.3
       },
-      "effect": "敵の出撃コスト +30%",
       "cost": 2,
       "band": "軽"
     },
@@ -447,7 +423,6 @@
         "stat": "cost",
         "mult": 1.6
       },
-      "effect": "敵の出撃コスト +60%。押し込む直前に刺す",
       "cost": 4,
       "band": "中"
     },
@@ -464,7 +439,6 @@
         "stat": "income",
         "mult": 1.5
       },
-      "effect": "自軍の資金の増え方 +50%",
       "cost": 5,
       "band": "中"
     },
@@ -481,7 +455,6 @@
         "stat": "income",
         "mult": 2.0
       },
-      "effect": "自軍の資金の増え方 +100%",
       "cost": 9,
       "band": "重"
     },
@@ -498,7 +471,6 @@
         "stat": "income",
         "mult": 0.5
       },
-      "effect": "敵の資金の増え方 −50%。育てている相手に刺す",
       "cost": 4,
       "band": "中"
     },
@@ -515,9 +487,65 @@
         "stat": "income",
         "mult": 0.25
       },
-      "effect": "敵の資金の増え方 −75%",
       "cost": 3,
       "band": "中"
+    },
+    {
+      "id": "backwater",
+      "name": "背水",
+      "family": "攻撃",
+      "target": "own",
+      "duration_sec": 8,
+      "cooldown_sec": 22.0,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack",
+        "mult": 1.9
+      },
+      "cost": 4,
+      "band": "中",
+      "require": {
+        "own_base_hp_at_most": 0.6
+      }
+    },
+    {
+      "id": "counterblow",
+      "name": "反攻",
+      "family": "機動",
+      "target": "own",
+      "duration_sec": 6,
+      "cooldown_sec": 22.0,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "speed",
+        "mult": 2.2
+      },
+      "cost": 4,
+      "band": "中",
+      "require": {
+        "own_base_hp_at_most": 0.6
+      }
+    },
+    {
+      "id": "lastwall",
+      "name": "死守",
+      "family": "耐久",
+      "target": "own",
+      "duration_sec": 7,
+      "cooldown_sec": 22.0,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "knockback",
+        "mult": 0.0
+      },
+      "cost": 4,
+      "band": "中",
+      "require": {
+        "own_base_hp_at_most": 0.5
+      }
     }
   ]
 }
