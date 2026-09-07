@@ -763,8 +763,10 @@ def check_milestones(game: GameData, report: Report) -> None:
     for drop in drops:
         report.check(0 < drop["at_sec"] < limit,
                      f"milestones: {drop['at_sec']}秒 は試合時間 {limit:.0f}秒 の外")
-        report.check(drop.get("to", "both") in ("both", "leader"),
-                     f"milestones: {drop['at_sec']}秒 の to が both / leader でない")
+        report.check("to" not in drop,
+                     f"milestones: {drop['at_sec']}秒 に to が残っている。"
+                     "配布は**必ず両者に同額** ―― 押している側だけに入る"
+                     "陣地ボーナスは、一度傾いた試合をそのまま傾かせ続けるので外した")
         report.check(drop["amount"] <= game.levels[-1]["max"],
                      f"milestones: {drop['at_sec']}秒 の +{drop['amount']} が"
                      f"最終の上限 {game.levels[-1]['max']} を超え、誰も受け取れない")
@@ -780,13 +782,12 @@ def check_milestones(game: GameData, report: Report) -> None:
                      f"{a['at_sec']}秒 の +{a['amount']} より小さい。"
                      "後になるほど大きい、が崩れている")
 
-    # 押し込んでいる側にだけ入る配布が、序盤に少なくとも1回あること。
-    # これが無いと「何も出さずに財布だけ育てる」が常に正解になる。
-    early = [d for d in drops
-             if d.get("to") == "leader" and d["at_sec"] <= limit * 0.25]
+    # 序盤に少なくとも1回は配布があること。開始直後の所持額（start）だけでは
+    # 出せる札が1枚もない時間が長すぎるので、最初の1回は早めに置く。
+    early = [d for d in drops if d["at_sec"] <= limit * 0.1]
     report.check(bool(early),
-                 "milestones: 試合の序盤に陣地ボーナス（to=leader）が無い。"
-                 "安いユニットを早く出す理由が生まれない")
+                 f"milestones: 最初の {limit * 0.1:.0f}秒 に配布が1回も無い。"
+                 "開始直後に手が無い時間が長すぎる")
 
 
 def check_economy(game: GameData, report: Report) -> None:

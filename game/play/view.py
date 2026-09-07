@@ -345,27 +345,15 @@ class View:
         self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
                    (W // 2, 26), center=True)
 
-        # 次の配布。陣地ボーナスは**いま押し込んでいる側だけ**に入るので、
-        # 誰が取りそうかを出す ―― これが見えないと、取りに行く判断ができない。
+        # 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
+        # 「あと何秒でいくら入るか」だけ。配布の直前に使い切っておくか、が択。
         drop = battle.next_drop()
         if drop is None:
             self._text("残り", self.f_small, MUTED, (W // 2, 50), center=True)
             return
         seconds, amount = drop
-        if battle.next_drop_is_contested():
-            lead = battle.leader()
-            if lead is None:
-                who, tint = "互角", MUTED
-            elif lead.index == player:
-                who, tint = "自分が優勢", GREEN
-            else:
-                who, tint = "相手が優勢", RED
-            self._text(f"陣地 +{amount}  あと{seconds:.0f}秒", self.f_small, GOLD,
-                       (W // 2, 48), center=True)
-            self._text(who, self.f_small, tint, (W // 2, 64), center=True)
-        else:
-            self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small, MUTED,
-                       (W // 2, 52), center=True)
+        self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small, MUTED,
+                   (W // 2, 52), center=True)
 
     # ---------------------------------------------------------- 操作盤：呪文
     def _spells(self, battle: Battle, side: Side) -> None:

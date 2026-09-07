@@ -351,27 +351,15 @@ class View {
     const ss = String(Math.trunc(left) % 60).padStart(2, '0');
     this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
 
-    // 次の配布。陣地ボーナスは**いま押し込んでいる側だけ**に入るので、
-    // 誰が取りそうかを出す ―― これが見えないと、取りに行く判断ができない。
+    // 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
+    // 「あと何秒でいくら入るか」だけ（view.py と同じ）。
     const drop = battle.nextDrop();
     if (drop === null) {
       this.text('残り', F_SMALL, MUTED, W / 2, 50, 'center');
       return;
     }
-    const seconds = drop[0], amount = drop[1];
-    if (battle.nextDropIsContested()) {
-      const lead = battle.leader();
-      let who, tint;
-      if (lead === null) { who = '互角'; tint = MUTED; }
-      else if (lead.index === player) { who = '自分が優勢'; tint = GREEN; }
-      else { who = '相手が優勢'; tint = RED; }
-      this.text(`陣地 +${amount}  あと${seconds.toFixed(0)}秒`, F_SMALL, GOLD,
-                W / 2, 48, 'center');
-      this.text(who, F_SMALL, tint, W / 2, 64, 'center');
-    } else {
-      this.text(`両者 +${amount}  あと${seconds.toFixed(0)}秒`, F_SMALL, MUTED,
-                W / 2, 52, 'center');
-    }
+    this.text(`両者 +${drop[1]}  あと${drop[0].toFixed(0)}秒`, F_SMALL, MUTED,
+              W / 2, 52, 'center');
   }
 
   // ---------------------------------------------------------- 操作盤：呪文

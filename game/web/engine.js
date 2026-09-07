@@ -694,6 +694,7 @@ class Battle {
   }
 
   // いま押し込んでいる側。互角なら null。
+  // いま押し込んでいる側。**試合の結果には効かない**（battle.py と同じ）。
   leader() {
     const a = this.advanceOf(this.sides[0]);
     const b = this.advanceOf(this.sides[1]);
@@ -701,21 +702,10 @@ class Battle {
     return a > b ? this.sides[0] : this.sides[1];
   }
 
+  // 節目の配布。**必ず両者に同額**（battle.py と同じ）。押している側だけに
+  // 入る陣地ボーナスは、一度傾いた試合をそのまま傾かせ続けるので外した。
   payDrop(drop) {
     const amount = drop.amount, at = drop.at_sec;
-    if (drop.to === 'leader') {
-      // **押し込んでいる側だけ**に入る。安いユニットを早く出して線を
-      // 上げることが、そのまま資金として返ってくる。
-      const winner = this.leader();
-      if (winner === null) {
-        this.note(0, `${at.toFixed(0)}秒の陣地ボーナス — 互角なので配布なし`);
-        return;
-      }
-      winner.money = Math.min(winner.money + amount, winner.money_cap);
-      this.note(winner.index,
-                `${at.toFixed(0)}秒の陣地ボーナス — 押し込んでいるので +${amount}`);
-      return;
-    }
     for (const side of this.sides) {
       side.money = Math.min(side.money + amount, side.money_cap);
     }
@@ -727,11 +717,6 @@ class Battle {
     if (this._next_drop >= this.drops.length) return null;
     const drop = this.drops[this._next_drop];
     return [Math.max(0.0, drop.at_sec - this.t), drop.amount];
-  }
-
-  nextDropIsContested() {
-    if (this._next_drop >= this.drops.length) return false;
-    return this.drops[this._next_drop].to === 'leader';
   }
 
   finished() {

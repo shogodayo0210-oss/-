@@ -649,26 +649,28 @@ class Battle:
                     for f in side.fighters if f.alive and f.ready), default=0.0)
 
     def leader(self) -> Side | None:
-        """いま押し込んでいる側。互角なら None。"""
+        """いま押し込んでいる側。互角なら None。
+
+        **試合の結果には効かない。** 資金がここに乗っていた頃（陣地ボーナス）は
+        押している側がさらに有利になっていたので外した。いまは
+        `tools/balance.py` が「序盤に押し込んでいた側がそのまま勝つか」を
+        測るためだけに使う。
+        """
         reach = [self.advance_of(s) for s in self.sides]
         if abs(reach[0] - reach[1]) <= EPS:
             return None
         return self.sides[0] if reach[0] > reach[1] else self.sides[1]
 
     def pay_drop(self, drop: dict) -> None:
+        """節目の配布。**必ず両者に同額。**
+
+        以前は「そのとき前線を押し込んでいる側だけ」に入る陣地ボーナスがあった。
+        押している側にさらに資金が入る形なので、一度傾いた試合はそのまま傾き
+        続ける ―― 「先に押し込んだ側の勝ち」を作っていた仕組みのひとつなので
+        外した。序盤に安いユニットを出す理由は、配布ではなく
+        「出さないと前線を取られて拠点を削られる」という盤面そのもので作る。
+        """
         amount, at = drop["amount"], drop["at_sec"]
-        if drop.get("to") == "leader":
-            # **押し込んでいる側だけ**に入る。安いユニットを早く出して線を
-            # 上げることが、そのまま資金として返ってくる。何も出さずに
-            # 財布だけ育てる側は、ここを取り逃す。
-            winner = self.leader()
-            if winner is None:
-                self.note(0, f"{at:.0f}秒の陣地ボーナス — 互角なので配布なし")
-                return
-            winner.money = min(winner.money + amount, winner.money_cap)
-            self.note(winner.index,
-                      f"{at:.0f}秒の陣地ボーナス — 押し込んでいるので +{amount}")
-            return
         for side in self.sides:
             side.money = min(side.money + amount, side.money_cap)
         self.note(0, f"{at:.0f}秒の配布 — 両者に +{amount}")
@@ -679,11 +681,6 @@ class Battle:
             return None
         drop = self.drops[self._next_drop]
         return max(0.0, drop["at_sec"] - self.t), drop["amount"]
-
-    def next_drop_is_contested(self) -> bool:
-        if self._next_drop >= len(self.drops):
-            return False
-        return self.drops[self._next_drop].get("to") == "leader"
 
     def finished(self) -> bool:
         return (self.t >= self.game.time_limit
