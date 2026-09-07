@@ -314,6 +314,14 @@ class View:
             self._bar(pygame.Rect(x - 22, head - 17, 44, 5), done, GOLD,
                       back=(18, 22, 27))
 
+        # **後隙。** 振り切った直後、動けず被弾1.5倍になる時間（設計書2.3）。
+        # 振りかぶりが金なのに対して赤 ―― 金は「来るぞ」、赤は「いまなら通る」。
+        # ここが見えないと、大技への答えが「振らせて差し込む」にならない。
+        elif f.exposed_left > 0:
+            total = max(f.spec.attack_recover_sec, 1e-6)
+            self._bar(pygame.Rect(x - 22, head - 17, 44, 5),
+                      f.exposed_left / total, RED, back=(18, 22, 27))
+
         if f.stun_left > 0:
             pygame.draw.circle(self.surface, GOLD, (x, head - 24), 3)
 

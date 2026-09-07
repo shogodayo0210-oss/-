@@ -273,10 +273,29 @@ def check_reach(spec: Unit, game: GameData, report: Report) -> None:
                  f"{spec.name}: 死角 {spec.near}m を持つのに貫通 {spec.pierce}。"
                  "後方範囲は範囲攻撃で成立させる")
 
+    # ── **前線起点は、窓が狭いこと** ────────────────────────
+    # `spread_m` を持つユニットは、敵の最前列を起点にそこから奥だけを叩く。
+    # 死角の代わりにこれが穴になる ―― *盤面を薄く塗る道具ではなく、
+    # 前線の一点を深く抜く道具*。窓が射程に近づくと、ただの
+    # 「足元まで拾える遠距離範囲」に戻ってしまうので上限を掛ける。
+    window = game.roster_rules["spread_ratio_max"]
+    if spec.spread_m > 0:
+        report.check(spec.pierce >= area,
+                     f"{spec.name}: 前線起点（窓 {spec.spread_m}m）なのに"
+                     f"貫通 {spec.pierce}。1体しか当たらないなら窓に意味が無い")
+        report.check(spec.spread_m <= spec.far * window + 1e-9,
+                     f"{spec.name}: 前線起点の窓 {spec.spread_m}m が射程 "
+                     f"{spec.far}m の {window:.0%}（{spec.far * window:.0f}m）を"
+                     "超える。前線の一点を抜く道具が、盤面を塗る道具になる")
+
     # ── **遠距離の範囲攻撃は、必ず遠方範囲（死角持ち）** ──────────
     # 遠くまで届く範囲攻撃が足元まで拾えると、前に出ても後ろに回っても
     # 倒せない。死角があれば、安い1体を懐に送るだけで黙らせられる。
-    if spec.is_rear_area(far_line, area):
+    #
+    # 前線起点はここから外れる。**当たる幅が窓ぶんしかない**ので、
+    # 足元まで拾うことと引き換えに、盤面のほとんどが無傷で残る ――
+    # 「懐に入る」の代わりに「散らばる／横に広がる」が答えになる。
+    if spec.is_rear_area(far_line, area) and spec.spread_m <= 0:
         report.check(spec.near > 0,
                      f"{spec.name}: 射程 {spec.far}m（遠距離）で貫通 {spec.pierce}"
                      "（範囲）なのに死角が無い。"
@@ -566,6 +585,78 @@ def check_field(game: GameData, report: Report) -> None:
                  f"試合 {game.time_limit:.0f}秒 の半分を超える")
 
 
+def duel(game: GameData, a: Unit, b: Unit, seconds: float = 60.0) -> int | None:
+    """1体対1体。**engine をそのまま使う** ―― 勝敗の理由を別実装で書き直すと、
+    射程・後隙・ノックバック・貫通のどれかが必ず食い違う。
+
+    拠点に触れない位置（レーン中央を挟んで90m）に置いて、どちらかが倒れるまで。
+    返すのは倒したほうの index。時間内に決まらなければ None。
+    """
+    from game.engine.battle import Battle, Fighter, Loadout      # 循環を避ける
+
+    def idle(battle, side):
+        return None
+
+    lane = game.lane_length
+    lo = Loadout(avatar="marshal", roster=(a.id,), brought="warcry",
+                 trump="colossus", stock_seed="duel")
+    battle = Battle(game, lo, lo, idle, idle)
+    gap = min(lane / 3.0, 90.0)
+    battle.sides[0].fighters = [
+        Fighter(spec=a, side=0, x=lane / 2 - gap / 2, hp=float(a.hp), facing=1)]
+    battle.sides[1].fighters = [
+        Fighter(spec=b, side=1, x=lane / 2 + gap / 2, hp=float(b.hp), facing=-1)]
+    while battle.t < seconds:
+        battle.step()
+        alive = [any(f.alive for f in s.fighters) for s in battle.sides]
+        if alive[0] != alive[1]:
+            return 0 if alive[0] else 1
+        if not alive[0]:
+            return None                      # 相打ち
+    return None
+
+
+def check_duels(game: GameData, report: Report) -> None:
+    """**値段が倍以上違うなら、高いほうが1v1で勝つ。**
+
+    2.6 は「同じ資金ぶん並べたら安いほうが勝てること」を要求している。
+    それだけだと *1体ずつぶつけても安いほうが勝つ* が通ってしまい、
+    高いキャラを出す理由が消える。両方あって初めて
+    「安いのは数、高いのは1体の質」になる。
+
+    実測すると32組が割れていて、原因はほぼ全部**射程**だった ――
+    槍兵(4)の25mが鬼武者(35)の20mを上回る、というような形。
+    値段で買っているのは射程でもある、という向きに data を寄せた。
+
+    2つだけ外す。
+
+    **死角持ち**（`near` > 0）は外す。懐に入られたら負けるのが遠方範囲の
+    設計そのもの（2.1）で、ここを縛ると臼砲が猟犬に勝ってしまう。
+    **壁**（`is_wall`）も外す。壁は殴り勝つ道具ではないので、
+    決闘で測る意味がない。
+    """
+    wall = game.wall_threshold
+    ratio = game.roster_rules["duel_cost_ratio"]
+    units = sorted(game.units.values(), key=lambda u: (u.cost, u.id))
+    for cheap in units:
+        for dear in units:
+            if dear.cost < cheap.cost * ratio:
+                continue
+            if cheap.is_wall(wall) or dear.is_wall(wall):
+                continue
+            if cheap.near > 0 or dear.near > 0:
+                continue
+            if duel(game, dear, cheap) == 0:
+                continue
+            report.check(
+                False,
+                f"{dear.name}({dear.cost}) が {cheap.name}({cheap.cost}) に"
+                f"1v1で勝てない ―― 射程 {dear.far:.0f}m 対 {cheap.far:.0f}m / "
+                f"体力 {dear.hp} 対 {cheap.hp} / "
+                f"DPS {dear.dps:.0f} 対 {cheap.dps:.0f}。"
+                f"値段が {ratio:g} 倍以上違うなら、1体ずつなら高いほうが勝つこと")
+
+
 def check_siege(game: GameData, report: Report) -> None:
     """**拠点は一撃で落ちてはいけない。**
 
@@ -679,6 +770,30 @@ def check_races(game: GameData, report: Report) -> None:
     for trump in game.trumps.values():
         report.check(trump.race in declared,
                      f"{trump.name}: 未宣言の種族 {trump.race}")
+
+    # ── **種族呪文** ────────────────────────────────────────────
+    # 種族を「編成の材料」（特性が見るだけ）から**「編成の見返り」**に進める札。
+    # 1種族に1枚ずつ無いと、種族で固める価値が種族ごとに食い違う。
+    spells = [c for c in game.cards.values() if c.race_locked]
+    for race in sorted(declared):
+        mine = [c for c in spells if c.race == race]
+        report.check(len(mine) == 1,
+                     f"種族 {race}: 種族呪文が {len(mine)} 枚。"
+                     "1種族に1枚ずつ ―― 無い種族があると、"
+                     "その種族で固める価値だけが低くなる")
+    for card in spells:
+        report.check(card.race in declared,
+                     f"{card.name}: 未宣言の種族 {card.race}")
+        report.check(card.apply.scope.startswith("own"),
+                     f"{card.name}: 種族呪文は自軍にかけるものに限る。"
+                     "編成を種族で固めた見返りなので、妨害だと向きが逆になる")
+        report.check(0 < card.race_min <= game.roster_rules["slots"],
+                     f"{card.name}: 必要な同種族 {card.race_min} 体が"
+                     f"出撃枠 {game.roster_rules['slots']} に収まらない")
+        report.check(len(game.units_of_race(card.race)) >= card.race_min,
+                     f"{card.name}: {card.race} は "
+                     f"{len(game.units_of_race(card.race))}体しか居ないので"
+                     f"{card.race_min}体を編成に入れられない")
 
 
 def check_traits(game: GameData, report: Report) -> None:
@@ -951,6 +1066,7 @@ def main() -> int:
     check_traits(game, report)
     check_field(game, report)
     check_siege(game, report)
+    check_duels(game, report)
     check_roster_size(game, report)
     check_milestones(game, report)
     check_economy(game, report)

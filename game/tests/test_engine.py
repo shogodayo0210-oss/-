@@ -5,7 +5,7 @@
 
 import unittest
 
-from game.engine.battle import Battle, Fighter, Loadout
+from game.engine.battle import Battle, Effect, Fighter, Loadout
 from game.engine.data import load
 from game.engine.draft import draw_random_slots, match_seed, pick_template
 from game.engine.policy import POLICIES
@@ -287,6 +287,137 @@ class TestGatedCards(unittest.TestCase):
         for card in [c for c in GAME.cards.values() if c.gated]:
             self.assertGreaterEqual(assault, card.cast_sec + card.duration_sec,
                                     card.name)
+
+
+class TestRecovery(unittest.TestCase):
+    """後隙。**振りかぶりが長いほど長く、その間は余分に殴られる。**"""
+
+    def test_recovery_follows_the_windup(self):
+        for spec in list(GAME.units.values()) + list(GAME.trumps.values()):
+            self.assertLessEqual(
+                spec.attack_windup_sec + spec.attack_recover_sec,
+                spec.attack_interval_sec + 1e-9, spec.name)
+
+    def test_the_big_swings_have_the_big_openings(self):
+        """1発が大きいものほど後隙が長い。大技を振らせて差し込む択の土台。"""
+        big = max(GAME.units.values(), key=lambda u: u.attack)
+        small = min(GAME.units.values(), key=lambda u: u.attack)
+        self.assertGreater(big.attack_recover_sec, small.attack_recover_sec)
+
+    def test_a_hit_in_the_opening_lands_harder(self):
+        bt = battle()
+        spec = GAME.units["oni"]
+        victim = Fighter(spec=spec, side=1, x=100.0, hp=float(spec.hp), facing=-1)
+        bt.sides[1].fighters = [victim]
+        bt.apply_damage(victim, 1000.0)
+        plain = spec.hp - victim.hp
+
+        victim.hp = float(spec.hp)
+        victim.exposed_left = 0.3
+        bt.apply_damage(victim, 1000.0)
+        opened = spec.hp - victim.hp
+        self.assertAlmostEqual(opened / plain, GAME.combat["recover_damage_mult"])
+
+
+class TestFrontAnchoredAttacks(unittest.TestCase):
+    """前線起点の射抜き。**安い1体を前に置いて全部止める**への答え。"""
+
+    def line_of_grunts(self, uid):
+        bt = battle()
+        spec = GAME.units[uid]
+        bt.sides[0].fighters = [
+            Fighter(spec=spec, side=0, x=100.0, hp=float(spec.hp), facing=1)]
+        grunt = GAME.units["grunt"]
+        bt.sides[1].fighters = [
+            Fighter(spec=grunt, side=1, x=140.0 + i * 10, hp=1e9, facing=-1)
+            for i in range(5)]
+        bt.snapshot()
+        return bt, bt.sides[0].fighters[0]
+
+    def test_the_window_starts_at_the_nearest_enemy(self):
+        bt, shooter = self.line_of_grunts("arbalest")
+        lo, hi = bt.strike_band(shooter)
+        self.assertAlmostEqual(lo, 140.0)
+        self.assertAlmostEqual(hi, 140.0 + GAME.units["arbalest"].spread_m)
+
+    def test_it_takes_the_blocker_and_what_is_behind_it(self):
+        bt, shooter = self.line_of_grunts("arbalest")
+        hit = [round(f.x) for f in bt.targets_in_band(shooter)]
+        self.assertIn(140, hit)                    # 前に立った1体
+        self.assertIn(150, hit)                    # その後ろも巻き込む
+
+    def test_a_plain_long_range_unit_only_takes_the_blocker(self):
+        bt, shooter = self.line_of_grunts("archer")
+        hit = bt.targets_in_band(shooter)[: GAME.units["archer"].pierce]
+        self.assertEqual([round(f.x) for f in hit], [140])
+
+    def test_the_window_never_blankets_the_field(self):
+        cap = GAME.roster_rules["spread_ratio_max"]
+        for spec in GAME.units.values():
+            if spec.spread_m > 0:
+                self.assertLessEqual(spec.spread_m, spec.far * cap + 1e-9,
+                                     spec.name)
+
+
+class TestDuels(unittest.TestCase):
+    """**値段が倍以上違うなら、1体ずつなら高いほうが勝つ。**
+
+    2.6（同じ資金ぶん並べたら安いほうが勝てる）と対になる約束。
+    片方だけだと「高いキャラを出す理由」か「安いキャラを出す理由」の
+    どちらかが消える。
+    """
+
+    def test_the_expensive_unit_wins_one_on_one(self):
+        report = validate.Report()
+        validate.check_duels(GAME, report)
+        self.assertEqual(report.errors, [])
+
+    def test_the_cheap_unit_still_wins_per_coin(self):
+        """決闘の規則を足したせいで 2.6 が壊れていないこと。"""
+        report = validate.Report()
+        validate.check_characters(GAME, report)
+        self.assertEqual(report.errors, [])
+
+
+class TestRaceSpells(unittest.TestCase):
+    """種族呪文。**編成にその種族が3体以上無いと撃てず、その種族にだけ効く。**"""
+
+    ANIMALS = ("hound", "boar", "raider")
+
+    def test_a_scattered_roster_cannot_cast_it(self):
+        card = next(c for c in GAME.cards.values() if c.race == "動物")
+        bt = battle(loadout(roster=("grunt", "shieldman", "hound"),
+                            brought=card.id), loadout(), money=3000)
+        self.assertFalse(bt.sides[0].unlocked(card))
+        self.assertFalse(bt.start_cast(bt.sides[0], ("brought", 0)))
+
+    def test_a_single_race_roster_can(self):
+        card = next(c for c in GAME.cards.values() if c.race == "動物")
+        bt = battle(loadout(roster=self.ANIMALS, brought=card.id),
+                    loadout(), money=3000)
+        self.assertTrue(bt.sides[0].unlocked(card))
+        self.assertTrue(bt.start_cast(bt.sides[0], ("brought", 0)))
+
+    def test_it_only_touches_its_own_race(self):
+        card = next(c for c in GAME.cards.values() if c.race == "動物")
+        bt = battle(loadout(roster=self.ANIMALS, brought=card.id),
+                    loadout(), money=3000)
+        side = bt.sides[0]
+        side.add_effect(Effect(stat=card.apply.stat, mult=card.apply.mult,
+                               add=None, until=1e9, source=card.id,
+                               race=card.race))
+        beast = GAME.units["hound"]
+        human = GAME.units["grunt"]
+        self.assertNotEqual(
+            side.stat(card.apply.stat, 1.0, beast.race), 1.0)
+        self.assertEqual(side.stat(card.apply.stat, 1.0, human.race), 1.0)
+        # 全軍ぶん（資金・出撃コスト）には一切かからない
+        self.assertEqual(side.stat(card.apply.stat, 1.0), 1.0)
+
+    def test_every_race_has_exactly_one(self):
+        report = validate.Report()
+        validate.check_races(GAME, report)
+        self.assertEqual(report.errors, [])
 
 
 class TestSiegeCap(unittest.TestCase):

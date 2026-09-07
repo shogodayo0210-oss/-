@@ -546,6 +546,107 @@
       "require": {
         "own_base_hp_at_most": 0.5
       }
+    },
+    {
+      "id": "kingsroar",
+      "name": "鬨の陣",
+      "family": "攻撃",
+      "race": "王国軍",
+      "target": "own",
+      "duration_sec": 11,
+      "cooldown_sec": 24.0,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack",
+        "mult": 1.7
+      },
+      "require": {
+        "race_in_roster": 3
+      },
+      "cost": 5,
+      "band": "中"
+    },
+    {
+      "id": "beastblood",
+      "name": "獣性",
+      "family": "支援",
+      "race": "動物",
+      "target": "own",
+      "duration_sec": 5,
+      "cooldown_sec": 22.0,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "own_units",
+        "stat": "speed",
+        "mult": 2.5
+      },
+      "require": {
+        "race_in_roster": 3
+      },
+      "cost": 5,
+      "band": "中"
+    },
+    {
+      "id": "trailblaze",
+      "name": "踏破",
+      "family": "支援",
+      "race": "探検家",
+      "target": "own",
+      "duration_sec": 7.5,
+      "cooldown_sec": 22.0,
+      "cast_sec": 0.7,
+      "apply": {
+        "scope": "own_units",
+        "stat": "knockback",
+        "mult": 0.0
+      },
+      "require": {
+        "race_in_roster": 3
+      },
+      "cost": 5,
+      "band": "中"
+    },
+    {
+      "id": "overclock",
+      "name": "過負荷",
+      "family": "攻撃",
+      "race": "古代兵器",
+      "target": "own",
+      "duration_sec": 11,
+      "cooldown_sec": 24.0,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack_interval",
+        "mult": 0.3
+      },
+      "require": {
+        "race_in_roster": 3
+      },
+      "cost": 5,
+      "band": "中"
+    },
+    {
+      "id": "hexbind",
+      "name": "呪詛",
+      "family": "攻撃",
+      "race": "悪の組織",
+      "target": "own",
+      "duration_sec": 7,
+      "cooldown_sec": 22.0,
+      "cast_sec": 0.8,
+      "apply": {
+        "scope": "own_units",
+        "stat": "attack",
+        "mult": 2.1
+      },
+      "require": {
+        "race_in_roster": 3
+      },
+      "cost": 5,
+      "band": "中"
     }
-  ]
+  ],
+  "_race_note": "**種族呪文。** その種族のユニットにだけ効き、編成にその種族が3体以上居ないと撃てない。種族を『編成の材料』（特性が見るだけ）から**『編成の見返り』**に進めるもの ―― 同じ種族で固めるほど、同胞でコストが下がり、そのうえ専用の札が開く。撃てないまま終わる試合があるぶん、同じ値段でも効果は大きい（validate.py が gate_power_bonus を引いてから帯に当てる）"
 }

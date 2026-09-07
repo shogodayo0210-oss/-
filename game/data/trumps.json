@@ -21,7 +21,8 @@
       "knockback": 1,
       "speed_mps": 4,
       "siege_mult": 1.4,
-      "anti_wall_mult": 1.5
+      "anti_wall_mult": 1.5,
+      "attack_recover_sec": 0.7
     },
     {
       "id": "gale_edge",
@@ -43,7 +44,8 @@
       "knockback": 2,
       "speed_mps": 12,
       "siege_mult": 1.6,
-      "anti_wall_mult": 0.8
+      "anti_wall_mult": 0.8,
+      "attack_recover_sec": 0.1
     },
     {
       "id": "archmage",
@@ -66,7 +68,8 @@
       "knockback": 1,
       "speed_mps": 3,
       "siege_mult": 2.0,
-      "anti_wall_mult": 0.6
+      "anti_wall_mult": 0.6,
+      "attack_recover_sec": 0.9
     }
   ]
 }

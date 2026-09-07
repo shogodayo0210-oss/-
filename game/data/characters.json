@@ -15,7 +15,9 @@
     "tier": "S/A/B。ランダム枠の鏡像抽選はこのティアで揃える",
     "anti_wall_mult": "対壁ダメージ倍率。壁（拠点を割れないユニット）に対する倍率。1.0が基準。壁の連鎖を崩すための数字",
     "race": "種族。王国軍 / 動物 / 探検家 / 古代兵器 / 悪の組織。**見た目だけの区分ではない** ―― 特性（同胞・連携）がここを見るので、編成を種族で固めるか役割で散らすかが択になる",
-    "trait": "特性のid（data/traits.json）。持たないユニットは省略。特性が触れるのは出撃コストだけ"
+    "trait": "特性のid（data/traits.json）。持たないユニットは省略。特性が触れるのは出撃コストだけ",
+    "attack_recover_sec": "攻撃した後の**後隙**。当たった直後この秒数は動けず攻撃もできず、そのうえ被弾が combat.recover_damage_mult 倍になる。**振りかぶりが長いほど後隙も長い** ―― 読める大技ほど、外したときに殴られる。1発が big_hit_threshold を超えるものは0.5秒以上。攻撃間隔の中に 発生＋後隙 が収まること（validate.py が縛る）",
+    "spread_m": "**前線起点の射程。** 0 なら普通の帯（自分を基準）。0より大きいと、射程の中にいる**敵の一番手前**を起点にして、そこから奥へこの幅ぶんを叩く。安い1体を前に置いて全部止める形への答えで、壁ごと後ろの列を巻き込む。窓は射程の40%以下（validate.py）―― 盤面を薄く塗るのではなく、前線の一点を深く抜くための数字"
   },
   "characters": [
     {
@@ -38,7 +40,8 @@
       "speed_mps": 7,
       "siege_mult": 0.5,
       "anti_wall_mult": 1.0,
-      "role": "最安の削り役。拠点はほぼ割れない。数で線を作りながら、少しずつ削る"
+      "role": "最安の削り役。拠点はほぼ割れない。数で線を作りながら、少しずつ削る",
+      "attack_recover_sec": 0.15
     },
     {
       "id": "ratling",
@@ -60,7 +63,8 @@
       "speed_mps": 12,
       "siege_mult": 1.2,
       "anti_wall_mult": 0.8,
-      "role": "最速。前線を作らず走り抜けて、後衛の死角に飛び込む"
+      "role": "最速。前線を作らず走り抜けて、後衛の死角に飛び込む",
+      "attack_recover_sec": 0.1
     },
     {
       "id": "shieldman",
@@ -82,7 +86,8 @@
       "speed_mps": 5,
       "siege_mult": 0.35,
       "anti_wall_mult": 1.0,
-      "role": "壁そのもの。殴らない代わりに、コスト2で最も硬い"
+      "role": "壁そのもの。殴らない代わりに、コスト2で最も硬い",
+      "attack_recover_sec": 0.3
     },
     {
       "id": "ghoul",
@@ -104,7 +109,8 @@
       "speed_mps": 6,
       "siege_mult": 0.55,
       "anti_wall_mult": 1.0,
-      "role": "盾兵より脆いが、少しは殴れて少し速い壁"
+      "role": "盾兵より脆いが、少しは殴れて少し速い壁",
+      "attack_recover_sec": 0.25
     },
     {
       "id": "hound",
@@ -126,7 +132,8 @@
       "speed_mps": 10,
       "siege_mult": 1.1,
       "anti_wall_mult": 1.2,
-      "role": "速い手数。壁の後ろに回り込ませる"
+      "role": "速い手数。壁の後ろに回り込ませる",
+      "attack_recover_sec": 0.1
     },
     {
       "id": "spear",
@@ -141,14 +148,15 @@
       "attack_windup_sec": 0.2,
       "attack_band_m": [
         0,
-        25
+        13
       ],
       "pierce": 1,
       "knockback": 3,
       "speed_mps": 6,
       "siege_mult": 1.0,
       "anti_wall_mult": 1.3,
-      "role": "接近戦の一歩外から刺す。押されながらも粘る"
+      "role": "接近戦の一歩外から刺す。押されながらも粘る",
+      "attack_recover_sec": 0.2
     },
     {
       "id": "slinger",
@@ -157,20 +165,21 @@
       "tier": "B",
       "cost": 5,
       "cooldown_sec": 7,
-      "hp": 620,
+      "hp": 700,
       "attack": 105,
       "attack_interval_sec": 1.7,
       "attack_windup_sec": 0.35,
       "attack_band_m": [
         0,
-        48
+        21
       ],
       "pierce": 1,
       "knockback": 2,
       "speed_mps": 5,
       "siege_mult": 0.8,
       "anti_wall_mult": 0.9,
-      "role": "序盤の遠距離。届くだけで火力は無い"
+      "role": "序盤の遠距離。届くだけで火力は無い",
+      "attack_recover_sec": 0.35
     },
     {
       "id": "bomber",
@@ -185,14 +194,15 @@
       "attack_windup_sec": 0.5,
       "attack_band_m": [
         0,
-        32
+        18
       ],
       "pierce": 3,
       "knockback": 2,
       "speed_mps": 5,
       "siege_mult": 0.7,
       "anti_wall_mult": 1.9,
-      "role": "小さな範囲で壁の列を崩す。自分は紙"
+      "role": "小さな範囲で壁の列を崩す。自分は紙",
+      "attack_recover_sec": 0.5
     },
     {
       "id": "torch",
@@ -207,14 +217,15 @@
       "attack_windup_sec": 0.25,
       "attack_band_m": [
         0,
-        30
+        17
       ],
       "pierce": 2,
       "knockback": 3,
       "speed_mps": 5,
       "siege_mult": 0.9,
       "anti_wall_mult": 1.4,
-      "role": "2体まで巻き込む小範囲。前線の押し合いに強い"
+      "role": "2体まで巻き込む小範囲。前線の押し合いに強い",
+      "attack_recover_sec": 0.25
     },
     {
       "id": "boar",
@@ -236,7 +247,8 @@
       "speed_mps": 9,
       "siege_mult": 1.2,
       "anti_wall_mult": 1.1,
-      "role": "安い速攻。壁を待たずに単騎で走る"
+      "role": "安い速攻。壁を待たずに単騎で走る",
+      "attack_recover_sec": 0.15
     },
     {
       "id": "crossbow",
@@ -245,20 +257,22 @@
       "tier": "B",
       "cost": 7,
       "cooldown_sec": 9,
-      "hp": 680,
+      "hp": 780,
       "attack": 150,
       "attack_interval_sec": 1.8,
       "attack_windup_sec": 0.4,
       "attack_band_m": [
         0,
-        58
+        28
       ],
-      "pierce": 1,
+      "pierce": 2,
       "knockback": 2,
       "speed_mps": 4,
       "siege_mult": 0.8,
       "anti_wall_mult": 1.0,
-      "role": "遠距離の入門。壁が要る"
+      "role": "前線起点の射抜き、最安。最前列を起点に10m奥まで2体貫く。射程28mは前線に混ざる距離 ―― 安全な位置から抜きたいなら重弩(20)か攻城弩(28)を買うこと",
+      "attack_recover_sec": 0.4,
+      "spread_m": 10
     },
     {
       "id": "stonewall",
@@ -280,7 +294,8 @@
       "speed_mps": 3,
       "siege_mult": 0.3,
       "anti_wall_mult": 1.0,
-      "role": "純粋な壁。攻撃はほぼ飾り"
+      "role": "純粋な壁。攻撃はほぼ飾り",
+      "attack_recover_sec": 0.35
     },
     {
       "id": "raider",
@@ -295,14 +310,15 @@
       "attack_windup_sec": 0.12,
       "attack_band_m": [
         0,
-        12
+        14
       ],
       "pierce": 1,
       "knockback": 3,
       "speed_mps": 11,
       "siege_mult": 1.3,
       "anti_wall_mult": 1.2,
-      "role": "前線を素通りして、遠方範囲の死角に潜り込むための足。高い砲を咎める役"
+      "role": "前線を素通りして、遠方範囲の死角に潜り込むための足。高い砲を咎める役",
+      "attack_recover_sec": 0.12
     },
     {
       "id": "mapper",
@@ -311,7 +327,7 @@
       "tier": "A",
       "cost": 9,
       "cooldown_sec": 11,
-      "hp": 640,
+      "hp": 740,
       "attack": 120,
       "attack_interval_sec": 1.8,
       "attack_windup_sec": 0.35,
@@ -324,7 +340,8 @@
       "speed_mps": 4,
       "siege_mult": 0.8,
       "anti_wall_mult": 0.9,
-      "role": "安い遠距離。届く距離を買うだけで、火力は無い"
+      "role": "安い遠距離。届く距離を買うだけで、火力は無い",
+      "attack_recover_sec": 0.35
     },
     {
       "id": "archer",
@@ -333,7 +350,7 @@
       "tier": "A",
       "cost": 10,
       "cooldown_sec": 12,
-      "hp": 560,
+      "hp": 700,
       "attack": 140,
       "attack_interval_sec": 1.7,
       "attack_windup_sec": 0.3,
@@ -346,7 +363,8 @@
       "speed_mps": 4,
       "siege_mult": 0.8,
       "anti_wall_mult": 1.0,
-      "role": "遠距離の単体。前に壁がないと即溶ける"
+      "role": "遠距離の単体。前に壁がないと即溶ける",
+      "attack_recover_sec": 0.3
     },
     {
       "id": "piercer",
@@ -361,14 +379,15 @@
       "attack_windup_sec": 0.25,
       "attack_band_m": [
         0,
-        22
+        24
       ],
       "pierce": 2,
       "knockback": 3,
       "speed_mps": 6,
       "siege_mult": 1.1,
       "anti_wall_mult": 1.5,
-      "role": "2体抜き。壁の列に刺さる"
+      "role": "2体抜き。壁の列に刺さる",
+      "attack_recover_sec": 0.25
     },
     {
       "id": "twin",
@@ -383,14 +402,15 @@
       "attack_windup_sec": 0.1,
       "attack_band_m": [
         0,
-        13
+        15
       ],
       "pierce": 1,
       "knockback": 4,
       "speed_mps": 8,
       "siege_mult": 1.2,
       "anti_wall_mult": 1.8,
-      "role": "接近戦で最も手数が多く、壁を溶かすのが速い。代わりに紙"
+      "role": "接近戦で最も手数が多く、壁を溶かすのが速い。代わりに紙",
+      "attack_recover_sec": 0.1
     },
     {
       "id": "halberd",
@@ -405,14 +425,15 @@
       "attack_windup_sec": 0.3,
       "attack_band_m": [
         0,
-        30
+        26
       ],
       "pierce": 2,
       "knockback": 2,
       "speed_mps": 5,
       "siege_mult": 1.0,
       "anti_wall_mult": 1.5,
-      "role": "間合いと硬さの中間。無難に強い"
+      "role": "間合いと硬さの中間。無難に強い",
+      "attack_recover_sec": 0.3
     },
     {
       "id": "hexer",
@@ -434,7 +455,8 @@
       "speed_mps": 5,
       "siege_mult": 0.7,
       "anti_wall_mult": 0.9,
-      "role": "遠方範囲の入門。死角28mと浅いぶん、巻き込めるのは3体まで"
+      "role": "遠方範囲の入門。死角28mと浅いぶん、巻き込めるのは3体まで",
+      "attack_recover_sec": 0.35
     },
     {
       "id": "shield",
@@ -456,7 +478,8 @@
       "speed_mps": 4,
       "siege_mult": 0.5,
       "anti_wall_mult": 1.0,
-      "role": "壁役。後ろの遠距離を守る時間を買う"
+      "role": "壁役。後ろの遠距離を守る時間を買う",
+      "attack_recover_sec": 0.25
     },
     {
       "id": "golem",
@@ -478,7 +501,8 @@
       "speed_mps": 3,
       "siege_mult": 0.4,
       "anti_wall_mult": 1.0,
-      "role": "重装より硬い壁。動きは鈍い"
+      "role": "重装より硬い壁。動きは鈍い",
+      "attack_recover_sec": 0.4
     },
     {
       "id": "rider",
@@ -493,14 +517,15 @@
       "attack_windup_sec": 0.15,
       "attack_band_m": [
         0,
-        16
+        20
       ],
       "pierce": 1,
       "knockback": 3,
       "speed_mps": 9,
       "siege_mult": 1.3,
       "anti_wall_mult": 1.4,
-      "role": "速い中型。前線を一気に押し上げる"
+      "role": "速い中型。前線を一気に押し上げる",
+      "attack_recover_sec": 0.15
     },
     {
       "id": "flamer",
@@ -515,14 +540,15 @@
       "attack_windup_sec": 0.3,
       "attack_band_m": [
         0,
-        36
+        30
       ],
       "pierce": 4,
       "knockback": 3,
       "speed_mps": 5,
       "siege_mult": 0.8,
       "anti_wall_mult": 2.0,
-      "role": "前線範囲で壁の列を焼く"
+      "role": "前線範囲で壁の列を焼く",
+      "attack_recover_sec": 0.3
     },
     {
       "id": "whirl",
@@ -537,14 +563,15 @@
       "attack_windup_sec": 0.25,
       "attack_band_m": [
         0,
-        22
+        24
       ],
       "pierce": 5,
       "knockback": 3,
       "speed_mps": 9,
       "siege_mult": 0.9,
       "anti_wall_mult": 1.8,
-      "role": "速い短射程範囲。5体まで巻き込みながら走り、固まった前線を内側から壊す"
+      "role": "速い短射程範囲。5体まで巻き込みながら走り、固まった前線を内側から壊す",
+      "attack_recover_sec": 0.25
     },
     {
       "id": "berserk",
@@ -559,14 +586,15 @@
       "attack_windup_sec": 0.12,
       "attack_band_m": [
         0,
-        15
+        19
       ],
       "pierce": 1,
       "knockback": 4,
       "speed_mps": 8,
       "siege_mult": 1.4,
       "anti_wall_mult": 1.6,
-      "role": "最大級の手数。よく押し戻される"
+      "role": "最大級の手数。よく押し戻される",
+      "attack_recover_sec": 0.12
     },
     {
       "id": "wraith",
@@ -581,14 +609,15 @@
       "attack_windup_sec": 0.2,
       "attack_band_m": [
         0,
-        18
+        21
       ],
       "pierce": 1,
       "knockback": 3,
       "speed_mps": 9,
       "siege_mult": 1.3,
       "anti_wall_mult": 1.4,
-      "role": "速い中型の二枚目。騎兵より脆いが、射程が少し長い"
+      "role": "速い中型の二枚目。騎兵より脆いが、射程が少し長い",
+      "attack_recover_sec": 0.2
     },
     {
       "id": "sweeper",
@@ -610,7 +639,8 @@
       "speed_mps": 4,
       "siege_mult": 0.7,
       "anti_wall_mult": 2.2,
-      "role": "前線範囲。6体まで巻き込み、壁の群れを崩すのが仕事"
+      "role": "前線範囲。6体まで巻き込み、壁の群れを崩すのが仕事",
+      "attack_recover_sec": 0.4
     },
     {
       "id": "arbalest",
@@ -619,7 +649,7 @@
       "tier": "A",
       "cost": 20,
       "cooldown_sec": 24,
-      "hp": 700,
+      "hp": 820,
       "attack": 230,
       "attack_interval_sec": 2.2,
       "attack_windup_sec": 0.5,
@@ -627,12 +657,14 @@
         0,
         72
       ],
-      "pierce": 1,
+      "pierce": 3,
       "knockback": 2,
       "speed_mps": 4,
       "siege_mult": 0.9,
       "anti_wall_mult": 1.0,
-      "role": "遠距離の単体。射程72mを買う札で、手数は同じ値段の接近戦の半分以下"
+      "role": "前線起点の射抜き。最前列から18m奥までを3体まで貫く。壁を並べても、その後ろが安全にならない",
+      "attack_recover_sec": 0.5,
+      "spread_m": 18
     },
     {
       "id": "mortar",
@@ -654,7 +686,8 @@
       "speed_mps": 4,
       "siege_mult": 1.5,
       "anti_wall_mult": 0.6,
-      "role": "遠方範囲の極。手前42mが死角。相手の前線を飛び越えて後衛と拠点を叩く"
+      "role": "遠方範囲の極。手前42mが死角。相手の前線を飛び越えて後衛と拠点を叩く",
+      "attack_recover_sec": 0.8
     },
     {
       "id": "cannon",
@@ -676,7 +709,8 @@
       "speed_mps": 4,
       "siege_mult": 1.0,
       "anti_wall_mult": 1.0,
-      "role": "遠方範囲で最も死角が浅い（32m）。そのぶん巻き込めるのは5体まで"
+      "role": "遠方範囲で最も死角が浅い（32m）。そのぶん巻き込めるのは5体まで",
+      "attack_recover_sec": 0.7
     },
     {
       "id": "warlock",
@@ -698,7 +732,8 @@
       "speed_mps": 4,
       "siege_mult": 1.2,
       "anti_wall_mult": 0.6,
-      "role": "臼砲より近い死角36m。後衛を焼く"
+      "role": "臼砲より近い死角36m。後衛を焼く",
+      "attack_recover_sec": 0.65
     },
     {
       "id": "assassin",
@@ -713,14 +748,15 @@
       "attack_windup_sec": 0.15,
       "attack_band_m": [
         0,
-        14
+        20
       ],
       "pierce": 1,
       "knockback": 3,
       "speed_mps": 10,
       "siege_mult": 1.6,
       "anti_wall_mult": 1.7,
-      "role": "最速の大型。小さい一撃を高速で刻み、壁ごと押し通って拠点に届く"
+      "role": "最速の大型。小さい一撃を高速で刻み、壁ごと押し通って拠点に届く",
+      "attack_recover_sec": 0.15
     },
     {
       "id": "paladin",
@@ -743,7 +779,8 @@
       "siege_mult": 0.9,
       "anti_wall_mult": 1.3,
       "trait": "chain",
-      "role": "硬さと火力の両立。後退しない。王国軍を続けて出せば4安くなる"
+      "role": "硬さと火力の両立。後退しない。王国軍を続けて出せば4安くなる",
+      "attack_recover_sec": 0.6
     },
     {
       "id": "revenant",
@@ -765,7 +802,8 @@
       "speed_mps": 7,
       "siege_mult": 1.5,
       "anti_wall_mult": 1.5,
-      "role": "速さと火力。押し戻されやすいので数で支える"
+      "role": "速さと火力。押し戻されやすいので数で支える",
+      "attack_recover_sec": 0.35
     },
     {
       "id": "ballista",
@@ -774,7 +812,7 @@
       "tier": "S",
       "cost": 28,
       "cooldown_sec": 33,
-      "hp": 760,
+      "hp": 900,
       "attack": 380,
       "attack_interval_sec": 3.4,
       "attack_windup_sec": 0.75,
@@ -782,13 +820,15 @@
         0,
         78
       ],
-      "pierce": 1,
+      "pierce": 4,
       "knockback": 2,
       "speed_mps": 3,
       "siege_mult": 1.7,
       "anti_wall_mult": 0.7,
       "trait": "desperate",
-      "role": "最長射程の単体。死角が無い代わりに1体しか撃てず、拠点を割るための兵器。自拠点が半分を切ると半額"
+      "role": "前線起点の射抜き。最前列から26m奥までを4体まで貫く。列が深いほど効くので、押し込んでいる側ほど刺さる",
+      "attack_recover_sec": 0.75,
+      "spread_m": 26
     },
     {
       "id": "siegetower",
@@ -810,7 +850,8 @@
       "speed_mps": 3,
       "siege_mult": 1.9,
       "anti_wall_mult": 1.0,
-      "role": "最も拠点を削る。遅く、前線が必要"
+      "role": "最も拠点を削る。遅く、前線が必要",
+      "attack_recover_sec": 0.65
     },
     {
       "id": "warlord",
@@ -833,7 +874,8 @@
       "siege_mult": 1.5,
       "anti_wall_mult": 1.5,
       "trait": "kinship",
-      "role": "素の31は誰にも払えない。悪の組織で固めるほど安くなり、8枠全部なら17まで落ちる"
+      "role": "素の31は誰にも払えない。悪の組織で固めるほど安くなり、8枠全部なら17まで落ちる",
+      "attack_recover_sec": 0.65
     },
     {
       "id": "beastking",
@@ -856,7 +898,8 @@
       "siege_mult": 1.3,
       "anti_wall_mult": 1.4,
       "trait": "kinship",
-      "role": "首魁の動物版。硬さで押す側の同胞持ち"
+      "role": "首魁の動物版。硬さで押す側の同胞持ち",
+      "attack_recover_sec": 0.7
     },
     {
       "id": "behemoth",
@@ -879,7 +922,8 @@
       "siege_mult": 1.2,
       "anti_wall_mult": 1.4,
       "trait": "desperate",
-      "role": "体力も火力も上位。範囲で前線を薙ぐ。自拠点が半分を切ると半額"
+      "role": "体力も火力も上位。範囲で前線を薙ぐ。自拠点が半分を切ると半額",
+      "attack_recover_sec": 0.7
     },
     {
       "id": "oni",
@@ -902,7 +946,8 @@
       "siege_mult": 1.4,
       "anti_wall_mult": 1.6,
       "trait": "chain",
-      "role": "射程20mと短いかわりに、DPSはロースター最大。速いが体力は同コスト帯の半分以下で、遠距離に削られると何もできない。悪の組織を続けて出せば4安くなる"
+      "role": "射程20mと短いかわりに、DPSはロースター最大。速いが体力は同コスト帯の半分以下で、遠距離に削られると何もできない。悪の組織を続けて出せば4安くなる",
+      "attack_recover_sec": 0.7
     },
     {
       "id": "titan",
@@ -925,7 +970,8 @@
       "siege_mult": 1.3,
       "anti_wall_mult": 1.5,
       "trait": "chain",
-      "role": "体力も攻撃力も最上位。最も遅く、出したら資金が空になる"
+      "role": "体力も攻撃力も最上位。最も遅く、出したら資金が空になる",
+      "attack_recover_sec": 0.6
     }
   ]
 }

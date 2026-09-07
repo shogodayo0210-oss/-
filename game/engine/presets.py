@@ -26,15 +26,25 @@ def trial_roster(data_dir=DATA_DIR) -> dict:
 
 
 # アバター / 出撃6種（残り2枠は抽選） / 持ち込む呪文1枚 / 切り札
+#
+# **3方針とも種族で固めてある。** 種族呪文（5.5）は編成にその種族が3体以上
+# 無いと撃てないので、散らした編成では測れない ―― 「同じ種族で固めるか、
+# 役割で散らすか」という択そのものを、方針の側にも入れておく。
+# 前線起点の射抜き（2.1）も1体ずつ入れてある。安い1体で前線を止める形への
+# 答えなので、盤面に居ないと引き分けの原因が測れない。
 PRESETS = {
-    "rush":     ("scout",   ["grunt", "hound", "boar", "twin", "raider", "whirl"],
-                 "advance", "gale_edge"),
-    "balanced": ("marshal", ["grunt", "shieldman", "spear", "archer", "sweeper",
-                             "cannon"],
-                 "warcry", "colossus"),
-    "greed":    ("bulwark", ["grunt", "shieldman", "archer", "arbalest", "mortar",
-                             "titan"],
-                 "bulwark", "archmage"),
+    # 動物5体。安く速く、獣性（速度×2.5）で一気に押し込む
+    "rush":     ("scout",   ["ratling", "hound", "boar", "raider", "rider",
+                             "berserk"],
+                 "beastblood", "gale_edge"),
+    # 王国軍5体＋弩兵の射抜き。鬨の陣（攻撃×1.7を11秒）で線を押す
+    "balanced": ("marshal", ["grunt", "shieldman", "spear", "crossbow", "archer",
+                             "paladin"],
+                 "kingsroar", "colossus"),
+    # 古代兵器5体＋攻城弩の射抜き。過負荷（攻撃間隔×0.3）で焼き切る
+    "greed":    ("bulwark", ["stonewall", "golem", "arbalest", "mortar",
+                             "ballista", "titan"],
+                 "overclock", "archmage"),
 }
 
 

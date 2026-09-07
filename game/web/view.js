@@ -75,7 +75,8 @@ const STAT_MEANING = {
 
 function cardChange(card) {
   const stat = STAT_LABELS[card.apply.stat] || card.apply.stat;
-  const who = SCOPE_LABELS[card.apply.scope] || card.apply.scope;
+  let who = SCOPE_LABELS[card.apply.scope] || card.apply.scope;
+  if (card.race) who = `自軍の${card.race}`;
   if (card.apply.mult !== null) return `${who}の${stat} ×${fmt(card.apply.mult)}`;
   const add = card.apply.add || 0;
   return `${who}の${stat} ${add > 0 ? '+' : ''}${fmt(add)}`;
@@ -87,9 +88,14 @@ function cardMeaning(card) {
   return STAT_MEANING[`${card.apply.stat}:${rises ? 'up' : 'down'}`] || '';
 }
 
+// data.py の Card.condition() と同じ。撃てる条件を1行にする。
 function cardCondition(card) {
-  if (card.base_hp_gate === null) return '';
-  return `自拠点 ${Math.round(card.base_hp_gate * 100)}% 以下で解禁`;
+  const parts = [];
+  if (card.base_hp_gate !== null) {
+    parts.push(`自拠点 ${Math.round(card.base_hp_gate * 100)}% 以下`);
+  }
+  if (card.race) parts.push(`編成に${card.race}が${card.race_min}体以上`);
+  return parts.length ? parts.join('・') + 'でだけ撃てる' : '';
 }
 
 // ---------------------------------------------------------------- 絵
@@ -309,6 +315,11 @@ class View {
       const total = Math.max(f.spec.attack_windup_sec, 1e-6);
       this.bar([x - 22, head - 17, 44, 5], 1.0 - f.windup_left / total,
                GOLD, '#12161b');
+    } else if (f.exposed_left > 0) {
+      // **後隙。** 金は「来るぞ」、赤は「いまなら通る」（設計書2.3）。
+      const total = Math.max(f.spec.attack_recover_sec, 1e-6);
+      this.bar([x - 22, head - 17, 44, 5], f.exposed_left / total,
+               RED, '#12161b');
     }
 
     if (f.stun_left > 0) {

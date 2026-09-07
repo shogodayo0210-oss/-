@@ -94,6 +94,11 @@ def shape_rules(spec: Unit, game: GameData, scale: Scale) -> list[str]:
     else:
         rules.append(f"**接近戦〜前線**（射程 {spec.far:.0f}m）。得物は短い")
 
+    if spec.spread_m > 0:
+        rules.append(
+            f"**前線起点**（窓 {spec.spread_m:.0f}m）。得物は"
+            "*一直線に貫く形*（長い矢・杭・槍衾）。放物線でも爆風でもない ―― "
+            "壁の後ろまで一本で抜ける、が形で分かること")
     if spec.pierce >= game.area_pierce_min:
         rules.append(
             f"範囲攻撃（{spec.pierce}体まで巻き込む）。刃・爆風・火が"
@@ -123,6 +128,10 @@ def shape_rules(spec: Unit, game: GameData, scale: Scale) -> list[str]:
         rules.append(f"体力が最下位（{spec.hp}）。**紙に見せる** ―― 装甲を描かない")
     if spec.dps >= scale.dps[-4]:
         rules.append(f"DPSが最上位（{spec.dps:.0f}）。得物を凶悪に")
+    if spec.attack_recover_sec >= 0.5:
+        rules.append(
+            f"後隙が長い（{spec.attack_recover_sec:g}秒）。**振り切った姿勢に説得力**を ―― "
+            "重心が流れ、体が伸び切っていて、すぐには戻せないと分かる形")
 
     return rules
 

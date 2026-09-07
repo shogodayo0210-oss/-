@@ -30,6 +30,11 @@ class Unit:
     speed_mps: float
     siege_mult: float
     anti_wall_mult: float = 1.0
+    # 後隙。当たった直後この秒数は動けず、被弾も増える。
+    # **振りかぶりが長いほど後隙も長い** ―― 読める大技ほど外したら殴られる。
+    attack_recover_sec: float = 0.0
+    # 前線起点の射程の窓。0 なら自分を基準にした普通の帯。
+    spread_m: float = 0.0
     # 種族。戦闘の数字には効かないが、**特性（同胞・連携）がここを見る**ので、
     # 編成を種族で固めるか役割で散らすかが択になる。
     race: str = "王国軍"
@@ -133,15 +138,30 @@ class Card:
     # 撃てる条件。自分の拠点がこの割合まで減っていないと撃てない。
     # None なら無条件。押し込まれている側だけが持てる手を作るための唯一の仕組み。
     base_hp_gate: float | None = None
+    # **種族呪文。** その種族にだけ効き、編成にその種族が race_min 体
+    # 居ないと撃てない。種族を「編成の材料」から「編成の見返り」に進めるもの。
+    race: str = ""
+    race_min: int = 0
 
     @property
     def gated(self) -> bool:
         return self.base_hp_gate is not None
 
+    @property
+    def race_locked(self) -> bool:
+        return bool(self.race)
+
+    @property
+    def conditional(self) -> bool:
+        """撃てない試合がありうる札か。値段と強さの釣り合いはこれで見る。"""
+        return self.gated or self.race_locked
+
     def change(self) -> str:
         """効果の数字を1行にする。「自軍の攻撃力 ×1.4」。"""
         stat = STAT_LABELS.get(self.apply.stat, self.apply.stat)
         who = SCOPE_LABELS.get(self.apply.scope, self.apply.scope)
+        if self.race_locked:
+            who = f"自軍の{self.race}"
         if self.apply.mult is not None:
             return f"{who}の{stat} ×{self.apply.mult:g}"
         return f"{who}の{stat} {self.apply.add:+g}"
@@ -156,9 +176,12 @@ class Card:
 
     def condition(self) -> str:
         """撃てる条件。無条件なら空。"""
-        if self.base_hp_gate is None:
-            return ""
-        return f"自拠点 {self.base_hp_gate:.0%} 以下でだけ撃てる"
+        parts = []
+        if self.base_hp_gate is not None:
+            parts.append(f"自拠点 {self.base_hp_gate:.0%} 以下")
+        if self.race_locked:
+            parts.append(f"編成に{self.race}が{self.race_min}体以上")
+        return "・".join(parts) + "でだけ撃てる" if parts else ""
 
     def describe(self) -> str:
         """カードの説明文。data には書かず、毎回ここで組み立てる。"""
@@ -199,7 +222,7 @@ class Card:
         その差を引いてから帯に当てるので、条件付きだけが「同じ値段で強い」を
         名乗れて、しかも際限なくは強くならない。
         """
-        return self.power - (gate_bonus if self.gated else 0.0)
+        return self.power - (gate_bonus if self.conditional else 0.0)
 
 
 @dataclass(frozen=True)
@@ -403,6 +426,8 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             pierce=u["pierce"], knockback=u["knockback"],
             speed_mps=u["speed_mps"], siege_mult=u["siege_mult"],
             anti_wall_mult=u["anti_wall_mult"], race=u.get("race", "王国軍"),
+            attack_recover_sec=u.get("attack_recover_sec", 0.0),
+            spread_m=u.get("spread_m", 0.0),
             trait=u.get("trait", ""), role=u.get("role", ""),
         )
 
@@ -414,6 +439,8 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             duration_sec=c["duration_sec"], cooldown_sec=c["cooldown_sec"],
             cast_sec=c["cast_sec"], cost=c["cost"], band=c["band"],
             base_hp_gate=c.get("require", {}).get("own_base_hp_at_most"),
+            race=c.get("race", ""),
+            race_min=c.get("require", {}).get("race_in_roster", 0),
             apply=CardEffect(scope=a["scope"], stat=a["stat"],
                              mult=a.get("mult"), add=a.get("add")),
         )
@@ -429,6 +456,8 @@ def load(data_dir: Path | str = DATA_DIR) -> GameData:
             pierce=t["pierce"], knockback=t["knockback"],
             speed_mps=t["speed_mps"], siege_mult=t["siege_mult"],
             anti_wall_mult=t["anti_wall_mult"], race=t.get("race", "王国軍"),
+            attack_recover_sec=t.get("attack_recover_sec", 0.0),
+            spread_m=t.get("spread_m", 0.0),
             role=t.get("role", ""),
             lifespan_sec=t["lifespan_sec"], summon_sec=t["summon_sec"],
         )

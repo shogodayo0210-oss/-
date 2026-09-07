@@ -62,6 +62,9 @@ class Effect:
     add: float | None
     until: float
     source: str
+    # **種族呪文。** 空なら全軍。種族名が入っていれば、その種族のユニットに
+    # だけ効く ―― 財布や出撃コストのような全軍ぶんの値には一切かからない。
+    race: str = ""
 
 
 @dataclass
@@ -74,6 +77,11 @@ class Fighter:
     facing: int
     windup_left: float = 0.0
     recover_left: float = 0.0
+    # **後隙。** 攻撃が当たった直後の、殴られてよい時間。`recover_left` は
+    # 「次の一手までの残り」（攻撃間隔の余り）で、こちらはそのうち
+    # **被弾が増える前半**だけ。分けてあるのは攻撃間隔＝DPSを動かさずに
+    # 後隙の長さだけを設計値にするため。
+    exposed_left: float = 0.0
     stun_left: float = 0.0
     knockbacks_done: int = 0
     summon_left: float = 0.0
@@ -84,12 +92,21 @@ class Fighter:
         return self.hp > 0
 
     @property
+    def exposed(self) -> bool:
+        """後隙の最中か。ここで殴ると余分に通る。"""
+        return self.exposed_left > 0
+
+    @property
     def ready(self) -> bool:
         """召喚演出が終わって、実際に戦える状態か。"""
         return self.summon_left <= 0
 
     def band(self, speed_mult: float = 1.0) -> tuple[float, float]:
-        """世界座標での攻撃が当たる帯。向きで反転する。"""
+        """世界座標での**届く範囲**。向きで反転する。
+
+        前線起点（`spread_m` > 0）のユニットでも、まずここに敵が入らないと
+        始まらない ―― 当たる帯そのものは `Battle.strike_band` が出す。
+        """
         near, far = self.spec.near, self.spec.far
         if self.facing > 0:
             return self.x + near, self.x + far
@@ -156,6 +173,11 @@ class Side:
             self.kin[uid] = sum(1 for other in loadout.roster
                                 if other != uid
                                 and game.units[other].race == spec.race)
+        # 種族呪文が見るのはこちら ―― 編成にその種族が何体入っているか。
+        self.race_count: dict[str, int] = {}
+        for uid in loadout.roster:
+            race = game.units[uid].race
+            self.race_count[race] = self.race_count.get(race, 0) + 1
 
         avatar = game.avatars[loadout.avatar]
         self.perks = set(avatar.perks)
@@ -195,7 +217,12 @@ class Side:
         （設計書5.4）。相手の拠点を削れば削るほど、相手の札が増える。
         """
         gate = card.base_hp_gate
-        return gate is None or self.base_hp <= self.game.base_hp * gate
+        if gate is not None and self.base_hp > self.game.base_hp * gate:
+            return False
+        # **種族呪文。** 編成にその種族が足りていなければ、資金があっても撃てない。
+        if card.race_locked:
+            return self.race_count.get(card.race, 0) >= card.race_min
+        return True
 
     def castable(self, source: tuple[str, int]) -> bool:
         """いま撃てるか。資金・詠唱中・共通CD・育成中・個別CD・解禁を全部見る。"""
@@ -217,11 +244,18 @@ class Side:
         return self.game.perks[perk_id].params.get(key, default)
 
     # ------------------------------------------------------------------ 効果
-    def stat(self, name: str, base: float) -> float:
-        """かかっている効果を掛けたあとの値。掛けてから足す。"""
+    def stat(self, name: str, base: float, race: str | None = None) -> float:
+        """かかっている効果を掛けたあとの値。掛けてから足す。
+
+        `race` を渡すとユニット1体ぶんの値になる ―― **種族呪文**はその種族に
+        だけ効くので、全軍ぶん（資金・出撃コスト・再出撃）とは分けて出す。
+        渡さなければ種族付きの効果は素通しになる。
+        """
         value = base
         for e in self.effects:
             if e.stat != name:
+                continue
+            if e.race and e.race != race:
                 continue
             if e.mult is not None:
                 value *= e.mult
@@ -323,6 +357,7 @@ class Battle:
         self.kb_distance = game.combat["knockback_distance_m"]
         self.kb_stun = game.combat["knockback_stun_sec"]
         self.siege_cap = game.combat["siege_cap_dps"]
+        self.recover_mult = game.combat["recover_damage_mult"]
         self.max_units = game.match["field"]["max_units_per_side"]
         self.t = 0.0
         self.drops = list(game.economy.get("milestones", []))
@@ -427,9 +462,11 @@ class Battle:
             return
 
         target = side if card.apply.scope.startswith("own") else enemy
+        # 種族呪文は、その種族のユニットにだけ乗る（`Side.stat` が絞る）。
         target.add_effect(Effect(stat=card.apply.stat, mult=card.apply.mult,
                                  add=card.apply.add,
-                                 until=self.t + card.duration_sec, source=card.id))
+                                 until=self.t + card.duration_sec, source=card.id,
+                                 race=card.race))
         self.note(side.index, f"{card.name} 発動（{card.duration_sec}秒）")
 
     def use_parry(self, side: Side) -> bool:
@@ -465,26 +502,57 @@ class Battle:
         """そのtickの頭で場に居た側のユニット。方針もここを見る。"""
         return [f for _, f in self._snap[index]]
 
-    def targets_in_band(self, fighter: Fighter) -> list[Fighter]:
-        lo, hi = fighter.band()
-        rows = self._snap[1 - fighter.side]
+    def _rows_between(self, side: int, lo: float, hi: float):
+        rows = self._snap[side]
         xs = [x for x, _ in rows]
-        lo_i, hi_i = bisect_left(xs, lo - EPS), bisect_right(xs, hi + EPS)
-        found = rows[lo_i:hi_i]
+        return rows[bisect_left(xs, lo - EPS):bisect_right(xs, hi + EPS)]
+
+    def strike_band(self, fighter: Fighter) -> tuple[float, float]:
+        """**実際に当たる帯。** 普通は届く範囲そのもの。
+
+        `spread_m` を持つユニットだけ違う ―― 届く範囲の中にいる
+        **敵の一番手前**を起点に、そこから奥へ窓のぶんだけを叩く。
+        「相手の最前列から少し奥まで」という形で、*安い1体を前に置いて
+        全部止める*が通らなくなる（壁ごと後ろの列を巻き込むので）。
+
+        窓は射程の40%以下（validate.py）。盤面を薄く塗る道具ではなく、
+        **前線の一点を深く抜く**道具なので、外れたところは無傷で残る。
+        """
+        lo, hi = fighter.band()
+        if fighter.spec.spread_m <= 0:
+            return lo, hi
+        rows = self._rows_between(1 - fighter.side, lo, hi)
+        if not rows:
+            return lo, hi                 # 誰も居ないので拠点だけが的
+        # 一番手前 ＝ 自分に近いほう。向きで端が入れ替わる。
+        head = rows[0][0] if fighter.facing > 0 else rows[-1][0]
+        width = fighter.spec.spread_m
+        if fighter.facing > 0:
+            return head, min(hi, head + width)
+        return max(lo, head - width), head
+
+    def targets_in_band(self, fighter: Fighter) -> list[Fighter]:
+        lo, hi = self.strike_band(fighter)
+        found = list(self._rows_between(1 - fighter.side, lo, hi))
         found.sort(key=lambda pair: abs(pair[0] - fighter.x))
         return [f for _, f in found]
 
     def base_in_band(self, fighter: Fighter) -> bool:
-        lo, hi = fighter.band()
+        lo, hi = self.strike_band(fighter)
         return lo - EPS <= self.sides[1 - fighter.side].base_x <= hi + EPS
 
     def apply_damage(self, victim: Fighter, amount: float) -> None:
         side = self.sides[victim.side]
+        # **後隙に入った打撃は余分に通る。** 大技を振り切った直後が一番痛い、
+        # という形にして、読める大振り（発生0.6秒以上）に対する答えを
+        # 「避ける」から「差し込む」に変える。
+        if victim.exposed:
+            amount *= self.recover_mult
         victim.hp -= amount
         if victim.hp <= 0:
             return
 
-        kb = side.stat("knockback", victim.spec.knockback)
+        kb = side.stat("knockback", victim.spec.knockback, victim.spec.race)
         if kb < 1:                                    # 堅陣：後退しなくなる
             return
         segment = victim.spec.hp / kb
@@ -534,7 +602,7 @@ class Battle:
     def resolve_attack(self, fighter: Fighter) -> None:
         side = self.sides[fighter.side]
         enemy = self.enemy_of(side)
-        power = side.stat("attack", fighter.spec.attack)
+        power = side.stat("attack", fighter.spec.attack, fighter.spec.race)
 
         if enemy.parry_until >= self.t:
             return
@@ -570,6 +638,12 @@ class Battle:
         side = self.sides[fighter.side]
         dt = self.tick
 
+        # **後隙は実時間で抜ける。** ノックバックされようが気絶させられようが、
+        # 振り切った直後の時間は同じだけ流れる ―― 状態で伸び縮みさせると、
+        # 「押し戻して後隙を伸ばす」という読みようのない挙動が生まれる。
+        if fighter.exposed_left > 0:
+            fighter.exposed_left -= dt
+
         if fighter.summon_left > 0:
             fighter.summon_left -= dt
             return
@@ -577,7 +651,7 @@ class Battle:
             fighter.stun_left -= dt
             return
 
-        interval_mult = side.stat("attack_interval", 1.0)
+        interval_mult = side.stat("attack_interval", 1.0, fighter.spec.race)
         if fighter.recover_left > 0:
             fighter.recover_left -= dt
             return
@@ -588,6 +662,12 @@ class Battle:
                 cycle = fighter.spec.attack_interval_sec * interval_mult
                 windup = fighter.spec.attack_windup_sec * interval_mult
                 fighter.recover_left = max(0.0, cycle - windup)
+                # 後隙は「次の一手までの残り」の**前半だけ**。残りは構え直しで
+                # そこはもう余分には入らない ―― こう分けると、攻撃間隔
+                # （＝DPS）を一切動かさずに後隙の長さだけを設計値にできる。
+                fighter.exposed_left = min(
+                    fighter.spec.attack_recover_sec * interval_mult,
+                    fighter.recover_left)
             return
 
         if self.targets_in_band(fighter) or self.base_in_band(fighter):
@@ -603,7 +683,7 @@ class Battle:
         # 相手に300秒かけて拠点0ダメージ、36試合すべて引き分けになった。
         # 詰まりを外すと、**立ち位置は射程が決める** ―― 接近戦は接触点まで出て、
         # 遠距離はその手前で止まる。前線範囲・遠方範囲の設計はこれで成立する。
-        speed = side.stat("speed", fighter.spec.speed_mps)
+        speed = side.stat("speed", fighter.spec.speed_mps, fighter.spec.race)
         moved = fighter.x + fighter.facing * speed * dt
         fighter.x = max(0.0, min(self.game.lane_length, moved))
 

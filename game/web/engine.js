@@ -45,6 +45,9 @@ function makeUnit(u, extra) {
     near: u.attack_band_m[0], far: u.attack_band_m[1],
     pierce: u.pierce, knockback: u.knockback, speed_mps: u.speed_mps,
     siege_mult: u.siege_mult, anti_wall_mult: u.anti_wall_mult,
+    // 後隙と、前線起点の窓（data.py と同じ既定値）。
+    attack_recover_sec: u.attack_recover_sec || 0.0,
+    spread_m: u.spread_m || 0.0,
     race: u.race || '王国軍', trait: u.trait || '', role: u.role || '',
     lifespan_sec: 0, summon_sec: 0,
   };
@@ -84,6 +87,10 @@ function loadGame(raw) {
       // 拠点がこの割合まで減っていないと撃てない。無条件なら null。
       base_hp_gate: (c.require && c.require.own_base_hp_at_most !== undefined)
         ? c.require.own_base_hp_at_most : null,
+      // **種族呪文。** その種族にだけ効き、編成にその種族が race_min 体
+      // 居ないと撃てない（data.py と同じ）。
+      race: c.race || '',
+      race_min: (c.require && c.require.race_in_roster) || 0,
       apply: {
         scope: c.apply.scope, stat: c.apply.stat,
         // JSON に無いものは Python では None。ここでは null に揃える。
@@ -132,6 +139,10 @@ class Fighter {
     this.facing = facing;
     this.windup_left = 0.0;
     this.recover_left = 0.0;
+    // **後隙。** recover_left は「次の一手までの残り」で、こちらはそのうち
+    // 被弾が増える前半だけ。分けてあるのは攻撃間隔（＝DPS）を動かさずに
+    // 後隙の長さだけを設計値にするため。
+    this.exposed_left = 0.0;
     this.stun_left = 0.0;
     this.knockbacks_done = 0;
     this.summon_left = summonLeft === undefined ? 0.0 : summonLeft;
@@ -143,7 +154,11 @@ class Fighter {
   // 召喚演出が終わって、実際に戦える状態か。
   get ready() { return this.summon_left <= 0; }
 
-  // 世界座標での攻撃が当たる帯。向きで反転する。
+  // 後隙の最中か。ここで殴ると余分に通る。
+  get exposed() { return this.exposed_left > 0; }
+
+  // 世界座標での**届く範囲**。向きで反転する。前線起点（spread_m > 0）でも
+  // まずここに敵が入らないと始まらない ―― 当たる帯は strikeBand が出す。
   band() {
     const near = this.spec.near, far = this.spec.far;
     if (this.facing > 0) return [this.x + near, this.x + far];
@@ -208,6 +223,12 @@ class Side {
       }
       this.kin[uid] = n;
     }
+    // 種族呪文が見るのはこちら ―― 編成にその種族が何体入っているか。
+    this.race_count = {};
+    for (const uid of loadout.roster) {
+      const race = game.units[uid].race;
+      this.race_count[race] = (this.race_count[race] || 0) + 1;
+    }
 
     const avatar = game.avatars[loadout.avatar];
     this.perks = new Set(avatar.perks);
@@ -247,7 +268,10 @@ class Side {
   // 押し込まれている側だけが持てる手（battle.py の unlocked と同じ）。
   unlocked(card) {
     const gate = card.base_hp_gate;
-    return gate === null || this.base_hp <= this.game.baseHp * gate;
+    if (gate !== null && this.base_hp > this.game.baseHp * gate) return false;
+    // **種族呪文。** 編成にその種族が足りていなければ、資金があっても撃てない。
+    if (card.race) return (this.race_count[card.race] || 0) >= card.race_min;
+    return true;
   }
 
   // いま撃てるか。資金・詠唱中・共通CD・育成中・個別CD・解禁を全部見る。
@@ -273,10 +297,13 @@ class Side {
 
   // ---------------------------------------------------------------- 効果
   // かかっている効果を掛けたあとの値。掛けてから足す。
-  stat(name, base) {
+  // race を渡すとユニット1体ぶんの値になる ―― **種族呪文**はその種族に
+  // だけ効くので、全軍ぶん（資金・出撃コスト）とは分けて出す。
+  stat(name, base, race) {
     let value = base;
     for (const e of this.effects) {
       if (e.stat !== name) continue;
+      if (e.race && e.race !== race) continue;
       if (e.mult !== null) value *= e.mult;
       if (e.add !== null) value += e.add;
     }
@@ -360,6 +387,7 @@ class Battle {
     this.kb_distance = game.combat.knockback_distance_m;
     this.kb_stun = game.combat.knockback_stun_sec;
     this.siege_cap = game.combat.siege_cap_dps;
+    this.recover_mult = game.combat.recover_damage_mult;
     this.max_units = game.match.field.max_units_per_side;
     this.t = 0.0;
     this.drops = (game.economy.milestones || []).slice();
@@ -461,9 +489,10 @@ class Battle {
     }
 
     const target = card.apply.scope.startsWith('own') ? side : enemy;
+    // 種族呪文は、その種族のユニットにだけ乗る（Side.stat が絞る）。
     target.addEffect({
       stat: card.apply.stat, mult: card.apply.mult, add: card.apply.add,
-      until: this.t + card.duration_sec, source: card.id,
+      until: this.t + card.duration_sec, source: card.id, race: card.race,
     });
     this.note(side.index, `${card.name} 発動（${card.duration_sec}秒）`);
   }
@@ -484,7 +513,7 @@ class Battle {
     side.surge_charges -= 1;
     side.addEffect({
       stat: 'speed', mult: params.speed_mult, add: null,
-      until: this.t + params.duration_sec, source: 'surge',
+      until: this.t + params.duration_sec, source: 'surge', race: '',
     });
     this.note(side.index,
               `突撃（速度 ×${params.speed_mult} / ${params.duration_sec}秒）`);
@@ -505,19 +534,36 @@ class Battle {
   // そのtickの頭で場に居た側のユニット。方針もここを見る。
   live(index) { return this._snap[index].map(pair => pair[1]); }
 
-  targetsInBand(fighter) {
-    const band = fighter.band();
-    const rows = this._snap[1 - fighter.side];
+  rowsBetween(side, lo, hi) {
+    const rows = this._snap[side];
     const xs = rows.map(pair => pair[0]);
-    const loI = bisectLeft(xs, band[0] - EPS);
-    const hiI = bisectRight(xs, band[1] + EPS);
-    const found = rows.slice(loI, hiI);
+    return rows.slice(bisectLeft(xs, lo - EPS), bisectRight(xs, hi + EPS));
+  }
+
+  // **実際に当たる帯。** 普通は届く範囲そのもの。spread_m を持つユニットだけ
+  // 違う ―― 届く範囲の中にいる敵の一番手前を起点に、そこから奥へ窓のぶんだけ
+  // 叩く。「相手の最前列から少し奥まで」という形で、安い1体を前に置いて全部
+  // 止めるが通らなくなる（壁ごと後ろの列を巻き込むので）。
+  strikeBand(fighter) {
+    const band = fighter.band();
+    if (fighter.spec.spread_m <= 0) return band;
+    const rows = this.rowsBetween(1 - fighter.side, band[0], band[1]);
+    if (rows.length === 0) return band;      // 誰も居ないので拠点だけが的
+    const head = fighter.facing > 0 ? rows[0][0] : rows[rows.length - 1][0];
+    const width = fighter.spec.spread_m;
+    if (fighter.facing > 0) return [head, Math.min(band[1], head + width)];
+    return [Math.max(band[0], head - width), head];
+  }
+
+  targetsInBand(fighter) {
+    const band = this.strikeBand(fighter);
+    const found = this.rowsBetween(1 - fighter.side, band[0], band[1]).slice();
     found.sort((p, q) => Math.abs(p[0] - fighter.x) - Math.abs(q[0] - fighter.x));
     return found.map(pair => pair[1]);
   }
 
   baseInBand(fighter) {
-    const band = fighter.band();
+    const band = this.strikeBand(fighter);
     const baseX = this.sides[1 - fighter.side].base_x;
     return band[0] - EPS <= baseX && baseX <= band[1] + EPS;
   }
@@ -543,10 +589,13 @@ class Battle {
 
   applyDamage(victim, amount) {
     const side = this.sides[victim.side];
+    // **後隙に入った打撃は余分に通る。** 読める大技への答えを
+    // 「避ける」から「差し込む」に変えるための倍率。
+    if (victim.exposed) amount *= this.recover_mult;
     victim.hp -= amount;
     if (victim.hp <= 0) return;
 
-    const kb = side.stat('knockback', victim.spec.knockback);
+    const kb = side.stat('knockback', victim.spec.knockback, victim.spec.race);
     if (kb < 1) return;                            // 堅陣：後退しなくなる
     const segment = victim.spec.hp / kb;
     const crossed = Math.floor((victim.spec.hp - victim.hp) / segment);
@@ -562,7 +611,7 @@ class Battle {
   resolveAttack(fighter) {
     const side = this.sides[fighter.side];
     const enemy = this.enemyOf(side);
-    const power = side.stat('attack', fighter.spec.attack);
+    const power = side.stat('attack', fighter.spec.attack, fighter.spec.race);
 
     if (enemy.parry_until >= this.t) return;
 
@@ -586,10 +635,13 @@ class Battle {
     const side = this.sides[fighter.side];
     const dt = this.tick;
 
+    // **後隙は実時間で抜ける。** 押し戻されても気絶しても同じだけ流れる。
+    if (fighter.exposed_left > 0) fighter.exposed_left -= dt;
+
     if (fighter.summon_left > 0) { fighter.summon_left -= dt; return; }
     if (fighter.stun_left > 0) { fighter.stun_left -= dt; return; }
 
-    const intervalMult = side.stat('attack_interval', 1.0);
+    const intervalMult = side.stat('attack_interval', 1.0, fighter.spec.race);
     if (fighter.recover_left > 0) { fighter.recover_left -= dt; return; }
     if (fighter.windup_left > 0) {
       fighter.windup_left -= dt;
@@ -598,6 +650,9 @@ class Battle {
         const cycle = fighter.spec.attack_interval_sec * intervalMult;
         const windup = fighter.spec.attack_windup_sec * intervalMult;
         fighter.recover_left = Math.max(0.0, cycle - windup);
+        // 後隙は「次の一手までの残り」の前半だけ。
+        fighter.exposed_left = Math.min(
+          fighter.spec.attack_recover_sec * intervalMult, fighter.recover_left);
       }
       return;
     }
@@ -609,7 +664,7 @@ class Battle {
 
     // **味方どうしは詰まらない**（battle.py と同じ）。進めるところまで進んで、
     // 敵が帯に入ったところで止まる ―― 立ち位置は射程が決める。
-    const speed = side.stat('speed', fighter.spec.speed_mps);
+    const speed = side.stat('speed', fighter.spec.speed_mps, fighter.spec.race);
     const moved = fighter.x + fighter.facing * speed * dt;
     fighter.x = Math.max(0.0, Math.min(this.game.laneLength, moved));
   }

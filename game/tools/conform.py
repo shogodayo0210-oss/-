@@ -58,7 +58,8 @@ def fingerprint(battle: Battle) -> list[str]:
         for f in side.fighters:
             out.append("/".join([
                 f.spec.id, bits(f.x), bits(f.hp), bits(f.windup_left),
-                bits(f.recover_left), bits(f.stun_left), str(f.knockbacks_done),
+                bits(f.recover_left), bits(f.exposed_left),
+                bits(f.stun_left), str(f.knockbacks_done),
                 bits(f.summon_left),
                 "inf" if f.lifespan_left == float("inf") else bits(f.lifespan_left),
             ]))
@@ -160,7 +161,8 @@ function fingerprint(battle) {
     for (const f of side.fighters) {
       out.push([
         f.spec.id, bits(f.x), bits(f.hp), bits(f.windup_left),
-        bits(f.recover_left), bits(f.stun_left), String(f.knockbacks_done),
+        bits(f.recover_left), bits(f.exposed_left),
+        bits(f.stun_left), String(f.knockbacks_done),
         bits(f.summon_left),
         f.lifespan_left === Infinity ? 'inf' : bits(f.lifespan_left),
       ].join('/'));
