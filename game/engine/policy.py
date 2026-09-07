@@ -65,27 +65,54 @@ def _try_card(battle: Battle, side: Side) -> bool:
 
 
 def _try_deploy(battle: Battle, side: Side) -> bool:
-    """前に立つ者を切らさないまま、余った資金で高いものを出す。
+    """前に立つ者を切らさないまま、**高いものは貯めて出す。**
 
     「一番高いものを出す」だけにしていたときは、両軍とも遠距離だけの隊列に
     なって、80mの空きを挟んで撃ち合ったまま試合が終わった（実測で決着率0%）。
     遠距離は前に立つ者が居て初めて仕事になるので、頭数の下限を先に埋める。
+
+    そのうえで **貯める** ―― 「いまその場で買える一番高いもの」を毎tick
+    買っていたときは、資金が1〜10を行き来するだけで、巨兵（40）も臼砲（22）も
+    一度も場に出なかった（実測：greed が300秒で兵卒75体・臼砲3体・巨兵0体、
+    使えなかった資金34を抱えたまま時間切れ）。コストの幅を1〜40に広げた意味は、
+    **貯めるという判断が方針の側にも無いと測れない。**
     """
     game = battle.game
     line = game.far_threshold
-    front = sum(1 for f in side.fighters if f.alive and f.spec.far <= line)
-    affordable = [uid for uid in side.loadout.roster
-                  if side.deploy_cd.get(uid, 0.0) <= 0
-                  and side.money >= side.unit_cost(game.units[uid])]
-    if not affordable:
-        return False
+    alive = [f for f in side.fighters if f.alive]
+    front = sum(1 for f in alive if f.spec.far <= line)
+    ready = [uid for uid in side.loadout.roster
+             if side.deploy_cd.get(uid, 0.0) <= 0]
+    affordable = [uid for uid in ready
+                  if side.money >= side.unit_cost(game.units[uid])]
 
     close = [uid for uid in affordable if game.units[uid].far <= line]
     if front < max(2, battle.max_units // 3) and close:
-        pick = min(close, key=lambda uid: game.units[uid].cost)
-    else:
-        pick = max(affordable, key=lambda uid: game.units[uid].cost)
-    return battle.deploy(side, pick)
+        return battle.deploy(side, min(close, key=lambda uid: game.units[uid].cost))
+
+    # 狙いは「財布の上限で届く一番高いもの」。届くまでは何も出さずに貯める。
+    #
+    # ただし **隊列の半分は前に立つ者にする。** 一番高いものは遠距離である
+    # ことが多く、これを付けないと狙いが臼砲（22・射程80m）に固定されて
+    # 隊列が砲の壁になる（実測：1試合で臼砲6・重弩6に対して巨兵2）。
+    # 遠距離は前に立つ者が居て初めて仕事になる、という設計そのもの。
+    #
+    # なおこれを付けても balanced 対 greed の引き分けは減らない ―― あちらは
+    # 「自陣のすぐ前に1コストを出し続けられる側は前線を明け渡さない」という
+    # 盤面の話で、方針の買い方とは別（設計書12.5）。
+    pool = ready
+    if front * 2 < len(alive):
+        pool = [uid for uid in ready if game.units[uid].far <= line] or ready
+    reachable = [uid for uid in pool
+                 if side.unit_cost(game.units[uid]) <= side.money_cap]
+    if reachable:
+        goal = max(reachable, key=lambda uid: game.units[uid].cost)
+        if side.unit_cost(game.units[goal]) > side.money:
+            return False
+        return battle.deploy(side, goal)
+    if not affordable:
+        return False
+    return battle.deploy(side, max(affordable, key=lambda uid: game.units[uid].cost))
 
 
 def make_policy(target_level: int, defend_within: float = 40.0):

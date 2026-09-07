@@ -107,6 +107,10 @@ class Side:
         self.facing = 1 if index == 0 else -1
 
         self.base_hp = float(game.base_hp)
+        # 拠点に打ち込まれた攻城の待ち行列。**取り出す速さだけが上限で、
+        # 一発の大きさは削らない** ―― 10秒に1度しか振らない攻城櫓（対拠点1.9）が
+        # tickの粒に切り落とされないようにするため。`Battle.apply_base_damage`。
+        self.siege_backlog = 0.0
         self.level = 1
         self.money = float(game.economy["start"])
         # 資金は連続では増えない。**何秒かごとに +2〜6** という刻みで貯まる。
@@ -318,6 +322,7 @@ class Battle:
         self.tick = game.combat["tick_sec"]
         self.kb_distance = game.combat["knockback_distance_m"]
         self.kb_stun = game.combat["knockback_stun_sec"]
+        self.siege_cap = game.combat["siege_cap_dps"]
         self.max_units = game.match["field"]["max_units_per_side"]
         self.t = 0.0
         self.drops = list(game.economy.get("milestones", []))
@@ -491,6 +496,41 @@ class Battle:
             victim.stun_left = self.kb_stun
             victim.windup_left = 0.0
 
+    def apply_base_damage(self, dt: float) -> None:
+        """攻城を、**攻城口の上限の速さで**拠点に入れる。
+
+        帯が拠点に届いた者は全員が削る。ただし削れる速さは
+        `combat.siege_cap_dps` で止まる ―― 取り付ける口が詰まるので、
+        20体を寄せても数体ぶんより速くはならない。
+
+        上限は**待ち行列**で効かせる。tickごとに切り落とすと、一発が重い
+        攻城（攻城櫓 1.9、10秒に1度の大振り）だけが不当に損をして、
+        手数の多い者が得をする ―― 「対拠点倍率がそのまま効く」が壊れる。
+        積んでから一定の速さで取り出せば、1体ぶんの攻城は遅れて全部入り、
+        寄せすぎたぶんだけが（1秒ぶんの行列を超えて）捨てられる。
+
+        上限が無かった頃は、前線が破れた瞬間に17体が一斉に拠点を捉えて
+        毎秒11700が入り、拠点HP 10000 は1秒たらずで消えた（実測）。
+        拠点は『無傷』か『0』しか取らず、**傷ついた拠点という状態が
+        存在しなかった** ―― 自拠点の傷で解禁される札（背水・反攻・死守）も、
+        背水の特性も、起死回生の特典も、届く前に試合が終わる。実測では
+        解禁から決着までの猶予が2〜8秒しかなく、詠唱0.8秒＋効果8秒の札が
+        入る余地が無かった。上限を置いたことで、拠点HP ÷ 上限 = 15秒が
+        設計値になり、その15秒が『押し切られる側が押し返す時間』になる。
+        """
+        arrived = [0.0, 0.0]
+        for side, amount in self._base_damage:
+            arrived[side.index] += amount
+        for side in self.sides:
+            # 打ち込まれたぶんは待ち行列に積む。**tickの粒で切らない** ――
+            # 切ると、一発が重い攻城（攻城櫓 1.9 など）だけが不当に損をする。
+            # 積める上限は1秒ぶんなので、寄せすぎた打撃はそこで捨てられる。
+            side.siege_backlog = min(side.siege_backlog + arrived[side.index],
+                                     self.siege_cap)
+            taken = min(side.siege_backlog, self.siege_cap * dt)
+            side.siege_backlog -= taken
+            side.base_hp -= taken
+
     def resolve_attack(self, fighter: Fighter) -> None:
         side = self.sides[fighter.side]
         enemy = self.enemy_of(side)
@@ -514,6 +554,10 @@ class Battle:
         # 分けたことで、対拠点倍率が全ユニットの生きた数字になった ――
         # 壁（0.3〜0.5）は届いても削れず、攻城櫓（1.9）は届けば速い。
         # 守る側の仕事は「拠点に届かせないこと」そのものになる。
+        #
+        # ここで積むのは1体ぶんの取り分。**合計に上限をかけるのは
+        # `apply_base_damage`。** 帯が届いた全員が削るが、寄せた数だけ
+        # 速くはならない。
         if self.base_in_band(fighter):
             self._base_damage.append((enemy, power * fighter.spec.siege_mult))
 
@@ -624,8 +668,7 @@ class Battle:
         # 撃ち返せない、という順番の有利をなくすため。
         for victim, amount in self._damage:
             self.apply_damage(victim, amount)
-        for side, amount in self._base_damage:
-            side.base_hp -= amount
+        self.apply_base_damage(dt)
 
         for side in self.sides:
             enemy = self.enemy_of(side)

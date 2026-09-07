@@ -275,6 +275,64 @@ class TestGatedCards(unittest.TestCase):
         for card in gated:
             self.assertEqual(card.target, "own")
 
+    def test_the_gate_stays_open_long_enough_to_use(self):
+        """解禁されてから拠点が落ちるまでに、札を撃ち切る時間があること。
+
+        攻城口の上限が無かった頃は、前線が破れた瞬間に毎秒11700が入り、
+        拠点HPは1秒たらずで消えた。解禁から決着までの猶予は実測2〜8秒で、
+        詠唱0.8秒＋効果8秒の札はどうやっても間に合わない ―― **傷ついた
+        拠点という状態が存在しないと、この札は存在しないのと同じ。**
+        """
+        assault = GAME.base_hp / GAME.combat["siege_cap_dps"]
+        for card in [c for c in GAME.cards.values() if c.gated]:
+            self.assertGreaterEqual(assault, card.cast_sec + card.duration_sec,
+                                    card.name)
+
+
+class TestSiegeCap(unittest.TestCase):
+    """**拠点は一撃で落ちない。** 攻城口は詰まるので、寄せた数だけ速くならない。"""
+
+    def crowd_at_the_base(self, count):
+        bt = battle()
+        spec = GAME.units["siegetower"]          # 対拠点がいちばん高い部類
+        enemy_base = bt.sides[1].base_x
+        bt.sides[0].fighters = [
+            Fighter(spec=spec, side=0, x=enemy_base - 1.0,
+                    hp=float(spec.hp), facing=1)
+            for _ in range(count)]
+        return bt
+
+    def test_the_base_takes_at_most_the_cap(self):
+        cap = GAME.combat["siege_cap_dps"]
+        bt = self.crowd_at_the_base(20)
+        before = bt.sides[1].base_hp
+        for _ in range(40):                      # 2秒ぶん
+            bt.step()
+        dealt = before - bt.sides[1].base_hp
+        self.assertLessEqual(dealt, cap * 2.0 + 1e-6)
+
+    def test_massing_does_not_speed_it_up_past_the_cap(self):
+        """20体は5体より速くない。上限に張り付いたら頭打ち。"""
+        def dealt(count):
+            bt = self.crowd_at_the_base(count)
+            before = bt.sides[1].base_hp
+            for _ in range(60):
+                bt.step()
+            return before - bt.sides[1].base_hp
+
+        self.assertAlmostEqual(dealt(20), dealt(40), places=6)
+
+    def test_a_single_leaker_is_slower_than_a_broken_line(self):
+        """1体すり抜けることと前線を割ることに、差が残っていること。"""
+        def dealt(count):
+            bt = self.crowd_at_the_base(count)
+            before = bt.sides[1].base_hp
+            for _ in range(60):
+                bt.step()
+            return before - bt.sides[1].base_hp
+
+        self.assertLess(dealt(1), dealt(20))
+
 
 class TestTraits(unittest.TestCase):
     """特性が触れるのは**出撃コストだけ**。戦闘の数字には一切効かない。"""

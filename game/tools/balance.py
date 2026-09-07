@@ -68,6 +68,12 @@ class Sample:
         self.lane = battle.game.lane_length
         self.leader_at: dict[float, int | None] = {}
         self.deepest = [0.0, 0.0]
+        # 自拠点の傷で解禁される札が、実際に使える状態が何秒あったか。
+        # 一番浅い閾値で測る ―― そこを割った瞬間から手が増える。
+        gates = [card.base_hp_gate for card in battle.game.cards.values()
+                 if card.gated]
+        self.gate = max(gates) if gates else 0.0
+        self.hurt = [0.0, 0.0]
 
     def watch(self, battle: Battle) -> None:
         for mark in (EARLY, MID):
@@ -76,6 +82,8 @@ class Sample:
                 self.leader_at[mark] = None if lead is None else lead.index
         for i, side in enumerate(battle.sides):
             self.deepest[i] = max(self.deepest[i], battle.advance_of(side))
+            if side.base_hp <= battle.game.base_hp * self.gate:
+                self.hurt[i] += battle.tick
 
 
 def one(game: GameData, a: str, b: str, match_id: str):
@@ -138,6 +146,20 @@ def report(game: GameData, rows) -> int:
           f"{statistics.mean(reach):.0%}（最大 {max(reach):.0%}）")
     print(f"  平均の長さ                        {statistics.mean(seconds):.0f}秒")
 
+    # 押し返す手が「届いているか」。拠点が傷ついた状態で過ごした時間と、
+    # そこで解禁される札が実際に撃たれた回数を並べて見る。
+    gate = rows[0][1].gate if rows else 0.0
+    hurt = [max(s.hurt) for _, s in rows]
+    names = {card.name for card in game.cards.values() if card.gated}
+    casts = sum(1 for r, _ in rows for _, _, text in r.events
+                if any(name in text for name in names))
+    cap = game.combat["siege_cap_dps"]
+    print(f"  攻城にかかる秒数（設計値）           {full / cap:.0f}秒"
+          f"（拠点 {full} ÷ 攻城口 {cap}）")
+    print(f"  拠点が傷んでいた時間（{gate:.0%}以下）    "
+          f"中央 {statistics.median(hurt):.0f}秒 / 最大 {max(hurt):.0f}秒")
+    print(f"  解禁される札を撃った回数            {casts}回")
+
     # ここが設計上の赤信号。数字を動かすたびに見る場所。
     problems = []
     if early_n and early_hit / early_n >= 0.9:
@@ -157,6 +179,11 @@ def report(game: GameData, rows) -> int:
         problems.append(
             "中盤に押されていた側が一度も勝っていない。前半で決まりきっている ―― "
             "拠点の傷で解禁される札が届いていないか、効果が小さすぎる")
+    if names and casts == 0:
+        problems.append(
+            "自拠点の傷で解禁される札が一度も撃たれていない。**傷ついた拠点という"
+            "状態が存在していない疑い** ―― 攻城口の上限（combat.siege_cap_dps）に"
+            "対して拠点HPが薄すぎると、拠点は『無傷』か『0』しか取らなくなる")
 
     for line in problems:
         print(f"\nNG  {line}")

@@ -566,6 +566,53 @@ def check_field(game: GameData, report: Report) -> None:
                  f"試合 {game.time_limit:.0f}秒 の半分を超える")
 
 
+def check_siege(game: GameData, report: Report) -> None:
+    """**拠点は一撃で落ちてはいけない。**
+
+    自拠点の傷で解禁される札（設計書5.4）も、背水の特性も、起死回生の特典も、
+    「傷ついた拠点」という状態がある時間だけ続いて初めて意味を持つ。
+    攻城口の上限が無かった頃はそれが存在しなかった ―― 前線が破れた瞬間に
+    17体が一斉に拠点を捉えて毎秒11700が入り、拠点HP 10000 は1秒たらずで
+    消えた。実測で解禁から決着までの猶予は2〜8秒しかなく、
+    詠唱0.8秒＋効果8秒の札はどうやっても間に合わなかった。
+
+    ここで縛るのは3つ。**落とし切るのにかかる秒数**が札1枚ぶんより長いこと、
+    上限が **1体では埋まらない** こと（漏らすことと割ることに差が要る）、
+    そして上限が **場を埋めれば超える** こと（超えないなら上限が仕事をしない）。
+    """
+    cap = game.combat.get("siege_cap_dps")
+    if not report.check(isinstance(cap, (int, float)) and cap > 0,
+                        "combat: siege_cap_dps（攻城口の上限）が無い。"
+                        "拠点が毎秒いくらまで削れるかを決めないと、"
+                        "前線が破れた瞬間に拠点が消える"):
+        return
+
+    assault = game.base_hp / cap
+    gated = [card for card in game.cards.values() if card.gated]
+    for card in gated:
+        need = card.cast_sec + card.duration_sec
+        report.check(
+            assault >= need,
+            f"{card.name}: 拠点を落とし切るのに {assault:.1f}秒 しかかからず、"
+            f"詠唱 {card.cast_sec:g}秒 ＋ 効果 {card.duration_sec:g}秒 "
+            f"＝ {need:.1f}秒 が入らない。"
+            "自拠点の傷で解禁される札は、傷ついた状態が続かないと使えない")
+
+    siege = sorted(unit.dps * unit.siege_mult for unit in game.units.values())
+    report.check(
+        cap > siege[-1],
+        f"combat: 攻城口の上限 {cap} を単体（攻城DPS {siege[-1]:.0f}）だけで"
+        "埋め切れる。1体すり抜けることと前線を割ることが同じ速さになり、"
+        "守る意味が消える")
+
+    full = game.match["field"]["max_units_per_side"] * statistics.median(siege)
+    report.check(
+        cap < full,
+        f"combat: 攻城口の上限 {cap} が、場を埋めたときの攻城 {full:.0f} を"
+        "超えている。上限が一度も効かないので、前線が破れた瞬間に"
+        "拠点が消える形に戻る")
+
+
 def range_band(spec: Unit, game: GameData) -> str:
     """射程の帯の名前。data の range_families がそのまま境目。"""
     bands = game.roster_rules["range_families"]
@@ -903,6 +950,7 @@ def main() -> int:
     check_races(game, report)
     check_traits(game, report)
     check_field(game, report)
+    check_siege(game, report)
     check_roster_size(game, report)
     check_milestones(game, report)
     check_economy(game, report)

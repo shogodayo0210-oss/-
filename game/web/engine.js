@@ -164,6 +164,8 @@ class Side {
     this.facing = index === 0 ? 1 : -1;
 
     this.base_hp = game.baseHp;
+    // 拠点に打ち込まれた攻城の待ち行列（`Battle.applyBaseDamage`）。
+    this.siege_backlog = 0.0;
     this.level = 1;
     this.money = game.economy.start;
     // 資金は連続では増えない。何秒かごとに +N という刻みで貯まる。
@@ -357,6 +359,7 @@ class Battle {
     this.tick = game.combat.tick_sec;
     this.kb_distance = game.combat.knockback_distance_m;
     this.kb_stun = game.combat.knockback_stun_sec;
+    this.siege_cap = game.combat.siege_cap_dps;
     this.max_units = game.match.field.max_units_per_side;
     this.t = 0.0;
     this.drops = (game.economy.milestones || []).slice();
@@ -519,6 +522,25 @@ class Battle {
     return band[0] - EPS <= baseX && baseX <= band[1] + EPS;
   }
 
+  // 攻城を、**攻城口の上限の速さで**拠点に入れる。帯が拠点に届いた者は
+  // 全員が削るが、削れる速さは siege_cap_dps で止まる。上限が無かった頃は
+  // 前線が破れた瞬間に毎秒11700が入り、拠点は『無傷』か『0』しか取らなかった
+  // ―― 自拠点の傷で解禁される札が届く前に試合が終わる。上限を置くと
+  // 拠点HP ÷ 上限 = 15秒 が設計値になる。
+  // 上限は待ち行列で効かせる。tickごとに切り落とすと、一発が重い攻城
+  // （攻城櫓 1.9）だけが損をして「対拠点倍率がそのまま効く」が壊れる。
+  applyBaseDamage(dt) {
+    const arrived = [0.0, 0.0];
+    for (const pair of this._base_damage) arrived[pair[0].index] += pair[1];
+    for (const side of this.sides) {
+      side.siege_backlog = Math.min(side.siege_backlog + arrived[side.index],
+                                    this.siege_cap);
+      const taken = Math.min(side.siege_backlog, this.siege_cap * dt);
+      side.siege_backlog -= taken;
+      side.base_hp -= taken;
+    }
+  }
+
   applyDamage(victim, amount) {
     const side = this.sides[victim.side];
     victim.hp -= amount;
@@ -659,7 +681,7 @@ class Battle {
     // 両者ぶんまとめて適用する。片方の攻撃が先に通って相手が
     // 撃ち返せない、という順番の有利をなくすため。
     for (const pair of this._damage) this.applyDamage(pair[0], pair[1]);
-    for (const pair of this._base_damage) pair[0].base_hp -= pair[1];
+    this.applyBaseDamage(dt);
 
     for (const side of this.sides) {
       const enemy = this.enemyOf(side);
@@ -805,30 +827,47 @@ function tryCard(battle, side) {
 function tryDeploy(battle, side) {
   const game = battle.game;
   const line = game.farThreshold;
+  const alive = side.fighters.filter(f => f.alive);
   let front = 0;
-  for (const f of side.fighters) {
-    if (f.alive && f.spec.far <= line) front++;
+  for (const f of alive) {
+    if (f.spec.far <= line) front++;
   }
-  const affordable = side.loadout.roster.filter(uid =>
-    (side.deploy_cd[uid] || 0.0) <= 0
-    && side.money >= side.unitCost(game.units[uid]));
-  if (affordable.length === 0) return false;
+  const ready = side.loadout.roster.filter(uid => (side.deploy_cd[uid] || 0.0) <= 0);
+  const affordable = ready.filter(uid => side.money >= side.unitCost(game.units[uid]));
+
+  // 同点は Python の min/max と同じく「先に出てきたほう」を採る。
+  const cheapest = list => {
+    let pick = list[0];
+    for (const uid of list) if (game.units[uid].cost < game.units[pick].cost) pick = uid;
+    return pick;
+  };
+  const dearest = list => {
+    let pick = list[0];
+    for (const uid of list) if (game.units[uid].cost > game.units[pick].cost) pick = uid;
+    return pick;
+  };
 
   const close = affordable.filter(uid => game.units[uid].far <= line);
-  // 同点は Python の min/max と同じく「先に出てきたほう」を採る。
-  let pick;
   if (front < Math.max(2, Math.trunc(battle.max_units / 3)) && close.length > 0) {
-    pick = close[0];
-    for (const uid of close) {
-      if (game.units[uid].cost < game.units[pick].cost) pick = uid;
-    }
-  } else {
-    pick = affordable[0];
-    for (const uid of affordable) {
-      if (game.units[uid].cost > game.units[pick].cost) pick = uid;
-    }
+    return battle.deploy(side, cheapest(close));
   }
-  return battle.deploy(side, pick);
+
+  // 狙いは「財布の上限で届く一番高いもの」。届くまでは何も出さずに貯める。
+  // ただし隊列の半分は前に立つ者にする ―― 付けないと両軍とも臼砲（80m）の
+  // 壁になり、空きを挟んで撃ち合ったまま終わる。
+  let pool = ready;
+  if (front * 2 < alive.length) {
+    const near = ready.filter(uid => game.units[uid].far <= line);
+    if (near.length > 0) pool = near;
+  }
+  const reachable = pool.filter(uid => side.unitCost(game.units[uid]) <= side.money_cap);
+  if (reachable.length > 0) {
+    const goal = dearest(reachable);
+    if (side.unitCost(game.units[goal]) > side.money) return false;
+    return battle.deploy(side, goal);
+  }
+  if (affordable.length === 0) return false;
+  return battle.deploy(side, dearest(affordable));
 }
 
 // 資金をどこまで育ててから戦うか、で性格が変わる。

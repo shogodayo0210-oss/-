@@ -344,6 +344,18 @@ class View {
         this.text(shown, F_BODY, INK, bar[0] - 12, 42, 'right');
       }
       this.bar(bar, hp / full, color, RULE, RULE);
+
+      // 攻城中は、これから入るぶんを帯の先に出す。**拠点は一撃で落ちない**
+      // （攻城口の上限）ので、削られている最中が見えないと「気付いたら0」に
+      // 読めてしまう。押し返す時間があることを、押し返せるうちに知らせる。
+      const queued = Math.min(side.siege_backlog, hp);
+      if (queued > 0) {
+        this.fill([bar[0] + Math.trunc(bar[2] * Math.max(0.0, (hp - queued) / full)),
+                   bar[1], Math.max(1, Math.trunc(bar[2] * queued / full)), bar[3]],
+                  GOLD);
+        this.text('攻城中', F_SMALL, GOLD,
+                  bar[0] + bar[2] / 2, bar[1] + bar[3] + 8, 'center');
+      }
     }
 
     const left = Math.max(0.0, battle.game.timeLimit - battle.t);

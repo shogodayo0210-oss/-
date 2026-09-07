@@ -341,6 +341,19 @@ class View:
                            right=True)
             self._bar(bar, hp / full, color, border=RULE)
 
+            # 攻城中は、これから入るぶんを帯の先に薄く出す。**拠点は一撃で
+            # 落ちない**（攻城口の上限）ので、削られている最中が見えないと
+            # 「気付いたら0」に読めてしまう。押し返す時間があることを、
+            # 押し返せるうちに知らせるための表示。
+            queued = min(side.siege_backlog, hp)
+            if queued > 0:
+                edge = pygame.Rect(
+                    bar.x + int(bar.w * max(0.0, (hp - queued) / full)), bar.y,
+                    max(1, int(bar.w * queued / full)), bar.h)
+                pygame.draw.rect(self.surface, GOLD, edge)
+                self._text("攻城中", self.f_small, GOLD,
+                           (bar.centerx, bar.bottom + 8), center=True)
+
         left = max(0.0, battle.game.time_limit - battle.t)
         self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
                    (W // 2, 26), center=True)
