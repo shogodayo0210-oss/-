@@ -319,6 +319,71 @@ class TestRecovery(unittest.TestCase):
         self.assertAlmostEqual(opened / plain, GAME.combat["recover_damage_mult"])
 
 
+class TestKnockbackIntangibility(unittest.TestCase):
+    """**ノックバック中は当たり判定が消える。**
+
+    下がっている0.4秒は的にならないので、殴られないし、敵の足も止めない
+    ―― 押し戻した相手をすり抜けて前線が進む。
+    回数の多いキャラ（双剣・狂戦士・亡霊将＝4回）は、以前は下がるたびに
+    無防備な0.4秒を差し出していた。
+    """
+
+    def pair(self, uid="twin", gap=5.0):
+        bt = battle()
+        spec = GAME.units[uid]
+        victim = Fighter(spec=spec, side=1, x=100.0, hp=float(spec.hp), facing=-1)
+        bt.sides[1].fighters = [victim]
+        attacker = Fighter(spec=GAME.units["grunt"], side=0, x=100.0 - gap,
+                           hp=1e9, facing=1)
+        bt.sides[0].fighters = [attacker]
+        return bt, attacker, victim
+
+    def test_a_knocked_back_unit_is_not_a_target(self):
+        bt, attacker, victim = self.pair()
+        bt.snapshot()
+        self.assertEqual(bt.targets_in_band(attacker), [victim])
+        victim.stun_left = GAME.combat["knockback_stun_sec"]
+        bt.snapshot()
+        self.assertEqual(bt.targets_in_band(attacker), [])
+
+    def test_it_still_counts_on_the_field(self):
+        """判定が消えるだけで、場から居なくなるわけではない。"""
+        bt, _, victim = self.pair()
+        victim.stun_left = 0.4
+        bt.snapshot()
+        self.assertEqual(bt.live(1), [victim])
+
+    def test_the_enemy_walks_through_instead_of_stopping(self):
+        """**すり抜け。** 的が消えれば足は止まらない。"""
+        def advance(stunned):
+            bt, attacker, victim = self.pair(gap=5.0)
+            victim.stun_left = 0.4 if stunned else 0.0
+            start = attacker.x
+            for _ in range(4):
+                bt.snapshot()
+                bt.step_fighter(attacker)
+            return attacker.x - start
+
+        self.assertEqual(advance(stunned=False), 0.0)      # 止まって殴る
+        self.assertGreater(advance(stunned=True), 0.0)     # 通り抜ける
+
+    def test_the_hit_that_knocks_back_still_lands(self):
+        """判定が消えるのは*次の*tickから。当てた一撃は無効にならない。"""
+        bt, _, victim = self.pair()
+        spec = victim.spec
+        bt.apply_damage(victim, spec.hp / spec.knockback + 1)
+        self.assertLess(victim.hp, spec.hp)
+        self.assertGreater(victim.stun_left, 0)
+
+    def test_the_ones_that_retreat_most_can_afford_the_trip(self):
+        """よく押し戻されるキャラほど、往復に耐える体力が要る。"""
+        floor = GAME.roster_rules["min_hp_per_knockback"]
+        for unit in GAME.units.values():
+            if unit.knockback >= 4:
+                self.assertGreaterEqual(unit.hp / unit.knockback, floor * 1.5,
+                                        unit.name)
+
+
 class TestFrontAnchoredAttacks(unittest.TestCase):
     """前線起点の射抜き。**安い1体を前に置いて全部止める**への答え。"""
 
@@ -360,17 +425,36 @@ class TestFrontAnchoredAttacks(unittest.TestCase):
 
 
 class TestDuels(unittest.TestCase):
-    """**値段が倍以上違うなら、1体ずつなら高いほうが勝つ。**
+    """**値段が倍以上違うなら、基本的には高いほうが1v1で勝つ。**
 
     2.6（同じ資金ぶん並べたら安いほうが勝てる）と対になる約束。
     片方だけだと「高いキャラを出す理由」か「安いキャラを出す理由」の
     どちらかが消える。
+
+    ただし**絶対ではない**。全組を通すことを要求すると、単純な殴り合い
+    以外で値段ぶんの仕事をするキャラ（特性で噛み合う・妨害する・支援する）が
+    作れなくなるので、傾向として縛る。
     """
 
-    def test_the_expensive_unit_wins_one_on_one(self):
+    def test_the_expensive_unit_usually_wins_one_on_one(self):
         report = validate.Report()
         validate.check_duels(GAME, report)
         self.assertEqual(report.errors, [])
+
+    def test_the_rule_is_a_tendency_not_an_absolute(self):
+        """下限は100%ではない ―― 例外を作れる余地が data 側に要る。"""
+        self.assertLess(GAME.roster_rules["duel_pass_ratio"], 1.0)
+
+    def test_units_built_around_synergy_sit_outside_it(self):
+        """特性持ちは決闘で測らない。編成と噛み合って初めて効くので。"""
+        report = validate.Report()
+        losses = validate.check_duels(GAME, report)
+        self.assertIsInstance(losses, list)
+        traited = [u for u in GAME.units.values() if u.trait]
+        self.assertTrue(traited, "特性を持つキャラが1体も居ない")
+        for line in losses:
+            for unit in traited:
+                self.assertNotIn(unit.name, line)
 
     def test_the_cheap_unit_still_wins_per_coin(self):
         """決闘の規則を足したせいで 2.6 が壊れていないこと。"""

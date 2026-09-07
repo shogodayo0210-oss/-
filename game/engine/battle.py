@@ -101,6 +101,24 @@ class Fighter:
         """召喚演出が終わって、実際に戦える状態か。"""
         return self.summon_left <= 0
 
+    @property
+    def hittable(self) -> bool:
+        """**的になるか。** ノックバック中（硬直中）は判定が消える。
+
+        消えるのは *当たり判定そのもの* なので、効くのは2つ。
+
+          1. **殴られない。** 下がっている最中に追い討ちが入らない。
+             回数の多いキャラ（双剣・狂戦士・亡霊将＝4回）は、
+             以前は下がるたびに無防備な0.4秒を差し出していた。
+          2. **すり抜けられる。** 敵は「帯に敵が入ったら止まって殴る」で
+             立ち止まるので、的が消えれば**止まらずに前へ通る**。
+             押し戻した相手の体を突き抜けて前線が進む。
+
+        味方どうしはもともと重なれるので、ここでいう「すり抜け」は
+        場所の取り合いではなく、**足を止めさせるかどうか**の話。
+        """
+        return self.alive and self.ready and self.stun_left <= 0
+
     def band(self, speed_mult: float = 1.0) -> tuple[float, float]:
         """世界座標での**届く範囲**。向きで反転する。
 
@@ -365,6 +383,7 @@ class Battle:
         # そのtickの世界の見え方。全員が同じ盤面を見て動くので、
         # 「先に処理された側が先に殴れる」という順番の有利が出ない。
         self._snap: list[list[tuple[float, Fighter]]] = [[], []]
+        self._hittable: list[list[tuple[float, Fighter]]] = [[], []]
         self._damage: list[tuple[Fighter, float]] = []
         self._base_damage: list[tuple[Side, float]] = []
         self.events: list[tuple[float, int, str]] = []
@@ -497,13 +516,21 @@ class Battle:
                    key=lambda pair: pair[0])
             for side in self.sides
         ]
+        # **的の一覧は別に持つ。** ノックバック中は判定が消えるので
+        # （`Fighter.hittable`）、殴る側から見ると居ないのと同じ ――
+        # 追い討ちが入らず、足も止まらない。
+        # 場に何体居るか（`live`）とは別の数え方なので、リストを分けてある。
+        self._hittable = [
+            [pair for pair in rows if pair[1].hittable] for rows in self._snap
+        ]
 
     def live(self, index: int) -> list[Fighter]:
         """そのtickの頭で場に居た側のユニット。方針もここを見る。"""
         return [f for _, f in self._snap[index]]
 
     def _rows_between(self, side: int, lo: float, hi: float):
-        rows = self._snap[side]
+        """帯の中に居る**的**。ノックバック中の者はここに入らない。"""
+        rows = self._hittable[side]
         xs = [x for x, _ in rows]
         return rows[bisect_left(xs, lo - EPS):bisect_right(xs, hi + EPS)]
 

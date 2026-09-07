@@ -616,28 +616,40 @@ def duel(game: GameData, a: Unit, b: Unit, seconds: float = 60.0) -> int | None:
     return None
 
 
-def check_duels(game: GameData, report: Report) -> None:
-    """**値段が倍以上違うなら、高いほうが1v1で勝つ。**
+def check_duels(game: GameData, report: Report) -> list[str]:
+    """**値段が倍以上違うなら、基本的には高いほうが1v1で勝つ。**
 
     2.6 は「同じ資金ぶん並べたら安いほうが勝てること」を要求している。
     それだけだと *1体ずつぶつけても安いほうが勝つ* が通ってしまい、
     高いキャラを出す理由が消える。両方あって初めて
     「安いのは数、高いのは1体の質」になる。
 
+    **これは絶対の規則ではなく、傾向として縛る。** 全組を通すことを
+    要求すると、*単純な殴り合いの強さ以外で値段ぶんの仕事をするキャラ*が
+    作れなくなる ―― 特性で噛み合って強くなる者、相手を妨害する者、
+    味方を助ける者。そういうキャラが1v1で負けるのは正しい姿なので、
+    `duel_pass_ratio` を下回ったときだけ落ちる。
+
+    外すのは3つ。
+
+    **死角持ち**（`near` > 0）。懐に入られたら負けるのが遠方範囲の
+    設計そのもの（2.1）で、ここを縛ると臼砲が猟犬に勝ってしまう。
+    **壁**（`is_wall`）。壁は殴り勝つ道具ではないので決闘で測る意味がない。
+    **特性持ち**（`trait`）。特性は編成と噛み合って初めて効くもので、
+    盤面に1体だけ置いた決闘には最初から現れない。
+
     実測すると32組が割れていて、原因はほぼ全部**射程**だった ――
     槍兵(4)の25mが鬼武者(35)の20mを上回る、というような形。
     値段で買っているのは射程でもある、という向きに data を寄せた。
 
-    2つだけ外す。
-
-    **死角持ち**（`near` > 0）は外す。懐に入られたら負けるのが遠方範囲の
-    設計そのもの（2.1）で、ここを縛ると臼砲が猟犬に勝ってしまう。
-    **壁**（`is_wall`）も外す。壁は殴り勝つ道具ではないので、
-    決闘で測る意味がない。
+    負けた組は（規則を満たしていても）呼び出し側に返す。数えるためではなく、
+    **「この値段でこの負け方は狙ったものか」を毎回目に入れる**ため。
     """
     wall = game.wall_threshold
     ratio = game.roster_rules["duel_cost_ratio"]
+    need = game.roster_rules["duel_pass_ratio"]
     units = sorted(game.units.values(), key=lambda u: (u.cost, u.id))
+    checked, lost = 0, []
     for cheap in units:
         for dear in units:
             if dear.cost < cheap.cost * ratio:
@@ -646,15 +658,25 @@ def check_duels(game: GameData, report: Report) -> None:
                 continue
             if cheap.near > 0 or dear.near > 0:
                 continue
-            if duel(game, dear, cheap) == 0:
+            if cheap.trait or dear.trait:
                 continue
-            report.check(
-                False,
-                f"{dear.name}({dear.cost}) が {cheap.name}({cheap.cost}) に"
-                f"1v1で勝てない ―― 射程 {dear.far:.0f}m 対 {cheap.far:.0f}m / "
-                f"体力 {dear.hp} 対 {cheap.hp} / "
-                f"DPS {dear.dps:.0f} 対 {cheap.dps:.0f}。"
-                f"値段が {ratio:g} 倍以上違うなら、1体ずつなら高いほうが勝つこと")
+            checked += 1
+            if duel(game, dear, cheap) != 0:
+                lost.append(
+                    f"{dear.name}({dear.cost}) が {cheap.name}({cheap.cost}) に"
+                    f"1v1で負ける ―― 射程 {dear.far:.0f}m 対 {cheap.far:.0f}m / "
+                    f"体力 {dear.hp} 対 {cheap.hp} / "
+                    f"DPS {dear.dps:.0f} 対 {cheap.dps:.0f}")
+    if not checked:
+        return []
+    rate = (checked - len(lost)) / checked
+    report.check(
+        rate >= need - 1e-9,
+        f"characters: 値段が {ratio:g} 倍以上違う {checked}組のうち、"
+        f"高いほうが1v1で勝つのは {rate:.0%}（下限 {need:.0%}）。"
+        "**傾向として**高いほうが勝たないと、高いキャラを出す理由が消える ―― "
+        "妨害や支援で値段ぶんの仕事をするキャラは、特性を持たせて外に置くこと")
+    return lost
 
 
 def check_siege(game: GameData, report: Report) -> None:
@@ -1066,7 +1088,7 @@ def main() -> int:
     check_traits(game, report)
     check_field(game, report)
     check_siege(game, report)
-    check_duels(game, report)
+    duel_losses = check_duels(game, report)
     check_roster_size(game, report)
     check_milestones(game, report)
     check_economy(game, report)
@@ -1083,6 +1105,13 @@ def main() -> int:
     for level, ceiling, newly in unlock_table(game):
         if newly:
             print(f"Lv{level} 上限{ceiling:>5}  {'・'.join(newly)}")
+
+    # 規則は満たしていても、負けた組は毎回目に入れる ――
+    # 「この値段でこの負け方は狙ったものか」を見落とさないため。
+    if duel_losses:
+        print(f"\n決闘（値段が倍以上違う組）で高いほうが負けた {len(duel_losses)}組:")
+        for line in duel_losses:
+            print(f"  ・{line}")
 
     if report.errors:
         print()

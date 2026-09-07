@@ -54,6 +54,12 @@ function makeUnit(u, extra) {
   return Object.assign(spec, extra || {});
 }
 
+// **的になるか。** ノックバック中（硬直中）は当たり判定が消える ――
+// 追い討ちが入らず、敵は足を止めないので**すり抜けられる**（battle.py と同じ）。
+function isHittable(f) {
+  return f.alive && f.ready && f.stun_left <= 0;
+}
+
 // 壁かどうかは対拠点倍率で決まる。別のタグは持たせない（data.py と同じ）。
 function isWall(spec, threshold) {
   return spec.siege_mult <= threshold;
@@ -395,6 +401,7 @@ class Battle {
     // そのtickの世界の見え方。全員が同じ盤面を見て動くので、
     // 「先に処理された側が先に殴れる」という順番の有利が出ない。
     this._snap = [[], []];
+    this._hittable = [[], []];
     this._damage = [];
     this._base_damage = [];
     this.events = [];
@@ -529,13 +536,17 @@ class Battle {
       rows.sort((p, q) => p[0] - q[0]);      // 安定ソート（Python の sorted と同じ）
       return rows;
     });
+    // **的の一覧は別に持つ。** ノックバック中は判定が消えるので、殴る側から
+    // 見ると居ないのと同じ ―― 追い討ちが入らず、足も止まらない（battle.py と同じ）。
+    this._hittable = this._snap.map(rows => rows.filter(pair => isHittable(pair[1])));
   }
 
   // そのtickの頭で場に居た側のユニット。方針もここを見る。
   live(index) { return this._snap[index].map(pair => pair[1]); }
 
+  // 帯の中に居る**的**。ノックバック中の者はここに入らない。
   rowsBetween(side, lo, hi) {
-    const rows = this._snap[side];
+    const rows = this._hittable[side];
     const xs = rows.map(pair => pair[0]);
     return rows.slice(bisectLeft(xs, lo - EPS), bisectRight(xs, hi + EPS));
   }
