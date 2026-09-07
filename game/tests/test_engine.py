@@ -375,6 +375,39 @@ class TestKnockbackIntangibility(unittest.TestCase):
         self.assertLess(victim.hp, spec.hp)
         self.assertGreater(victim.stun_left, 0)
 
+    def test_one_hit_pushes_once_even_across_two_segments(self):
+        """**一撃で区切りを2つ跨いでも、下がるのは1回だけ。** 区切りは2つ減る。
+
+        仕様として採用してある ―― 同じ総ダメージなら手数のほうが押し戻せる
+        ので、一撃の重さは「削る力」、手数は「押す力」と割れる。
+        そのうえ大技は相手の後退の残り回数を先に食うので、撃ち込むほど
+        相手は踏みとどまる。
+        """
+        bt, _, victim = self.pair()
+        spec = victim.spec
+        distance = GAME.combat["knockback_distance_m"]
+        start = victim.x
+
+        bt.apply_damage(victim, spec.hp * 0.55)          # 4段のうち2段ぶん
+        self.assertAlmostEqual(abs(victim.x - start), distance)
+        self.assertEqual(victim.knockbacks_done, 2)      # 区切りは2つ消費
+
+        bt.apply_damage(victim, spec.hp * 0.20)          # 3段目
+        self.assertAlmostEqual(abs(victim.x - start), distance * 2)
+        self.assertEqual(victim.knockbacks_done, 3)
+
+    def test_many_small_hits_push_further_than_one_big_one(self):
+        """同じ総ダメージなら、手数のほうが押し込める。"""
+        def pushed(hits):
+            bt, _, victim = self.pair()
+            start = victim.x
+            share = victim.spec.hp * 0.75 / hits
+            for _ in range(hits):
+                bt.apply_damage(victim, share)
+            return abs(victim.x - start)
+
+        self.assertGreater(pushed(3), pushed(1))
+
     def test_the_ones_that_retreat_most_can_afford_the_trip(self):
         """よく押し戻されるキャラほど、往復に耐える体力が要る。"""
         floor = GAME.roster_rules["min_hp_per_knockback"]

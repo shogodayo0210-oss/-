@@ -582,6 +582,14 @@ class Battle:
         kb = side.stat("knockback", victim.spec.knockback, victim.spec.race)
         if kb < 1:                                    # 堅陣：後退しなくなる
             return
+        # 体力を kb 個に割った区切りを跨いだら後退する。
+        #
+        # **一撃で2つ跨いでも下がるのは1回だけ。** 区切りは2つ消費される。
+        # これは仕様 ―― 同じ総ダメージなら手数のほうが押し戻せるので、
+        # 一撃の重さは「削る力」、手数は「押す力」と役割が割れる。
+        # そのうえ大技は相手の後退の残り回数を先に食うので、撃ち込むほど
+        # 相手は踏みとどまる。段数ぶん下げると大技1発で40m飛んで、
+        # 目で追えなくなる。
         segment = victim.spec.hp / kb
         crossed = int((victim.spec.hp - victim.hp) // segment)
         if crossed > victim.knockbacks_done:

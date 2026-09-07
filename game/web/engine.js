@@ -608,6 +608,8 @@ class Battle {
 
     const kb = side.stat('knockback', victim.spec.knockback, victim.spec.race);
     if (kb < 1) return;                            // 堅陣：後退しなくなる
+    // **一撃で区切りを2つ跨いでも下がるのは1回だけ**（battle.py と同じ）。
+    // 重い一撃は「削る力」、手数は「押す力」と役割が割れる。
     const segment = victim.spec.hp / kb;
     const crossed = Math.floor((victim.spec.hp - victim.hp) / segment);
     if (crossed > victim.knockbacks_done) {
