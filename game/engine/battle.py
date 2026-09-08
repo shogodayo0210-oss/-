@@ -444,6 +444,14 @@ class Battle:
         self.events: list[tuple[float, int, str]] = []
         self.verbose = verbose
 
+        # 画面のための直近イベント。**シミュレーションの結果ではなく、
+        # 見せ方の都合だけで持っている** ―― だから conform.py の指紋には
+        # 入れない（数字の一致試験にノイズを足すだけになる）。数tick分だけ
+        # 覚えておいて、古いものは step() の最後で捨てる（RECENT_SEC）。
+        self.base_hits: list[tuple[float, int, float, bool]] = []   # 拠点への1発
+        self.level_ups: list[tuple[float, int, int]] = []           # 財布の育成完了
+        self.cast_effects: list[tuple[float, int, bool]] = []       # 呪文の発動
+
         # ── サドンデスの雷 ───────────────────────────────────
         # 3分を過ぎたらレーンのどこかに落ちる。落ちた範囲のユニットは
         # 敵味方の区別なく必ず倒れる ―― 前線が固まって動かなくなった盤面を、
@@ -463,11 +471,19 @@ class Battle:
         self.pending: list[tuple[float, float, float]] = []
         self._next_bolt = self.storm_at
 
+    RECENT_SEC = 3.0   # base_hits/level_ups/cast_effects を何秒分だけ覚えておくか
+
     # ------------------------------------------------------------------ 記録
     def note(self, side: int, text: str) -> None:
         self.events.append((self.t, side, text))
         if self.verbose:
             print(f"[{self.t:6.2f}] P{side + 1} {text}")
+
+    def _prune_recent(self) -> None:
+        cutoff = self.t - self.RECENT_SEC
+        self.base_hits = [h for h in self.base_hits if h[0] >= cutoff]
+        self.level_ups = [h for h in self.level_ups if h[0] >= cutoff]
+        self.cast_effects = [h for h in self.cast_effects if h[0] >= cutoff]
 
     # -------------------------------------------------------------- 出撃・行動
     def enemy_of(self, side: Side) -> Side:
@@ -557,12 +573,16 @@ class Battle:
                       f"見切り成功 — {card.name}（{card.cost}）を潰した（資金 +{reward}）")
             return
 
-        target = side if card.apply.scope.startswith("own") else enemy
+        own = card.apply.scope.startswith("own")
+        target = side if own else enemy
         # 種族呪文は、その種族のユニットにだけ乗る（`Side.stat` が絞る）。
         target.add_effect(Effect(stat=card.apply.stat, mult=card.apply.mult,
                                  add=card.apply.add,
                                  until=self.t + card.duration_sec, source=card.id,
                                  race=card.race))
+        # own_* は自分を強くする＝バフ、enemy_* は相手を弱くする＝デバフ。
+        # data/cards.json はこの2つしか無いので、scope からそのまま出せる。
+        self.cast_effects.append((self.t, target.index, own))
         self.note(side.index, f"{card.name} 発動（{card.duration_sec}秒）")
 
     def use_parry(self, side: Side) -> bool:
@@ -739,7 +759,12 @@ class Battle:
         # `apply_base_damage`。** 帯が届いた全員が削るが、寄せた数だけ
         # 速くはならない。
         if self.base_in_band(fighter):
-            self._base_damage.append((enemy, power * fighter.spec.siege_mult))
+            dealt = power * fighter.spec.siege_mult
+            self._base_damage.append((enemy, dealt))
+            # 画面向け。壁（対拠点倍率が低いユニット）が殴った一撃だけ、
+            # View 側が別扱いで灰色に見せる ―― 「これは削れない」が伝わるように。
+            self.base_hits.append(
+                (self.t, enemy.index, dealt, fighter.spec.is_wall(wall_line)))
 
         for victim in self.targets_in_band(fighter)[: fighter.spec.pierce]:
             bonus = (fighter.spec.anti_wall_mult
@@ -819,7 +844,13 @@ class Battle:
             side.effects = [e for e in side.effects if e.until > self.t]
             side.gcd_left = max(0.0, side.gcd_left - dt)
             side.deploy_lock_left = max(0.0, side.deploy_lock_left - dt)
+            was_busy = side.upgrading_left > 0
             side.upgrading_left = max(0.0, side.upgrading_left - dt)
+            if was_busy and side.upgrading_left <= 0:
+                # 育成が終わった瞬間。level はもう上がっている
+                # （育成が始まった時点で払い済み・レベルも即座に上がる ―― 4章）ので、
+                # ここでは「使えるようになった」ことだけを伝える。
+                self.level_ups.append((self.t, side.index, side.level))
             for uid in list(side.deploy_cd):
                 side.deploy_cd[uid] = max(0.0, side.deploy_cd[uid] - dt)
 
@@ -861,6 +892,8 @@ class Battle:
         for victim, amount in self._damage:
             self.apply_damage(victim, amount)
         self.apply_base_damage(dt)
+
+        self._prune_recent()
 
         for side in self.sides:
             enemy = self.enemy_of(side)

@@ -51,6 +51,15 @@ ACCENT = (62, 202, 217)
 GOLD = (224, 170, 70)
 GREEN = (79, 161, 150)
 RED = (226, 98, 47)
+BUFF = (94, 156, 224)   # 呪文フラッシュの「バフ」側。デバフは既存の RED を使い回す
+
+# 伝言1：数字はもう合っているが、何が起きたかが画面から伝わっていなかった。
+# 3つとも仮の四角・テキストでいい代わりに、**エンジン側の直近イベント
+# （Battle.base_hits / level_ups / cast_effects）だけを見て描く** ――
+# View 自身はフレームをまたぐ状態を持たない、という元々の約束を守るため。
+TRAINING_POPUP_SEC = 1.2     # 「財布 LvUP！」を出しておく秒数
+WALL_LABEL_SEC = 0.6         # 「WALL」表示を出しておく秒数
+CAST_FLASH_SEC = 0.25        # 画面端フラッシュの長さ
 
 # 日本語が出るフォントを順に探す。無ければ pygame の既定にする。
 JP_FONTS = ("ipagothic", "ipapgothic", "notosanscjkjp", "notosansjp",
@@ -336,6 +345,32 @@ class View:
         if f.stun_left > 0:
             pygame.draw.circle(self.surface, GOLD, (x, head - 24), 3)
 
+    # -------------------------------------------------------------- 壁の一撃
+    def _base_hits(self, battle: Battle) -> None:
+        """壁（対拠点倍率が低いユニット）が拠点を殴っても、削れているように
+        見えてしまう。数字を灰色にして「WALL」を添えるだけで、
+        「これは前に出るだけで拠点を割れない」と0.5秒で学習できる（伝言1）。
+        """
+        lane = battle.game.lane_length
+        for t, side_index, amount, is_wall in battle.base_hits:
+            if not is_wall:
+                continue
+            age = battle.t - t
+            if age > WALL_LABEL_SEC:
+                continue
+            side = battle.sides[side_index]
+            x = self.px(side.base_x, lane)
+            # 拠点（アバター）の絵の高さに合わせる。仮絵はいずれ差し替わるので、
+            # 決め打ちの高さではなく実際のスプライトから出す（無ければ
+            # `_field` の代替矩形と同じ96px）。
+            sprite = self.sprites.avatar(side.loadout.avatar, flip=side.index == 1)
+            top = GROUND_Y - (sprite.get_height() if sprite else 96)
+            rise = int(20 * (age / WALL_LABEL_SEC))
+            y = top - 24 - rise
+            self._text("WALL", self.f_small, MUTED, (x, y), center=True)
+            self._text(f"-{amount:.0f}", self.f_body, MUTED, (x, y + 18),
+                       center=True)
+
     # -------------------------------------------------------------- 拠点HP
     def _header(self, battle: Battle, player: int) -> None:
         pygame.draw.rect(self.surface, PANEL, (0, 0, W, 68))
@@ -567,6 +602,57 @@ class View:
             self._text(note, self.f_small, RED if over_cap else MUTED,
                        (rect.centerx, rect.bottom - 13), center=True)
 
+    # -------------------------------------------------------------- 育成の演出
+    def _training(self, battle: Battle, side: Side) -> None:
+        """`_summon` の隅の小さな表示だけでは、初見だと「何秒間も何もできない」
+        という負の体験しか残らない。育成中は画面中央に大きく残り秒数を出し、
+        終わった瞬間は「財布 LvUP！」を出す（伝言1）。
+        """
+        # 育成が終わった直後の tick は「busy が外れる」のと「LvUP を記録する」が
+        # 同時に起きる。片方だけを出す ―― 両方出すと文字が重なる。
+        just_leveled = any(idx == side.index and battle.t - t <= TRAINING_POPUP_SEC
+                           for t, idx, _level in battle.level_ups)
+
+        if side.busy and not just_leveled:
+            total = max(battle.game.economy["growth"]["upgrade_sec"], 1e-6)
+            done = 1.0 - side.upgrading_left / total
+            self._text(f"財布を育成中…  あと{side.upgrading_left:.1f}秒",
+                       self.f_bold, GOLD, (W // 2, 148), center=True)
+            self._bar(pygame.Rect(W // 2 - 130, 166, 260, 8), done, GOLD,
+                      back=(18, 22, 27), border=RULE)
+
+        for t, side_index, level in battle.level_ups:
+            if side_index != side.index:
+                continue
+            age = battle.t - t
+            if age > TRAINING_POPUP_SEC:
+                continue
+            self._text(f"財布 Lv{level} UP！", self.f_big, GREEN,
+                       (W // 2, 148), center=True)
+
+    # -------------------------------------------------------------- 呪文のフラッシュ
+    def _cast_flash(self, battle: Battle, player: int) -> None:
+        """バフ／デバフは数値が変わるだけで、画面には「何も起きていない」
+        ように見えていた。発動の瞬間だけ画面端をその色で光らせる
+        （青＝バフ／赤＝デバフ、伝言1）。
+        """
+        thickness = 18
+        for t, target_index, is_buff in battle.cast_effects:
+            if target_index != player:
+                continue
+            age = battle.t - t
+            if age > CAST_FLASH_SEC:
+                continue
+            alpha = int(170 * (1.0 - age / CAST_FLASH_SEC))
+            color = (*(BUFF if is_buff else RED), alpha)
+            flash = pygame.Surface((W, H), pygame.SRCALPHA)
+            for rect in (
+                (0, 0, W, thickness), (0, H - thickness, W, thickness),
+                (0, 0, thickness, H), (W - thickness, 0, thickness, H),
+            ):
+                pygame.draw.rect(flash, color, rect)
+            self.surface.blit(flash, (0, 0))
+
     # -------------------------------------------------------------- 決着
     def _result(self, battle: Battle, player: int) -> None:
         veil = pygame.Surface((W, HUD_Y), pygame.SRCALPHA)
@@ -596,9 +682,12 @@ class View:
         self.surface.fill(BG)
         self._field(battle)
         self._fighters(battle)
+        self._base_hits(battle)
         self._header(battle, player)
         self._spells(battle, side)
         self._summon(battle, side)
+        self._training(battle, side)
+        self._cast_flash(battle, player)
         # 早送りは常に出す。試合が拠点撃破まで続くので、いま何倍で見ているかが
         # 分からないと「長い試合」と「速く回している」の区別がつかない。
         if speed != 1.0:

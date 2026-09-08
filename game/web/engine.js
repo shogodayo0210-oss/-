@@ -449,6 +449,14 @@ class Battle {
     this._base_damage = [];
     this.events = [];
 
+    // 画面のための直近イベント。**シミュレーションの結果ではなく、
+    // 見せ方の都合だけで持っている** ―― だから conform.py の指紋には
+    // 入れない（数字の一致試験にノイズを足すだけになる）。数tick分だけ
+    // 覚えておいて、古いものは step() の最後で捨てる（RECENT_SEC）。
+    this.base_hits = [];      // 拠点への1発 [t, side_index, amount, is_wall]
+    this.level_ups = [];      // 財布の育成完了 [t, side_index, level]
+    this.cast_effects = [];   // 呪文の発動 [t, target_side_index, is_buff]
+
     // ── サドンデスの雷（battle.py と同じ）───────────────────
     // 3分を過ぎたらレーンのどこかに落ちる。落ちた範囲のユニットは
     // 敵味方の区別なく必ず倒れる。種は両者の編成から作るので、
@@ -467,6 +475,13 @@ class Battle {
   }
 
   note(side, text) { this.events.push([this.t, side, text]); }
+
+  _pruneRecent() {
+    const cutoff = this.t - Battle.RECENT_SEC;
+    this.base_hits = this.base_hits.filter(h => h[0] >= cutoff);
+    this.level_ups = this.level_ups.filter(h => h[0] >= cutoff);
+    this.cast_effects = this.cast_effects.filter(h => h[0] >= cutoff);
+  }
 
   enemyOf(side) { return this.sides[1 - side.index]; }
 
@@ -557,12 +572,15 @@ class Battle {
       return;
     }
 
-    const target = card.apply.scope.startsWith('own') ? side : enemy;
+    const own = card.apply.scope.startsWith('own');
+    const target = own ? side : enemy;
     // 種族呪文は、その種族のユニットにだけ乗る（Side.stat が絞る）。
     target.addEffect({
       stat: card.apply.stat, mult: card.apply.mult, add: card.apply.add,
       until: this.t + card.duration_sec, source: card.id, race: card.race,
     });
+    // own_* は自分を強くする＝バフ、enemy_* は相手を弱くする＝デバフ。
+    this.cast_effects.push([this.t, target.index, own]);
     this.note(side.index, `${card.name} 発動（${card.duration_sec}秒）`);
   }
 
@@ -697,7 +715,11 @@ class Battle {
     // 拠点の前に並んでいる限り拠点に一発も入らず、自陣に固めた側が絶対に
     // 落ちなかった。
     if (this.baseInBand(fighter)) {
-      this._base_damage.push([enemy, power * fighter.spec.siege_mult]);
+      const dealt = power * fighter.spec.siege_mult;
+      this._base_damage.push([enemy, dealt]);
+      // 画面向け。壁（対拠点倍率が低いユニット）が殴った一撃だけ、View 側が
+      // 別扱いで灰色に見せる ―― 「これは削れない」が伝わるように。
+      this.base_hits.push([this.t, enemy.index, dealt, isWall(fighter.spec, wallLine)]);
     }
 
     for (const victim of this.targetsInBand(fighter).slice(0, fighter.spec.pierce)) {
@@ -765,7 +787,13 @@ class Battle {
       side.effects = side.effects.filter(e => e.until > this.t);
       side.gcd_left = Math.max(0.0, side.gcd_left - dt);
       side.deploy_lock_left = Math.max(0.0, side.deploy_lock_left - dt);
+      const wasBusy = side.upgrading_left > 0;
       side.upgrading_left = Math.max(0.0, side.upgrading_left - dt);
+      if (wasBusy && side.upgrading_left <= 0) {
+        // 育成が終わった瞬間。level はもう上がっている（育成が始まった
+        // 時点で払い済み）ので、ここでは「使えるようになった」ことだけを伝える。
+        this.level_ups.push([this.t, side.index, side.level]);
+      }
       for (const uid of Object.keys(side.deploy_cd)) {
         side.deploy_cd[uid] = Math.max(0.0, side.deploy_cd[uid] - dt);
       }
@@ -812,6 +840,8 @@ class Battle {
     // 撃ち返せない、という順番の有利をなくすため。
     for (const pair of this._damage) this.applyDamage(pair[0], pair[1]);
     this.applyBaseDamage(dt);
+
+    this._pruneRecent();
 
     for (const side of this.sides) {
       const enemy = this.enemyOf(side);
@@ -928,6 +958,10 @@ class Battle {
         || this.sides.some(s => s.base_hp <= 0);
   }
 }
+
+// base_hits / level_ups / cast_effects を何秒分だけ覚えておくか
+// （battle.py の Battle.RECENT_SEC と同じ値）。
+Battle.RECENT_SEC = 3.0;
 
 // ------------------------------------------------------------------ 結果
 function resultOf(battle) {

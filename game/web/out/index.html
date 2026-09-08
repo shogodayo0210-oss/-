@@ -615,6 +615,14 @@ class Battle {
     this._base_damage = [];
     this.events = [];
 
+    // 画面のための直近イベント。**シミュレーションの結果ではなく、
+    // 見せ方の都合だけで持っている** ―― だから conform.py の指紋には
+    // 入れない（数字の一致試験にノイズを足すだけになる）。数tick分だけ
+    // 覚えておいて、古いものは step() の最後で捨てる（RECENT_SEC）。
+    this.base_hits = [];      // 拠点への1発 [t, side_index, amount, is_wall]
+    this.level_ups = [];      // 財布の育成完了 [t, side_index, level]
+    this.cast_effects = [];   // 呪文の発動 [t, target_side_index, is_buff]
+
     // ── サドンデスの雷（battle.py と同じ）───────────────────
     // 3分を過ぎたらレーンのどこかに落ちる。落ちた範囲のユニットは
     // 敵味方の区別なく必ず倒れる。種は両者の編成から作るので、
@@ -633,6 +641,13 @@ class Battle {
   }
 
   note(side, text) { this.events.push([this.t, side, text]); }
+
+  _pruneRecent() {
+    const cutoff = this.t - Battle.RECENT_SEC;
+    this.base_hits = this.base_hits.filter(h => h[0] >= cutoff);
+    this.level_ups = this.level_ups.filter(h => h[0] >= cutoff);
+    this.cast_effects = this.cast_effects.filter(h => h[0] >= cutoff);
+  }
 
   enemyOf(side) { return this.sides[1 - side.index]; }
 
@@ -723,12 +738,15 @@ class Battle {
       return;
     }
 
-    const target = card.apply.scope.startsWith('own') ? side : enemy;
+    const own = card.apply.scope.startsWith('own');
+    const target = own ? side : enemy;
     // 種族呪文は、その種族のユニットにだけ乗る（Side.stat が絞る）。
     target.addEffect({
       stat: card.apply.stat, mult: card.apply.mult, add: card.apply.add,
       until: this.t + card.duration_sec, source: card.id, race: card.race,
     });
+    // own_* は自分を強くする＝バフ、enemy_* は相手を弱くする＝デバフ。
+    this.cast_effects.push([this.t, target.index, own]);
     this.note(side.index, `${card.name} 発動（${card.duration_sec}秒）`);
   }
 
@@ -863,7 +881,11 @@ class Battle {
     // 拠点の前に並んでいる限り拠点に一発も入らず、自陣に固めた側が絶対に
     // 落ちなかった。
     if (this.baseInBand(fighter)) {
-      this._base_damage.push([enemy, power * fighter.spec.siege_mult]);
+      const dealt = power * fighter.spec.siege_mult;
+      this._base_damage.push([enemy, dealt]);
+      // 画面向け。壁（対拠点倍率が低いユニット）が殴った一撃だけ、View 側が
+      // 別扱いで灰色に見せる ―― 「これは削れない」が伝わるように。
+      this.base_hits.push([this.t, enemy.index, dealt, isWall(fighter.spec, wallLine)]);
     }
 
     for (const victim of this.targetsInBand(fighter).slice(0, fighter.spec.pierce)) {
@@ -931,7 +953,13 @@ class Battle {
       side.effects = side.effects.filter(e => e.until > this.t);
       side.gcd_left = Math.max(0.0, side.gcd_left - dt);
       side.deploy_lock_left = Math.max(0.0, side.deploy_lock_left - dt);
+      const wasBusy = side.upgrading_left > 0;
       side.upgrading_left = Math.max(0.0, side.upgrading_left - dt);
+      if (wasBusy && side.upgrading_left <= 0) {
+        // 育成が終わった瞬間。level はもう上がっている（育成が始まった
+        // 時点で払い済み）ので、ここでは「使えるようになった」ことだけを伝える。
+        this.level_ups.push([this.t, side.index, side.level]);
+      }
       for (const uid of Object.keys(side.deploy_cd)) {
         side.deploy_cd[uid] = Math.max(0.0, side.deploy_cd[uid] - dt);
       }
@@ -978,6 +1006,8 @@ class Battle {
     // 撃ち返せない、という順番の有利をなくすため。
     for (const pair of this._damage) this.applyDamage(pair[0], pair[1]);
     this.applyBaseDamage(dt);
+
+    this._pruneRecent();
 
     for (const side of this.sides) {
       const enemy = this.enemyOf(side);
@@ -1094,6 +1124,10 @@ class Battle {
         || this.sides.some(s => s.base_hp <= 0);
   }
 }
+
+// base_hits / level_ups / cast_effects を何秒分だけ覚えておくか
+// （battle.py の Battle.RECENT_SEC と同じ値）。
+Battle.RECENT_SEC = 3.0;
 
 // ------------------------------------------------------------------ 結果
 function resultOf(battle) {
@@ -1356,6 +1390,15 @@ const ACCENT = '#3ecad9';
 const GOLD = '#e0aa46';
 const GREEN = '#4fa196';
 const RED = '#e2622f';
+const BUFF = '#5e9ce0';   // 呪文フラッシュの「バフ」側。デバフは既存の RED を使い回す
+
+// 伝言1：数字はもう合っているが、何が起きたかが画面から伝わっていなかった。
+// 3つとも仮の四角・テキストでいい代わりに、**エンジン側の直近イベント
+// （battle.base_hits / level_ups / cast_effects）だけを見て描く** ――
+// view.py と同じやり方（フレームをまたぐ状態は View 側に持たない）。
+const TRAINING_POPUP_SEC = 1.2;   // 「財布 LvUP！」を出しておく秒数
+const WALL_LABEL_SEC = 0.6;       // 「WALL」表示を出しておく秒数
+const CAST_FLASH_SEC = 0.25;      // 画面端フラッシュの長さ
 
 const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
 const F_SMALL = `15px ${JP}`;
@@ -1665,6 +1708,31 @@ class View {
     }
   }
 
+  // -------------------------------------------------------------- 壁の一撃
+  // 壁（対拠点倍率が低いユニット）が拠点を殴っても、削れているように見えて
+  // しまう。数字を灰色にして「WALL」を添えるだけで、「これは前に出るだけ
+  // で拠点を割れない」と0.5秒で学習できる（伝言1）。
+  baseHits(battle) {
+    const lane = battle.game.laneLength;
+    for (const [t, sideIndex, amount, isWall] of battle.base_hits) {
+      if (!isWall) continue;
+      const age = battle.t - t;
+      if (age > WALL_LABEL_SEC) continue;
+      const side = battle.sides[sideIndex];
+      const x = this.px(side.base_x, lane);
+      // 拠点（アバター）の絵の高さに合わせる。仮絵はいずれ差し替わるので、
+      // 決め打ちの高さではなく実際のスプライトから出す（無ければ
+      // `field` の代替矩形と同じ96px）。
+      const img = this.sprites.avatar(side.loadout.avatar);
+      const h = (img && img.complete && img.naturalWidth) ? img.naturalHeight * SCALE : 96;
+      const top = GROUND_Y - h;
+      const rise = Math.trunc(20 * (age / WALL_LABEL_SEC));
+      const y = top - 24 - rise;
+      this.text('WALL', F_SMALL, MUTED, x, y, 'center');
+      this.text(`-${amount.toFixed(0)}`, F_BODY, MUTED, x, y + 18, 'center');
+    }
+  }
+
   // -------------------------------------------------------------- 拠点HP
   header(battle, player) {
     this.fill([0, 0, W, 68], PANEL);
@@ -1906,6 +1974,54 @@ class View {
     return null;
   }
 
+  // -------------------------------------------------------------- 育成の演出
+  // `summonRow` の隅の小さな表示だけでは、初見だと「何秒間も何もできない」と
+  // いう負の体験しか残らない。育成中は画面中央に大きく残り秒数を出し、
+  // 終わった瞬間は「財布 LvUP！」を出す（伝言1）。
+  training(battle, side) {
+    // 育成が終わった直後の tick は「busy が外れる」のと「LvUP を記録する」が
+    // 同時に起きる。片方だけを出す ―― 両方出すと文字が重なる。
+    const justLeveled = battle.level_ups.some(([t, idx]) =>
+      idx === side.index && battle.t - t <= TRAINING_POPUP_SEC);
+
+    if (side.busy && !justLeveled) {
+      const total = Math.max(battle.game.economy.growth.upgrade_sec, 1e-6);
+      const done = 1.0 - side.upgrading_left / total;
+      this.text(`財布を育成中…  あと${side.upgrading_left.toFixed(1)}秒`,
+                F_BOLD, GOLD, W / 2, 148, 'center');
+      this.bar([W / 2 - 130, 166, 260, 8], done, GOLD, '#12161b', RULE);
+    }
+
+    for (const [t, sideIndex, level] of battle.level_ups) {
+      if (sideIndex !== side.index) continue;
+      const age = battle.t - t;
+      if (age > TRAINING_POPUP_SEC) continue;
+      this.text(`財布 Lv${level} UP！`, F_BIG, GREEN, W / 2, 148, 'center');
+    }
+  }
+
+  // -------------------------------------------------------------- 呪文のフラッシュ
+  // バフ／デバフは数値が変わるだけで、画面には「何も起きていない」ように
+  // 見えていた。発動の瞬間だけ画面端をその色で光らせる
+  // （青＝バフ／赤＝デバフ、伝言1）。
+  castFlash(battle, player) {
+    const ctx = this.ctx;
+    const thickness = 18;
+    for (const [t, targetIndex, isBuff] of battle.cast_effects) {
+      if (targetIndex !== player) continue;
+      const age = battle.t - t;
+      if (age > CAST_FLASH_SEC) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.67 * (1.0 - age / CAST_FLASH_SEC);   // 170/255
+      ctx.fillStyle = isBuff ? BUFF : RED;
+      ctx.fillRect(0, 0, W, thickness);
+      ctx.fillRect(0, H - thickness, W, thickness);
+      ctx.fillRect(0, 0, thickness, H);
+      ctx.fillRect(W - thickness, 0, thickness, H);
+      ctx.restore();
+    }
+  }
+
   // -------------------------------------------------------------- 決着
   result(battle, player) {
     const ctx = this.ctx;
@@ -1931,9 +2047,12 @@ class View {
     this.fill([0, 0, W, H], BG);
     this.field(battle);
     this.fighters(battle);
+    this.baseHits(battle);
     this.header(battle, player);
     this.spellRow(battle, battle.sides[player]);
     this.summonRow(battle, battle.sides[player]);
+    this.training(battle, battle.sides[player]);
+    this.castFlash(battle, player);
     if (battle.finished()) this.result(battle, player);
     else if (paused) {
       this.text('一時停止（Space）', F_BOLD, GOLD, W / 2, 120, 'center');

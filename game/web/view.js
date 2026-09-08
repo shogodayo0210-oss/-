@@ -31,6 +31,15 @@ const ACCENT = '#3ecad9';
 const GOLD = '#e0aa46';
 const GREEN = '#4fa196';
 const RED = '#e2622f';
+const BUFF = '#5e9ce0';   // 呪文フラッシュの「バフ」側。デバフは既存の RED を使い回す
+
+// 伝言1：数字はもう合っているが、何が起きたかが画面から伝わっていなかった。
+// 3つとも仮の四角・テキストでいい代わりに、**エンジン側の直近イベント
+// （battle.base_hits / level_ups / cast_effects）だけを見て描く** ――
+// view.py と同じやり方（フレームをまたぐ状態は View 側に持たない）。
+const TRAINING_POPUP_SEC = 1.2;   // 「財布 LvUP！」を出しておく秒数
+const WALL_LABEL_SEC = 0.6;       // 「WALL」表示を出しておく秒数
+const CAST_FLASH_SEC = 0.25;      // 画面端フラッシュの長さ
 
 const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
 const F_SMALL = `15px ${JP}`;
@@ -340,6 +349,31 @@ class View {
     }
   }
 
+  // -------------------------------------------------------------- 壁の一撃
+  // 壁（対拠点倍率が低いユニット）が拠点を殴っても、削れているように見えて
+  // しまう。数字を灰色にして「WALL」を添えるだけで、「これは前に出るだけ
+  // で拠点を割れない」と0.5秒で学習できる（伝言1）。
+  baseHits(battle) {
+    const lane = battle.game.laneLength;
+    for (const [t, sideIndex, amount, isWall] of battle.base_hits) {
+      if (!isWall) continue;
+      const age = battle.t - t;
+      if (age > WALL_LABEL_SEC) continue;
+      const side = battle.sides[sideIndex];
+      const x = this.px(side.base_x, lane);
+      // 拠点（アバター）の絵の高さに合わせる。仮絵はいずれ差し替わるので、
+      // 決め打ちの高さではなく実際のスプライトから出す（無ければ
+      // `field` の代替矩形と同じ96px）。
+      const img = this.sprites.avatar(side.loadout.avatar);
+      const h = (img && img.complete && img.naturalWidth) ? img.naturalHeight * SCALE : 96;
+      const top = GROUND_Y - h;
+      const rise = Math.trunc(20 * (age / WALL_LABEL_SEC));
+      const y = top - 24 - rise;
+      this.text('WALL', F_SMALL, MUTED, x, y, 'center');
+      this.text(`-${amount.toFixed(0)}`, F_BODY, MUTED, x, y + 18, 'center');
+    }
+  }
+
   // -------------------------------------------------------------- 拠点HP
   header(battle, player) {
     this.fill([0, 0, W, 68], PANEL);
@@ -581,6 +615,54 @@ class View {
     return null;
   }
 
+  // -------------------------------------------------------------- 育成の演出
+  // `summonRow` の隅の小さな表示だけでは、初見だと「何秒間も何もできない」と
+  // いう負の体験しか残らない。育成中は画面中央に大きく残り秒数を出し、
+  // 終わった瞬間は「財布 LvUP！」を出す（伝言1）。
+  training(battle, side) {
+    // 育成が終わった直後の tick は「busy が外れる」のと「LvUP を記録する」が
+    // 同時に起きる。片方だけを出す ―― 両方出すと文字が重なる。
+    const justLeveled = battle.level_ups.some(([t, idx]) =>
+      idx === side.index && battle.t - t <= TRAINING_POPUP_SEC);
+
+    if (side.busy && !justLeveled) {
+      const total = Math.max(battle.game.economy.growth.upgrade_sec, 1e-6);
+      const done = 1.0 - side.upgrading_left / total;
+      this.text(`財布を育成中…  あと${side.upgrading_left.toFixed(1)}秒`,
+                F_BOLD, GOLD, W / 2, 148, 'center');
+      this.bar([W / 2 - 130, 166, 260, 8], done, GOLD, '#12161b', RULE);
+    }
+
+    for (const [t, sideIndex, level] of battle.level_ups) {
+      if (sideIndex !== side.index) continue;
+      const age = battle.t - t;
+      if (age > TRAINING_POPUP_SEC) continue;
+      this.text(`財布 Lv${level} UP！`, F_BIG, GREEN, W / 2, 148, 'center');
+    }
+  }
+
+  // -------------------------------------------------------------- 呪文のフラッシュ
+  // バフ／デバフは数値が変わるだけで、画面には「何も起きていない」ように
+  // 見えていた。発動の瞬間だけ画面端をその色で光らせる
+  // （青＝バフ／赤＝デバフ、伝言1）。
+  castFlash(battle, player) {
+    const ctx = this.ctx;
+    const thickness = 18;
+    for (const [t, targetIndex, isBuff] of battle.cast_effects) {
+      if (targetIndex !== player) continue;
+      const age = battle.t - t;
+      if (age > CAST_FLASH_SEC) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.67 * (1.0 - age / CAST_FLASH_SEC);   // 170/255
+      ctx.fillStyle = isBuff ? BUFF : RED;
+      ctx.fillRect(0, 0, W, thickness);
+      ctx.fillRect(0, H - thickness, W, thickness);
+      ctx.fillRect(0, 0, thickness, H);
+      ctx.fillRect(W - thickness, 0, thickness, H);
+      ctx.restore();
+    }
+  }
+
   // -------------------------------------------------------------- 決着
   result(battle, player) {
     const ctx = this.ctx;
@@ -606,9 +688,12 @@ class View {
     this.fill([0, 0, W, H], BG);
     this.field(battle);
     this.fighters(battle);
+    this.baseHits(battle);
     this.header(battle, player);
     this.spellRow(battle, battle.sides[player]);
     this.summonRow(battle, battle.sides[player]);
+    this.training(battle, battle.sides[player]);
+    this.castFlash(battle, player);
     if (battle.finished()) this.result(battle, player);
     else if (paused) {
       this.text('一時停止（Space）', F_BOLD, GOLD, W / 2, 120, 'center');
