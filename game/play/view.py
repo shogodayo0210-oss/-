@@ -413,21 +413,24 @@ class View:
             self._text("落雷", self.f_num, RED, (W // 2, 26), center=True)
             self._text(f"{int(battle.t) // 60}:{int(battle.t) % 60:02d}",
                        self.f_small, MUTED, (W // 2, 50), center=True)
-        else:
-            left = max(0.0, battle.storm_at - battle.t)
-            self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
-                       (W // 2, 26), center=True)
-            self._text("落雷まで", self.f_small, MUTED, (W // 2, 50), center=True)
+            # 配布は雷が降り始めるより前に必ず終わっている
+            # （economy.milestonesはsudden_death_at_secより前に終わる。
+            # validate.pyのcheck_sudden_deathが縛る）ので、ここでは出さない ――
+            # 出しても常に空の「残り」が上の経過時間に重なるだけになる。
+            return
+        left = max(0.0, battle.storm_at - battle.t)
+        self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
+                   (W // 2, 26), center=True)
+        self._text("落雷まで", self.f_small, MUTED, (W // 2, 50), center=True)
 
         # 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
         # 「あと何秒でいくら入るか」だけ。配布の直前に使い切っておくか、が択。
+        # 「落雷まで」と行を分ける（同じ高さに描くと両方とも読めなくなる）。
         drop = battle.next_drop()
-        if drop is None:
-            self._text("残り", self.f_small, MUTED, (W // 2, 50), center=True)
-            return
-        seconds, amount = drop
-        self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small, MUTED,
-                   (W // 2, 52), center=True)
+        if drop is not None:
+            seconds, amount = drop
+            self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small,
+                       MUTED, (W // 2, 68), center=True)
 
     # ---------------------------------------------------------- 操作盤：呪文
     def _spells(self, battle: Battle, side: Side) -> None:

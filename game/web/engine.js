@@ -911,8 +911,11 @@ class Battle {
   scheduleBolt() {
     const lane = this.game.laneLength;
     const where = this.rng.unit() * lane;
+    // bolts_fallen は対ではなく個々の落雷を数える（1組で2ずつ増える）ので、
+    // 伸びは対の数（Python 側と同じ // 2 = 整数除算）で刻む（battle.py と同じ）。
+    const pairsFallen = Math.floor(this.bolts_fallen / 2);
     const radius = Math.min(
-      this.storm_radius + this.storm_growth * this.bolts_fallen,
+      this.storm_radius + this.storm_growth * pairsFallen,
       this.storm_radius_max);
     // **必ず対で落ちる**（battle.py と同じ）。1発だけだと、どちら側の半分に
     // 落ちたかで有利不利がつく。対にすると左右は釣り合ったまま線だけが欠ける。
@@ -972,14 +975,9 @@ function resultOf(battle) {
     winner = hp[1] <= 0 ? 0 : 1;
     reason = '拠点撃破';
   } else {
-    const full = battle.game.baseHp;
-    const dealt = [(full - hp[1]) / full, (full - hp[0]) / full];
-    if (Math.abs(dealt[0] - dealt[1]) < 1e-9) {
-      winner = null; reason = '時間切れ・与ダメージ同率';
-    } else {
-      winner = dealt[0] > dealt[1] ? 0 : 1;
-      reason = '時間切れ・与ダメージ割合';
-    }
+    // 両拠点が残ったまま終わるのは hard_stop（安全弁）だけ ―― 時間切れという
+    // 結末は無くしたので、与ダメージ割合で勝敗を付けてはいけない（battle.py と同じ）。
+    winner = null; reason = '安全弁（決着せず）';
   }
   return {
     winner, reason, seconds: battle.t, base_hp: hp,

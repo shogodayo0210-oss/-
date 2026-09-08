@@ -971,7 +971,11 @@ class Battle:
         # 広がるが上限がある。上限なしで測ったら、半径がレーンを覆った時点で
         # **誰も敵拠点まで歩けなくなり**、900秒まで0対0のままだった ――
         # 全部を殺す雷は押し合いを壊すのではなく、前進そのものを禁止する。
-        radius = min(self.storm_radius + self.storm_growth * self.bolts_fallen,
+        # bolts_fallen は「対」ではなく個々の落雷を数える（1組で2ずつ増える）
+        # ので、伸びは対の数（//2）で刻む ―― でないと1組につき2段分
+        # 伸びてしまい、12→14→…→20のはずが12→16→20になる。
+        pairs_fallen = self.bolts_fallen // 2
+        radius = min(self.storm_radius + self.storm_growth * pairs_fallen,
                      self.storm_radius_max)
         # **必ず対で落ちる。** 落ちる場所は乱数だが、鏡の位置にも同時に落ちる
         # （x と レーン長−x）。1発だけだと、どちら側の半分に落ちたかで
@@ -1045,12 +1049,10 @@ class Result:
             winner = 0 if hp[1] <= 0 else 1
             reason = "拠点撃破"
         else:
-            full = battle.game.base_hp
-            dealt = ((full - hp[1]) / full, (full - hp[0]) / full)
-            if abs(dealt[0] - dealt[1]) < 1e-9:
-                winner, reason = None, "時間切れ・与ダメージ同率"
-            else:
-                winner = 0 if dealt[0] > dealt[1] else 1
-                reason = "時間切れ・与ダメージ割合"
+            # 両拠点が残ったまま終わるのは hard_stop（安全弁）だけ ――
+            # 時間切れという結末は無くした（設計書1.2）ので、与ダメージ割合で
+            # 勝敗を付けてはいけない。安全弁は「勝敗の仕組み」ではなく
+            # シミュレータが止まらなくなるのを防ぐためだけの装置。
+            winner, reason = None, "安全弁（決着せず）"
         return cls(winner=winner, reason=reason, seconds=battle.t, base_hp=hp,
                    level=(a.level, b.level), events=battle.events)
