@@ -537,6 +537,109 @@ class TestRaceSpells(unittest.TestCase):
         self.assertEqual(report.errors, [])
 
 
+class TestCastLimit(unittest.TestCase):
+    """**呪文は1試合3回まで。** 資金とクールタイムだけだと、撃てるときに
+    撃つのが常に正解で「いつ撃つか」が択になっていなかった。"""
+
+    def side_with_money(self):
+        bt = battle(loadout(brought="morale"), loadout(), money=3000)
+        return bt, bt.sides[0]
+
+    def test_the_fourth_cast_is_refused(self):
+        bt, side = self.side_with_money()
+        limit = GAME.casts_per_match
+        for i in range(limit):
+            side.brought_cd = 0.0
+            side.gcd_left = 0.0
+            self.assertTrue(bt.start_cast(side, ("brought", 0)), f"{i + 1}回目")
+            side.casting = None
+        side.brought_cd = 0.0
+        side.gcd_left = 0.0
+        self.assertFalse(bt.start_cast(side, ("brought", 0)))
+        self.assertEqual(side.casts_left, 0)
+
+    def test_a_parried_cast_still_costs_a_use(self):
+        """見切られても回数は戻らない ―― 資金と同じ扱い。"""
+        bt = battle(loadout(avatar="bulwark", brought="morale"),
+                    loadout(avatar="scout"), money=3000)
+        side = bt.sides[0]
+        before = side.casts_left
+        bt.start_cast(side, ("brought", 0))
+        bt.use_parry(bt.sides[1])
+        bt.resolve_cast(side)
+        self.assertEqual(side.casts_left, before - 1)
+
+    def test_it_is_fewer_than_the_cards_you_hold(self):
+        """持っている枚数より少ないから、回数が択になる。"""
+        held = GAME.card_rules["stock_slots"] + GAME.card_rules["brought"]
+        self.assertLess(GAME.casts_per_match, held)
+
+
+class TestSuddenDeath(unittest.TestCase):
+    """**時間では勝敗を決めない。** 3分を過ぎたら雷が盤面を壊す。"""
+
+    def test_the_clock_no_longer_ends_the_match(self):
+        bt = battle()
+        bt.t = GAME.time_limit + 1.0
+        self.assertFalse(bt.finished())          # 昔はここで時間切れだった
+        bt.t = GAME.hard_stop
+        self.assertTrue(bt.finished())           # 安全弁だけが止める
+
+    def test_the_storm_starts_on_time(self):
+        bt = battle()
+        self.assertFalse(bt.sudden_death)
+        bt.t = GAME.time_limit
+        self.assertTrue(bt.sudden_death)
+
+    def test_a_bolt_is_announced_before_it_lands(self):
+        bt = battle()
+        bt.t = GAME.time_limit
+        bt.schedule_bolt()
+        self.assertTrue(bt.pending)
+        lands_at = min(b[0] for b in bt.pending)
+        self.assertAlmostEqual(lands_at - bt.t, bt.storm_warn)
+        self.assertGreaterEqual(bt.storm_warn,
+                                GAME.readability["human_reaction_sec"])
+
+    def test_bolts_fall_in_mirrored_pairs(self):
+        """**必ず対で落ちる。** 片側だけだと同じ編成どうしが引き分けなくなる。"""
+        bt = battle()
+        bt.t = GAME.time_limit
+        bt.schedule_bolt()
+        spots = sorted(b[1] for b in bt.pending)
+        self.assertEqual(len(spots), 2)
+        self.assertAlmostEqual(spots[0] + spots[1], GAME.lane_length)
+
+    def test_it_kills_everything_in_range_on_both_sides(self):
+        bt = battle()
+        grunt, titan = GAME.units["grunt"], GAME.units["titan"]
+        near_a = Fighter(spec=grunt, side=0, x=100.0, hp=float(grunt.hp), facing=1)
+        near_b = Fighter(spec=titan, side=1, x=105.0, hp=float(titan.hp), facing=-1)
+        far_off = Fighter(spec=titan, side=1, x=200.0, hp=float(titan.hp), facing=-1)
+        bt.sides[0].fighters = [near_a]
+        bt.sides[1].fighters = [near_b, far_off]
+
+        bt.strike(102.0, 20.0)
+        self.assertFalse(near_a.alive)           # 体力700でも
+        self.assertFalse(near_b.alive)           # 体力6600でも
+        self.assertTrue(far_off.alive)           # 範囲の外は無傷
+
+    def test_the_lane_always_keeps_a_corridor(self):
+        """半径がレーンを覆うと、誰も敵拠点まで歩けなくなる。"""
+        widest = GAME.sudden_death["radius_max_m"] * 2
+        self.assertLessEqual(widest, GAME.lane_length / 3.0)
+
+    def test_the_same_match_always_gets_the_same_storm(self):
+        def spots():
+            bt = battle()
+            bt.t = GAME.time_limit
+            for _ in range(5):
+                bt.schedule_bolt()
+            return [round(b[1], 9) for b in bt.pending]
+
+        self.assertEqual(spots(), spots())
+
+
 class TestSiegeCap(unittest.TestCase):
     """**拠点は一撃で落ちない。** 攻城口は詰まるので、寄せた数だけ速くならない。"""
 

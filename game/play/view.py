@@ -260,6 +260,17 @@ class View:
             self._text(f"{metre}m", self.f_small, (86, 100, 114),
                        (x, GROUND_Y + 20), center=True)
 
+        # **落雷の予告。** 落ちる位置が1.2秒前に見える（設計書1.2）――
+        # 予告なしに全滅させる装置だと、読み合いではなく事故になる。
+        for lands_at, where, radius in battle.pending:
+            left = self.px(where - radius, lane)
+            right = self.px(where + radius, lane)
+            close = 1.0 - max(0.0, lands_at - battle.t) / max(battle.storm_warn, 1e-6)
+            pygame.draw.rect(self.surface, RED,
+                             (left, GROUND_Y - 150, right - left, 150), 2)
+            self._bar(pygame.Rect(left, GROUND_Y - 158, right - left, 5),
+                      close, RED, back=(18, 22, 27))
+
         for side in battle.sides:
             sprite = self.sprites.avatar(side.loadout.avatar, flip=side.index == 1)
             x = self.px(side.base_x, lane)
@@ -362,9 +373,16 @@ class View:
                 self._text("攻城中", self.f_small, GOLD,
                            (bar.centerx, bar.bottom + 8), center=True)
 
-        left = max(0.0, battle.game.time_limit - battle.t)
-        self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
-                   (W // 2, 26), center=True)
+        # 時計は「あと何秒で雷が降り始めるか」。時間切れは無い（設計書1.2）。
+        if battle.sudden_death:
+            self._text("落雷", self.f_num, RED, (W // 2, 26), center=True)
+            self._text(f"{int(battle.t) // 60}:{int(battle.t) % 60:02d}",
+                       self.f_small, MUTED, (W // 2, 50), center=True)
+        else:
+            left = max(0.0, battle.storm_at - battle.t)
+            self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
+                       (W // 2, 26), center=True)
+            self._text("落雷まで", self.f_small, MUTED, (W // 2, 50), center=True)
 
         # 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
         # 「あと何秒でいくら入るか」だけ。配布の直前に使い切っておくか、が択。
@@ -572,7 +590,8 @@ class View:
                    (W // 2, 296), center=True)
 
     # -------------------------------------------------------------- 1フレーム
-    def draw(self, battle: Battle, player: int, paused: bool = False) -> None:
+    def draw(self, battle: Battle, player: int, paused: bool = False,
+             speed: float = 1.0) -> None:
         side = battle.sides[player]
         self.surface.fill(BG)
         self._field(battle)
@@ -580,10 +599,14 @@ class View:
         self._header(battle, player)
         self._spells(battle, side)
         self._summon(battle, side)
+        # 早送りは常に出す。試合が拠点撃破まで続くので、いま何倍で見ているかが
+        # 分からないと「長い試合」と「速く回している」の区別がつかない。
+        if speed != 1.0:
+            self._text(f"×{speed:g}", self.f_bold, GOLD, (W - 26, 92), right=True)
         if battle.finished():
             self._result(battle, player)
         elif paused:
-            self._text("一時停止（Space）", self.f_bold, GOLD,
+            self._text("一時停止（Space）  速さ [ ]", self.f_bold, GOLD,
                        (W // 2, 120), center=True)
 
     # ------------------------------------------------------------ 当たり判定

@@ -14,6 +14,33 @@
 // 浮動小数点の下位桁が一致しない（battle.py と同じ理由・同じ値）。
 const EPS = 1e-6;
 
+// --------------------------------------------------------------- 決定論的な乱数
+// **Python と JS で1ビットも違わない乱数が要る**（battle.py の Rng と同じ）。
+// Math.imul と >>> 0 で32ビット演算を Python の & 0xFFFFFFFF に合わせる。
+function seed32(text) {
+  let h = 2166136261 >>> 0;
+  for (const byte of new TextEncoder().encode(text)) {
+    h = Math.imul(h ^ byte, 16777619) >>> 0;
+  }
+  return h || 1;
+}
+
+class Rng {
+  constructor(seed) { this.state = (seed >>> 0) || 1; }
+
+  next() {
+    let x = this.state;
+    x = (x ^ (x << 13)) >>> 0;
+    x = (x ^ (x >>> 17)) >>> 0;
+    x = (x ^ (x << 5)) >>> 0;
+    this.state = x;
+    return x;
+  }
+
+  // 0以上1未満。倍精度なので Python と同じ値になる。
+  unit() { return this.next() / 4294967296.0; }
+}
+
 // ------------------------------------------------------------------ 二分探索
 // Python の bisect と同じ意味。ソート済みの配列に対してのみ使う。
 function bisectLeft(xs, x) {
@@ -122,7 +149,11 @@ function loadGame(raw) {
     traitRules: raw.traits.rules,
     laneLength: match.field.length_m,
     baseHp: match.avatar.hp,
-    timeLimit: match.victory.time_limit_sec,
+    // **時間では勝敗を決めない。** ここは雷が降り始める時刻。
+    timeLimit: match.victory.sudden_death_at_sec,
+    hardStop: match.victory.hard_stop_sec,
+    suddenDeath: match.sudden_death,
+    castsPerMatch: match.cards.casts_per_match,
     economy: match.economy,
     levels: match.economy.growth.levels,
     cardRules: match.cards,
@@ -133,6 +164,15 @@ function loadGame(raw) {
     farThreshold: match.roster.far_threshold_m,
     stockSlots: match.cards.stock_slots,
   };
+}
+
+// 雷の種にする、編成の名前（battle.py の storm_seed と同じ）。
+// **持ち込んだものだけで作る** ―― stock_seed ひとつに預けると、
+// 欄が落ちた側で違う場所に落ちる（conform.py が実際に鳴った）。
+function stormSeed(loadout) {
+  const stock = loadout.stock_seed === undefined ? 'stock' : loadout.stock_seed;
+  return `${loadout.avatar}:${loadout.roster.join(',')}:`
+       + `${loadout.brought}:${loadout.trump}:${stock}`;
 }
 
 // ------------------------------------------------------------------ 場の1体
@@ -213,6 +253,8 @@ class Side {
     for (let i = 0; i < rules.stock_slots; i++) this.stock.push(this._draw());
 
     this.trump_used = false;
+    // **呪文は1試合3回まで**（持ち込み・ストックの合計。battle.py と同じ）。
+    this.casts_left = game.castsPerMatch;
     this.deploy_lock_left = 0.0;
     this.upgrading_left = 0.0;
 
@@ -282,6 +324,7 @@ class Side {
 
   // いま撃てるか。資金・詠唱中・共通CD・育成中・個別CD・解禁を全部見る。
   castable(source) {
+    if (this.casts_left <= 0) return false;      // 1試合3回を使い切った
     if (this.casting !== null || this.gcd_left > 0 || this.busy) return false;
     if (source[0] === 'brought' && this.brought_cd > 0) return false;
     const card = this.cardOf(source);
@@ -405,6 +448,22 @@ class Battle {
     this._damage = [];
     this._base_damage = [];
     this.events = [];
+
+    // ── サドンデスの雷（battle.py と同じ）───────────────────
+    // 3分を過ぎたらレーンのどこかに落ちる。落ちた範囲のユニットは
+    // 敵味方の区別なく必ず倒れる。種は両者の編成から作るので、
+    // **同じ試合は必ず同じところに落ちる**。
+    const bolt = game.suddenDeath;
+    this.storm_at = game.timeLimit;
+    this.storm_every = bolt.every_sec;
+    this.storm_radius = bolt.radius_m;
+    this.storm_growth = bolt.radius_growth_m;
+    this.storm_radius_max = bolt.radius_max_m;
+    this.storm_warn = bolt.warn_sec;
+    this.rng = new Rng(seed32(`${stormSeed(a)}|${stormSeed(b)}|storm`));
+    this.bolts_fallen = 0;
+    this.pending = [];                 // [落ちる時刻, 位置, 半径]
+    this._next_bolt = this.storm_at;
   }
 
   note(side, text) { this.events.push([this.t, side, text]); }
@@ -459,6 +518,8 @@ class Battle {
     if (!side.castable(source)) return false;
     const card = side.cardOf(source);
     side.money -= card.cost;
+    // 回数も詠唱に入った時点で減る。見切られても戻らない ―― 資金と同じ。
+    side.casts_left -= 1;
 
     const kind = source[0], index = source[1];
     if (kind === 'brought') {
@@ -474,7 +535,8 @@ class Battle {
     side.cast_started = this.t;
     const where = kind === 'brought' ? '持ち込み' : `ストック${index + 1}`;
     this.note(side.index,
-              `${card.name} を詠唱（${where}・${card.cost} / ${side.cast_left.toFixed(2)}秒）`);
+              `${card.name} を詠唱（${where}・${card.cost} / `
+              + `${side.cast_left.toFixed(2)}秒・残り${side.casts_left}回）`);
     return true;
   }
 
@@ -769,6 +831,9 @@ class Battle {
       side.fighters = survivors;
     }
 
+    // 雷は掃除のあと。倒れた者を二度数えないため。
+    if (this.suddenDeath) this.stepStorm();
+
     this.t += dt;
   }
 
@@ -809,8 +874,57 @@ class Battle {
     return [Math.max(0.0, drop.at_sec - this.t), drop.amount];
   }
 
+  // 雷が降り始めているか。画面と方針が見る。
+  get suddenDeath() { return this.t >= this.storm_at; }
+
+  // 次の雷の落ちる場所を決めて、予告に積む。**落ちる位置は先に見える**。
+  scheduleBolt() {
+    const lane = this.game.laneLength;
+    const where = this.rng.unit() * lane;
+    const radius = Math.min(
+      this.storm_radius + this.storm_growth * this.bolts_fallen,
+      this.storm_radius_max);
+    // **必ず対で落ちる**（battle.py と同じ）。1発だけだと、どちら側の半分に
+    // 落ちたかで有利不利がつく。対にすると左右は釣り合ったまま線だけが欠ける。
+    this.pending.push([this.t + this.storm_warn, where, radius]);
+    this.pending.push([this.t + this.storm_warn, lane - where, radius]);
+    this.note(0, `落雷の予兆 — ${where.toFixed(0)}m と ${(lane - where).toFixed(0)}m`
+                 + `（半径${radius.toFixed(0)}m・${this.storm_warn}秒後）`);
+  }
+
+  // 雷を落とす。**範囲内のユニットは敵味方の区別なく必ず倒れる。**
+  // 体力も装甲も関係ない ―― ここだけは「ダメージ」ではなく「取り除く」。
+  strike(where, radius) {
+    const killed = [0, 0];
+    for (const side of this.sides) {
+      for (const fighter of side.fighters) {
+        if (fighter.alive && Math.abs(fighter.x - where) <= radius + EPS) {
+          fighter.hp = 0.0;
+          killed[side.index] += 1;
+        }
+      }
+    }
+    this.bolts_fallen += 1;
+    this.note(0, `落雷 — ${where.toFixed(0)}m（半径${radius.toFixed(0)}m）`
+                 + `P1 ${killed[0]}体 / P2 ${killed[1]}体`);
+  }
+
+  stepStorm() {
+    if (this.t >= this._next_bolt) {
+      this.scheduleBolt();
+      this._next_bolt += this.storm_every;
+    }
+    const landed = this.pending.filter(b => this.t >= b[0]);
+    if (landed.length > 0) {
+      this.pending = this.pending.filter(b => this.t < b[0]);
+      for (const b of landed) this.strike(b[1], b[2]);
+    }
+  }
+
+  // **時間では決めない。** 拠点が落ちるまで続く。hardStop は
+  // シミュレータが止まらなくなるのを防ぐ安全弁で、勝敗の仕組みではない。
   finished() {
-    return this.t >= this.game.timeLimit
+    return this.t >= this.game.hardStop
         || this.sides.some(s => s.base_hp <= 0);
   }
 }

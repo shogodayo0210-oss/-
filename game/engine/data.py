@@ -317,7 +317,28 @@ class GameData:
 
     @property
     def time_limit(self) -> float:
-        return self.match["victory"]["time_limit_sec"]
+        """**時間では勝敗を決めない。** ここは「試合の長さの目安」で、
+        雷が降り始める時刻（サドンデス）を返す。
+
+        以前は300秒で与ダメージ割合を比べていたが、押し合いが固まったときに
+        両者無傷の0対0を量産していた（実測で50%）。いまは時計で裁かずに、
+        3分を過ぎたら盤面のほうを壊す（`Battle.strike`）。
+        """
+        return self.match["victory"]["sudden_death_at_sec"]
+
+    @property
+    def hard_stop(self) -> float:
+        """シミュレータが止まらなくなるのを防ぐためだけの安全弁。"""
+        return self.match["victory"]["hard_stop_sec"]
+
+    @property
+    def sudden_death(self) -> dict:
+        return self.match["sudden_death"]
+
+    @property
+    def casts_per_match(self) -> int:
+        """1試合に撃てる呪文の回数。持ち込みとストックの合計。"""
+        return self.match["cards"]["casts_per_match"]
 
     @property
     def economy(self) -> dict:

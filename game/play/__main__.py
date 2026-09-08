@@ -156,6 +156,12 @@ def run_game(game, args, unit_ids) -> int:
     accumulator = 0.0
     paused = False
     running = True
+    # **早送り。** 時間制限を外したので試合は拠点が落ちるまで続く ――
+    # 見ているだけの時間を飛ばせないと、実測も試遊も続かない。
+    # `--speed` は開始時の値で、`[` `]` が試合中に動かす。
+    speeds = [0.5, 1.0, 2.0, 4.0, 8.0]
+    speed_at = min(range(len(speeds)),
+                   key=lambda i: abs(speeds[i] - args.speed))
 
     while running:
         # 実時間。0.25秒より大きく飛んだぶんは捨てる（窓を動かした後など、
@@ -170,24 +176,28 @@ def run_game(game, args, unit_ids) -> int:
                     running = False
                 elif event.key == pygame.K_SPACE:
                     paused = not paused
+                elif event.key in (pygame.K_LEFTBRACKET, pygame.K_MINUS):
+                    speed_at = max(0, speed_at - 1)
+                elif event.key in (pygame.K_RIGHTBRACKET, pygame.K_EQUALS):
+                    speed_at = min(len(speeds) - 1, speed_at + 1)
                 elif event.key == pygame.K_r:
                     match += 1
                     battle, controller = make_battle(
                         game, unit_ids, args.enemy,
                         f"{args.match_id}-{match}", *_setup(args))
-                    accumulator, paused = 0.0, False
+                    accumulator, paused = 0.0, False   # 速さは持ち越す
                 else:
                     _send(controller, view.action_for_key(event.key))
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 _send(controller, view.action_at(event.pos))
 
         if not paused and not battle.finished():
-            accumulator += dt * args.speed
+            accumulator += dt * speeds[speed_at]
             while accumulator >= tick and not battle.finished():
                 battle.step()
                 accumulator -= tick
 
-        view.draw(battle, player=0, paused=paused)
+        view.draw(battle, player=0, paused=paused, speed=speeds[speed_at])
         pygame.display.flip()
 
     pygame.quit()

@@ -227,6 +227,16 @@ class View {
       this.text(`${metre}m`, F_SMALL, '#566472', x, GROUND_Y + 20, 'center');
     }
 
+    // **落雷の予告。** 落ちる位置が1.2秒前に見える（view.py と同じ）。
+    for (const bolt of battle.pending) {
+      const l = this.px(bolt[1] - bolt[2], lane);
+      const r = this.px(bolt[1] + bolt[2], lane);
+      const close = 1.0 - Math.max(0.0, bolt[0] - battle.t)
+                          / Math.max(battle.storm_warn, 1e-6);
+      this.stroke([l, GROUND_Y - 150, r - l, 150], RED, 2);
+      this.bar([l, GROUND_Y - 158, r - l, 5], close, RED, '#12161b');
+    }
+
     for (const side of battle.sides) {
       const img = this.sprites.avatar(side.loadout.avatar);
       const x = this.px(side.base_x, lane);
@@ -369,10 +379,19 @@ class View {
       }
     }
 
-    const left = Math.max(0.0, battle.game.timeLimit - battle.t);
-    const mm = Math.trunc(left) / 60 | 0;
-    const ss = String(Math.trunc(left) % 60).padStart(2, '0');
-    this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
+    // 時計は「あと何秒で雷が降り始めるか」。時間切れは無い（設計書1.2）。
+    if (battle.suddenDeath) {
+      this.text('落雷', F_NUM, RED, W / 2, 26, 'center');
+      const em = Math.trunc(battle.t) / 60 | 0;
+      const es = String(Math.trunc(battle.t) % 60).padStart(2, '0');
+      this.text(`${em}:${es}`, F_SMALL, MUTED, W / 2, 50, 'center');
+    } else {
+      const left = Math.max(0.0, battle.storm_at - battle.t);
+      const mm = Math.trunc(left) / 60 | 0;
+      const ss = String(Math.trunc(left) % 60).padStart(2, '0');
+      this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
+      this.text('落雷まで', F_SMALL, MUTED, W / 2, 50, 'center');
+    }
 
     // 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
     // 「あと何秒でいくら入るか」だけ（view.py と同じ）。
