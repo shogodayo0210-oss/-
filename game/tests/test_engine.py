@@ -585,6 +585,11 @@ class TestSuddenDeath(unittest.TestCase):
         bt.t = GAME.hard_stop
         self.assertTrue(bt.finished())           # 安全弁だけが止める
 
+    def test_the_safety_stop_has_real_room_after_the_storm_starts(self):
+        """安全弁は雷が仕事をする時間を奪わない程度に、離れた場所にある。"""
+        self.assertGreater(GAME.hard_stop - GAME.time_limit, 60.0 * 5,
+                           "雷が5発降る前に安全弁が来ると、雷そのものが機能しない")
+
     def test_the_storm_starts_on_time(self):
         bt = battle()
         self.assertFalse(bt.sudden_death)
