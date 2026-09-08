@@ -1,0 +1,144 @@
+{
+  "_comment": "アバターは1人1体。編成8枠とも切り札とも別枠で、拠点そのものとしてダメージを受ける。look は見た目の方向づけ（可憐/剛力/知性/俊敏/怪異/王道）で、数字には影響しない。signature は看板の特典で、必ず changes_flow=true のものから選ぶ。",
+  "avatars": [
+    {
+      "id": "scout",
+      "name": "斥候",
+      "look": "知性",
+      "concept": "相手を見てから組み立てる",
+      "signature": "scout_1",
+      "perks": [
+        "scout_1",
+        "gauge_sight",
+        "feint"
+      ]
+    },
+    {
+      "id": "strategist",
+      "name": "軍師",
+      "look": "知性",
+      "concept": "カード読みと編成の微調整",
+      "signature": "mind_read",
+      "perks": [
+        "mind_read",
+        "gauge_sight",
+        "reroll"
+      ]
+    },
+    {
+      "id": "marshal",
+      "name": "統率",
+      "look": "王道",
+      "concept": "事故を減らす構築寄り",
+      "signature": "pick_plus",
+      "perks": [
+        "pick_plus",
+        "head_start"
+      ]
+    },
+    {
+      "id": "bulwark",
+      "name": "不動",
+      "look": "剛力",
+      "concept": "大技に合わせて防ぐ",
+      "signature": "parry",
+      "perks": [
+        "parry",
+        "last_stand",
+        "gauge_sight"
+      ]
+    },
+    {
+      "id": "gale",
+      "name": "疾風",
+      "look": "俊敏",
+      "concept": "前に出て押し切る",
+      "signature": "surge",
+      "perks": [
+        "surge",
+        "quick_cast"
+      ]
+    },
+    {
+      "id": "gambler",
+      "name": "賭博師",
+      "look": "怪異",
+      "concept": "リスクを取って上振れる",
+      "signature": "pocket",
+      "perks": [
+        "pocket",
+        "promote",
+        "head_start"
+      ]
+    },
+    {
+      "id": "caster",
+      "name": "術師",
+      "look": "知性",
+      "concept": "カード中心",
+      "signature": "recall",
+      "perks": [
+        "recall",
+        "feint"
+      ]
+    },
+    {
+      "id": "brute",
+      "name": "豪傑",
+      "look": "剛力",
+      "concept": "一点で押し切る",
+      "signature": "overdrive",
+      "perks": [
+        "overdrive",
+        "siege_order"
+      ]
+    },
+    {
+      "id": "princess",
+      "name": "姫",
+      "look": "可憐",
+      "concept": "軸を1体に決めて回す",
+      "signature": "veteran",
+      "perks": [
+        "veteran",
+        "warchest"
+      ]
+    },
+    {
+      "id": "artisan",
+      "name": "職人",
+      "look": "知性",
+      "concept": "編成を整えて数で回す",
+      "signature": "reroll",
+      "perks": [
+        "reroll",
+        "reserve",
+        "head_start"
+      ]
+    },
+    {
+      "id": "beastmaster",
+      "name": "獣使い",
+      "look": "可憐",
+      "concept": "勘で相手の中身を当てる",
+      "signature": "scout_2",
+      "perks": [
+        "scout_2",
+        "card_watch",
+        "swift_start"
+      ]
+    },
+    {
+      "id": "hermit",
+      "name": "隠者",
+      "look": "知性",
+      "concept": "相手の手順を読んで待つ",
+      "signature": "intel_net",
+      "perks": [
+        "intel_net",
+        "gauge_sight",
+        "late_pick"
+      ]
+    }
+  ]
+}

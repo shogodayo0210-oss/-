@@ -1,0 +1,167 @@
+<title>一本道の攻城戦</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+
+<style>
+:root{
+  --ground:#12161a; --panel:#1b232c; --panel-2:#212b36;
+  --ink:#dfe6ec; --muted:#7d8d9c; --rule:#2b343e;
+  --accent:#3ecad9; --gold:#e0aa46; --green:#4fa196; --red:#e2622f;
+  --f:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%; text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--f); font-size:15px; line-height:1.7;
+  font-feature-settings:"palt" 1; -webkit-font-smoothing:antialiased;
+  /* 操作中に画面が引っぱられないようにする（スマホ） */
+  overscroll-behavior:none; -webkit-user-select:none; user-select:none;
+}
+.wrap{max-width:1180px; margin-inline:auto; padding:16px 16px 48px}
+
+header{display:flex; flex-wrap:wrap; align-items:baseline; gap:.4rem 1rem;
+  margin-block-end:.8rem}
+h1{font-size:1.15rem; font-weight:900; margin:0; letter-spacing:.01em}
+header .sub{color:var(--muted); font-size:.85rem}
+
+/* 画面。内部は 1140×712 固定で、CSS 側だけ伸び縮みさせる。 */
+#screen{
+  display:block; width:100%; height:auto; aspect-ratio:1140/712;
+  margin-inline:auto; background:#171c22; border:1px solid var(--rule);
+  image-rendering:pixelated; touch-action:manipulation;
+}
+/* 横長で背の低い画面（スマホを横にしたとき）は、幅ではなく**高さ**で決める。
+   縦のままだと 1140px を 390px に潰すことになり、ボタンの字が読めない。 */
+@media (max-height:620px) and (orientation:landscape){
+  .wrap{padding-block-start:8px}
+  header{display:none}
+  #screen{height:calc(100dvh - 20px); width:auto; max-width:100%}
+}
+#rotate{display:none}
+@media (max-width:640px) and (orientation:portrait){
+  #rotate{
+    display:block; margin-block-start:.5rem; padding:.5rem .7rem;
+    background:var(--panel); border-inline-start:3px solid var(--gold);
+    color:var(--muted); font-size:.85rem;
+  }
+  #rotate b{color:var(--gold)}
+}
+
+.bar{display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:center;
+  margin-block-start:.7rem}
+.bar label{color:var(--muted); font-size:.85rem}
+select,button{
+  font-family:inherit; font-size:.9rem; color:var(--ink);
+  background:var(--panel-2); border:1px solid var(--rule);
+  padding:.35rem .7rem; border-radius:0; cursor:pointer;
+}
+button:hover,select:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+#screen:focus-visible{outline-offset:-2px}
+#tally{margin-inline-start:auto; color:var(--muted); font-size:.85rem;
+  font-variant-numeric:tabular-nums}
+
+.cols{display:grid; gap:1.4rem; margin-block-start:1.4rem;
+  grid-template-columns:1fr}
+@media(min-width:60rem){.cols{grid-template-columns:1.15fr .85fr}}
+
+h2{font-size:.95rem; font-weight:700; margin:0 0 .5rem}
+.keys{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.keys div{background:var(--panel); display:grid; grid-template-columns:5.5rem 1fr;
+  gap:.8rem; padding:.45rem .7rem; font-size:.88rem}
+.keys b{color:var(--accent); font-weight:700}
+.keys span{color:var(--muted)}
+
+#log{margin-block-start:.5rem; max-height:16rem; overflow-y:auto;
+  font-size:.82rem; font-variant-numeric:tabular-nums}
+#log .row{display:flex; gap:.7rem; padding:.3rem .1rem;
+  border-block-end:1px solid var(--rule); color:var(--muted)}
+#log .row b{color:var(--ink); min-width:1.6rem}
+#log .w{color:var(--accent); font-weight:700}
+#log .l{color:var(--red); font-weight:700}
+#log .d{color:var(--muted); font-weight:700}
+#log:empty::after{content:"まだ1試合も終わっていません"; color:var(--muted);
+  font-size:.85rem}
+
+.note{color:var(--muted); font-size:.85rem; margin:.6rem 0 0}
+.note b{color:var(--ink)}
+code{font-size:.9em; color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>一本道の攻城戦</h1>
+    <span class="sub">1レーン攻城戦 1v1 ／ 試遊版</span>
+  </header>
+
+  <canvas id="screen" width="1140" height="712"></canvas>
+
+  <p id="rotate"><b>端末を横にすると</b>画面が3倍ほど大きくなります。</p>
+
+  <div class="bar">
+    <label for="enemy">相手</label>
+    <select id="enemy">
+      <option value="rush">rush ― 育てずに攻める</option>
+      <option value="balanced" selected>balanced ― Lv4まで育てる</option>
+      <option value="greed">greed ― Lv6まで育てる</option>
+    </select>
+    <label for="speed">速さ</label>
+    <select id="speed">
+      <option value="1">1倍</option>
+      <option value="2">2倍</option>
+      <option value="4">4倍</option>
+    </select>
+    <button id="pause">一時停止</button>
+    <button id="again">次の試合</button>
+    <span id="tally">0試合</span>
+  </div>
+
+  <div class="cols">
+    <section>
+      <h2>操作</h2>
+      <div class="keys">
+        <div><b>1〜6</b><span>出撃。画面下のボタンを押しても同じ</span></div>
+        <div><b>0</b><span>財布を育てる。<b>6秒かかり、その間は何も出せない</b></span></div>
+        <div><b>Q</b><span>持ち込みの呪文（必ず使える1枚）</span></div>
+        <div><b>W / E / R</b><span>ストックの呪文（流れてくる3枠）</span></div>
+        <div><b>T</b><span>切り札。60秒解禁・1試合1回</span></div>
+        <div><b>Space</b><span>一時停止</span></div>
+        <div><b>R</b><span>決着したあとは次の試合へ</span></div>
+      </div>
+      <p class="note">
+        <b>資源は資金1本。</b>出撃・呪文・切り札・財布の育成が、全部おなじ財布を
+        奪い合います。画面の見どころは3つ ――
+        <b>資金のマス目</b>（コストが1〜10なので数えられる）、
+        <b>頭上の金色の棒</b>（振りかぶり。大きい一撃ほど長い）、
+        赤い <b>「財布 Lv不足」</b>（資金があっても上限が届いていない）。
+      </p>
+      <p class="note">
+        ヘッダの<b>「陣地 +N」</b>は、そのとき前線を押し込んでいる側だけに入ります。
+        互角なら誰にも入りません ―― <b>安いユニットを早く出す理由</b>がここにあります。
+      </p>
+    </section>
+
+    <section>
+      <h2>この端末で遊んだ試合</h2>
+      <div id="log"></div>
+      <p class="note">
+        <b>与</b>＝相手の拠点をどれだけ削ったか、<b>被</b>＝自分がどれだけ削られたか。
+        勝ち負けより<b>この2つの差</b>のほうが、何が効いたかを表します。
+        記録はこの端末に残るだけで、どこにも送られません。
+      </p>
+      <p class="note">
+        相手は<b>まったく同じ6種・同じ呪文・同じ切り札</b>を持っています。
+        違うのは<b>資金をどこまで育ててから戦うか</b>だけ ――
+        負けた理由が読めるように、まず同じ条件にしてあります。
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>/*DATA*/</script>
+<script>/*ENGINE*/</script>
+<script>/*VIEW*/</script>
+<script>/*MAIN*/</script>
