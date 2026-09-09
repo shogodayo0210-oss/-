@@ -24,19 +24,21 @@ ART = Path(__file__).resolve().parent.parent / "art"
 # ---------------------------------------------------------------- 画面の寸法
 # にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
 # 操作盤は2段：**呪文を選ぶところ**と、**キャラを召喚するところ**。
-W, H = 1140, 712
-GROUND_Y = 380          # ユニットが立つ線
-HUD_Y = 412             # ここから下が操作盤
-SPELL_Y = 418           # 呪文の段。札には効果の説明まで載せるので背を高くしてある
-SUMMON_Y = 548          # 資金と召喚の段
+W, H = 1320, 792
+GROUND_Y = 460          # ユニットが立つ線。旧380から拡張 ―― 戦場をもっと広く
+HUD_Y = 492             # ここから下が操作盤
+SPELL_Y = 498           # 呪文の段。札には効果の説明まで載せるので背を高くしてある
+SUMMON_Y = 628          # 資金と召喚の段
 LANE_LEFT, LANE_RIGHT = 100, W - 100
 
-UNIT_PX = 48            # art/README.md 1章の実寸
-AVATAR_PX = 64
-# 等倍だと画面に対して小さすぎる。art/README.md 1章の「等倍〜2倍、
-# 画面高さのおよそ1/6」に合わせて2倍で出す。補間しない scale を使うので
-# ドットは潰れない。
-SCALE = 2
+# 画面上の高さ（見た目の大きさ）をここで決める。**元絵の解像度は問わない。**
+# 48pxのドット絵でも、もっと大きい塗り絵調の絵でも、読み込んだ絵の実寸に
+# 合わせて高さがここに来るよう縮尺をかける ―― art/README.md 1章の
+# 「画面高さのおよそ1/6」がユニット、拠点はその1.3倍という目安（旧: 48px/64pxを
+# 2倍表示していたのと同じ見た目の大きさ）。元絵が変わってもレーンの密度や
+# HUDの寸法を触らずに済む。
+UNIT_TARGET_H = 96
+AVATAR_TARGET_H = 128
 
 # ---------------------------------------------------------------- 色
 # art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
@@ -90,38 +92,125 @@ def _race_colors() -> dict[str, tuple[int, int, int]]:
     return {name: rgb(ramp["base"]) for name, ramp in raw.items()}
 
 
-class Sprites:
-    """PNG を読んで、向きごとに使い回す。"""
+def _art_scales() -> dict[str, float]:
+    """art/looks.json の任意項目 `art_scale`。表示だけの縮尺の掛け目（既定1.0）。
 
-    def __init__(self):
-        self._cache: dict[tuple[str, bool], tuple[pygame.Surface, pygame.Rect]] = {}
+    ゲームの数字（characters.json）には一切触れない ―― DPS と同じ理由で、
+    見た目の調整と data を混ぜない。下の `_cost_scales` と掛け合わさる
+    （コストなりの大きさに対する**追加の**微調整という位置づけ）。
+    """
+    with open(ART / "looks.json", encoding="utf-8") as f:
+        raw = json.load(f)["units"]
+    return {uid: entry.get("art_scale", 1.0) for uid, entry in raw.items()}
+
+
+COST_SCALE_MIN, COST_SCALE_MAX = 0.7, 1.3
+
+
+def _cost_scales(game) -> dict[str, float]:
+    """コストが高いほど大きく見せる ―― art/README.md 3章
+    「コストが高い＝大きい。キャンバスを埋める」を実際の描画に適用する。
+
+    生の cost をそのまま比例させると、安いユニットが大半を占める分布の下では
+    高コスト側だけが伸びてしまう。art_brief.py の `Scale` と同じ、
+    ロースター内の**順位**（percentile）で正規化する。
+    """
+    units = list(game.units.values())
+    costs = sorted(u.cost for u in units)
+    denom = max(len(costs) - 1, 1)
+
+    def rank(cost: int) -> float:
+        below = sum(1 for c in costs if c < cost)
+        return below / denom
+
+    return {u.id: COST_SCALE_MIN + rank(u.cost) * (COST_SCALE_MAX - COST_SCALE_MIN)
+            for u in units}
+
+
+ANIM_STATES = ("idle", "windup", "hit", "recover")
+
+
+def _anim_state(f: Fighter) -> str:
+    """いまの攻撃モーションのコマ。View自身は状態を持たないので、
+    毎フレーム Fighter の残り時間（battle.py）から出し直す。
+
+    振りかぶり中は windup。当たった直後（`exposed_left`＝後隙）の頭の
+    ごく短い間だけ hit、残りは recover ―― 攻撃発生・後隙のどちらも
+    絵が無いユニットは idle のままで、Sprites 側が自動でそこへ落ちる。
+    """
+    if f.windup_left > 0:
+        return "windup"
+    if f.exposed_left > 0:
+        recover_sec = f.spec.attack_recover_sec or f.exposed_left
+        hit_sec = min(0.1, recover_sec * 0.3)
+        return "hit" if f.exposed_left > max(0.0, recover_sec - hit_sec) else "recover"
+    return "idle"
+
+
+class Sprites:
+    """PNG を読んで、向き・コマごとに使い回す。"""
+
+    def __init__(self, game):
+        self._cache: dict[tuple[str, bool, str], tuple[pygame.Surface, pygame.Rect]] = {}
         self._avatars: dict[str, pygame.Surface] = {}
         self._races = _race_colors()
+        self._art_overrides = _art_scales()
+        self._cost_scales = _cost_scales(game)
 
     @staticmethod
-    def _grow(surf: pygame.Surface) -> pygame.Surface:
-        return pygame.transform.scale(
-            surf, (surf.get_width() * SCALE, surf.get_height() * SCALE))
+    def _grow(surf: pygame.Surface, target_h: int) -> pygame.Surface:
+        """元絵の実寸に関わらず、高さが `target_h` に来るよう縦横同倍率で拡縮する。
 
-    def _entry(self, spec: Unit, flip: bool):
-        key = (spec.id, flip)
-        if key not in self._cache:
-            path = ART / "out" / "units" / f"{spec.id}.png"
-            surf = (pygame.image.load(str(path)).convert_alpha()
-                    if path.exists() else self._placeholder(spec))
-            surf = self._grow(surf)
-            if flip:
-                surf = pygame.transform.flip(surf, True, False)
-            # 48×48 の余白ぶんを覚えておく。絵の実体がどこから始まるかを
-            # 見ないと、体力の棒が頭の遥か上に浮く。
-            self._cache[key] = (surf, surf.get_bounding_rect())
-        return self._cache[key]
+        ドット絵（48px）が来ても、もっと高精細な絵が来ても同じ扱いにできる。
+        滑らかな `smoothscale` を使う ―― ドット絵前提の `scale`（最近傍・
+        カクカクのまま拡大）は、階調のある絵だと縁がギザギザになる。
+        """
+        h = surf.get_height()
+        if h <= 0:
+            return surf
+        ratio = target_h / h
+        size = (max(1, round(surf.get_width() * ratio)), target_h)
+        return pygame.transform.smoothscale(surf, size)
 
-    def unit(self, spec: Unit, flip: bool) -> pygame.Surface:
-        return self._entry(spec, flip)[0]
+    @staticmethod
+    def _path(unit_id: str, state: str) -> Path:
+        # 待機は昔からの `{id}.png`。他のコマだけ `_windup` 等の接尾辞 ――
+        # 攻撃コマを持たないユニットが大半なので、待機だけは無条件に
+        # 同じファイル名で読めるようにしておく（過去の絵と互換）。
+        suffix = "" if state == "idle" else f"_{state}"
+        return ART / "out" / "units" / f"{unit_id}{suffix}.png"
 
-    def unit_bbox(self, spec: Unit, flip: bool) -> pygame.Rect:
-        return self._entry(spec, flip)[1]
+    def _entry(self, spec: Unit, flip: bool, state: str = "idle"):
+        key = (spec.id, flip, state)
+        if key in self._cache:
+            return self._cache[key]
+        path = self._path(spec.id, state)
+        if path.exists():
+            surf = pygame.image.load(str(path)).convert_alpha()
+        elif state != "idle":
+            # このコマの絵が無ければ、待機の絵をそのまま使い回す
+            # （＝コマ送り機能があっても、絵が1枚だけのユニットは静止のまま）。
+            entry = self._entry(spec, flip, "idle")
+            self._cache[key] = entry
+            return entry
+        else:
+            surf = self._placeholder(spec)
+        scale = (self._cost_scales.get(spec.id, 1.0)
+                 * self._art_overrides.get(spec.id, 1.0))
+        surf = self._grow(surf, max(1, round(UNIT_TARGET_H * scale)))
+        if flip:
+            surf = pygame.transform.flip(surf, True, False)
+        # 元絵の余白ぶんを覚えておく。絵の実体がどこから始まるかを
+        # 見ないと、体力の棒が頭の遥か上に浮く。
+        entry = (surf, surf.get_bounding_rect())
+        self._cache[key] = entry
+        return entry
+
+    def unit(self, spec: Unit, flip: bool, state: str = "idle") -> pygame.Surface:
+        return self._entry(spec, flip, state)[0]
+
+    def unit_bbox(self, spec: Unit, flip: bool, state: str = "idle") -> pygame.Rect:
+        return self._entry(spec, flip, state)[1]
 
     def avatar(self, avatar_id: str, flip: bool) -> pygame.Surface | None:
         key = f"{avatar_id}:{flip}"
@@ -129,7 +218,8 @@ class Sprites:
             path = ART / "out" / "avatars" / f"{avatar_id}.png"
             if not path.exists():
                 return None
-            surf = self._grow(pygame.image.load(str(path)).convert_alpha())
+            surf = self._grow(pygame.image.load(str(path)).convert_alpha(),
+                              AVATAR_TARGET_H)
             self._avatars[key] = (pygame.transform.flip(surf, True, False)
                                   if flip else surf)
         return self._avatars[key]
@@ -188,7 +278,7 @@ class View:
     def __init__(self, surface: pygame.Surface, roster: tuple[Unit, ...], game):
         self.surface = surface
         self.game = game
-        self.sprites = Sprites()
+        self.sprites = Sprites(game)
         self.f_small = load_font(15)
         self.f_body = load_font(18)
         self.f_bold = load_font(20, bold=True)
@@ -289,20 +379,41 @@ class View:
                 pygame.draw.rect(self.surface, MUTED,
                                  (x - 24, GROUND_Y - 96, 48, 96))
 
+    @staticmethod
+    def _depth_key(side: int, spawn_seq: int) -> int:
+        """出撃時の位置から、重なったときの前後を決める。
+
+        `Fighter.spawn_seq` は出撃した順に振られ、一生変わらない
+        （`Side._spawn_seq`、`battle.py`）。**配列の添字は使わない** ――
+        死んだ個体は `Battle.step` の最後で間引かれて `side.fighters` が
+        作り直されるので、添字は誰かが死ぬたびにずれる。
+        これをハッシュに通すだけで、シミュレータの乱数に一切触れずに
+        見た目だけの前後を作れる（毎回同じ並びに固定されるのを避けるための
+        ばらけさせ。同じユニットが並んでも壁のように単調に重ならない）。
+        """
+        h = (spawn_seq * 2654435761 + side * 0x9E3779B1) & 0xFFFFFFFF
+        return h ^ (h >> 15)
+
     def _fighters(self, battle: Battle) -> None:
         lane = battle.game.lane_length
-        # 奥の列から描く。前に立つものが手前に重なる。
+        # 奥の列から描く。列の中は出撃時に決まる前後で、手前のものを後に描く
+        # （＝重なった部分は手前のキャラだけが見える）。
         for row in (2, 1, 0):
-            for side in battle.sides:
-                for f in side.fighters:
-                    if not f.alive or self._row(f.spec) != row:
-                        continue
-                    self._fighter(f, lane, row)
+            entries = [
+                (self._depth_key(f.side, f.spawn_seq), f)
+                for side in battle.sides
+                for f in side.fighters
+                if f.alive and self._row(f.spec) == row
+            ]
+            entries.sort(key=lambda e: e[0])
+            for _, f in entries:
+                self._fighter(f, lane, row)
 
     def _fighter(self, f: Fighter, lane: float, row: int) -> None:
         mine = f.side == 0
         flip = not mine                    # 敵は左を向く
-        sprite = self.sprites.unit(f.spec, flip)
+        state = _anim_state(f)
+        sprite = self.sprites.unit(f.spec, flip, state)
         lift = row * 14
         x = self.px(f.x, lane)
         feet = GROUND_Y - lift
@@ -321,7 +432,7 @@ class View:
             sprite.set_alpha(90)
         self.surface.blit(sprite, rect)
 
-        head = rect.top + self.sprites.unit_bbox(f.spec, flip).top
+        head = rect.top + self.sprites.unit_bbox(f.spec, flip, state).top
         if f.hp < f.spec.hp:
             self._bar(pygame.Rect(x - 22, head - 9, 44, 4),
                       f.hp / f.spec.hp, team, back=(18, 22, 27))
@@ -413,21 +524,24 @@ class View:
             self._text("落雷", self.f_num, RED, (W // 2, 26), center=True)
             self._text(f"{int(battle.t) // 60}:{int(battle.t) % 60:02d}",
                        self.f_small, MUTED, (W // 2, 50), center=True)
-        else:
-            left = max(0.0, battle.storm_at - battle.t)
-            self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
-                       (W // 2, 26), center=True)
-            self._text("落雷まで", self.f_small, MUTED, (W // 2, 50), center=True)
+            # 配布は雷が降り始めるより前に必ず終わっている
+            # （economy.milestonesはsudden_death_at_secより前に終わる。
+            # validate.pyのcheck_sudden_deathが縛る）ので、ここでは出さない ――
+            # 出しても常に空の「残り」が上の経過時間に重なるだけになる。
+            return
+        left = max(0.0, battle.storm_at - battle.t)
+        self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
+                   (W // 2, 26), center=True)
+        self._text("落雷まで", self.f_small, MUTED, (W // 2, 50), center=True)
 
         # 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
         # 「あと何秒でいくら入るか」だけ。配布の直前に使い切っておくか、が択。
+        # 「落雷まで」と行を分ける（同じ高さに描くと両方とも読めなくなる）。
         drop = battle.next_drop()
-        if drop is None:
-            self._text("残り", self.f_small, MUTED, (W // 2, 50), center=True)
-            return
-        seconds, amount = drop
-        self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small, MUTED,
-                   (W // 2, 52), center=True)
+        if drop is not None:
+            seconds, amount = drop
+            self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small,
+                       MUTED, (W // 2, 68), center=True)
 
     # ---------------------------------------------------------- 操作盤：呪文
     def _spells(self, battle: Battle, side: Side) -> None:
