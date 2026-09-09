@@ -419,23 +419,25 @@ class View {
       const em = Math.trunc(battle.t) / 60 | 0;
       const es = String(Math.trunc(battle.t) % 60).padStart(2, '0');
       this.text(`${em}:${es}`, F_SMALL, MUTED, W / 2, 50, 'center');
-    } else {
-      const left = Math.max(0.0, battle.storm_at - battle.t);
-      const mm = Math.trunc(left) / 60 | 0;
-      const ss = String(Math.trunc(left) % 60).padStart(2, '0');
-      this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
-      this.text('落雷まで', F_SMALL, MUTED, W / 2, 50, 'center');
+      // 配布は雷が降り始めるより前に必ず終わっている（validate.py の
+      // check_sudden_death が縛る）ので、ここでは出さない ―― 出しても
+      // 常に空の「残り」が上の経過時間に重なるだけになる（view.py と同じ）。
+      return;
     }
+    const left = Math.max(0.0, battle.storm_at - battle.t);
+    const mm = Math.trunc(left) / 60 | 0;
+    const ss = String(Math.trunc(left) % 60).padStart(2, '0');
+    this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
+    this.text('落雷まで', F_SMALL, MUTED, W / 2, 50, 'center');
 
     // 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
     // 「あと何秒でいくら入るか」だけ（view.py と同じ）。
+    // 「落雷まで」と行を分ける（同じ高さに描くと両方とも読めなくなる）。
     const drop = battle.nextDrop();
-    if (drop === null) {
-      this.text('残り', F_SMALL, MUTED, W / 2, 50, 'center');
-      return;
+    if (drop !== null) {
+      this.text(`両者 +${drop[1]}  あと${drop[0].toFixed(0)}秒`, F_SMALL, MUTED,
+                W / 2, 68, 'center');
     }
-    this.text(`両者 +${drop[1]}  あと${drop[0].toFixed(0)}秒`, F_SMALL, MUTED,
-              W / 2, 52, 'center');
   }
 
   // ---------------------------------------------------------- 操作盤：呪文

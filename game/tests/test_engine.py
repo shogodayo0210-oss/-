@@ -5,7 +5,7 @@
 
 import unittest
 
-from game.engine.battle import Battle, Effect, Fighter, Loadout
+from game.engine.battle import Battle, Effect, Fighter, Loadout, Result
 from game.engine.data import load
 from game.engine.draft import draw_random_slots, match_seed, pick_template
 from game.engine.policy import POLICIES
@@ -561,11 +561,11 @@ class TestCastLimit(unittest.TestCase):
     def test_a_parried_cast_still_costs_a_use(self):
         """見切られても回数は戻らない ―― 資金と同じ扱い。"""
         bt = battle(loadout(avatar="bulwark", brought="morale"),
-                    loadout(avatar="scout"), money=3000)
+                    loadout(avatar="bulwark"), money=3000)
         side = bt.sides[0]
         before = side.casts_left
         bt.start_cast(side, ("brought", 0))
-        bt.use_parry(bt.sides[1])
+        self.assertTrue(bt.use_parry(bt.sides[1]), "相手が見切りを持っていない")
         bt.resolve_cast(side)
         self.assertEqual(side.casts_left, before - 1)
 
@@ -643,6 +643,40 @@ class TestSuddenDeath(unittest.TestCase):
             return [round(b[1], 9) for b in bt.pending]
 
         self.assertEqual(spots(), spots())
+
+    def test_the_radius_grows_once_per_pair_not_per_bolt(self):
+        """半径の伸びは**対（1組）につき1回**。1組は2発落ちるが、伸びは1回ぶん。
+
+        bolts_fallen は対ではなく個々の落雷を数える（1組で2ずつ増える）。
+        伸びをそのまま bolts_fallen で刻むと、12→14→…→20のはずが
+        12→16→20になってしまう（半分の対で頭打ちに達する）。
+        """
+        bt = battle()
+        bt.t = GAME.time_limit
+        base = GAME.sudden_death["radius_m"]
+        growth = GAME.sudden_death["radius_growth_m"]
+        seen = []
+        for _ in range(3):
+            bt.schedule_bolt()
+            pair = bt.pending[-2:]
+            seen.append(pair[0][2])
+            for _, where, radius in pair:
+                bt.strike(where, radius)
+        self.assertEqual(seen, [base, base + growth, base + growth * 2])
+
+    def test_the_safety_stop_is_not_a_timeout_verdict(self):
+        """安全弁で終わっても、時間切れの与ダメージ判定は使わない。
+
+        両拠点が残ったまま試合が終わるのは hard_stop（安全弁）だけ ――
+        時間切れという結末は無くしたので、勝者が付いてはいけない。
+        """
+        bt = battle()
+        bt.sides[0].base_hp = 100.0
+        bt.sides[1].base_hp = 50.0    # 与ダメージ割合なら片方が勝ってしまう値
+        bt.t = GAME.hard_stop
+        result = Result.of(bt)
+        self.assertIsNone(result.winner)
+        self.assertEqual(result.reason, "安全弁（決着せず）")
 
 
 class TestSiegeCap(unittest.TestCase):
