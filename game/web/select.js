@@ -10,7 +10,9 @@
 'use strict';
 
 (function () {
-  const W = 1140, H = 712;
+  // 戦闘画面（view.js）と同じ Canvas を使い回すので、寸法もそちらに合わせる
+  // （決め打ちにすると、戦場の広さを変えたときにここだけ古いままになる）。
+  const { W, H } = VIEW;
   const BG = '#171c22', PANEL_2 = '#212b36';
   const INK = '#dfe6ec', MUTED = '#7d8d9c', RULE = '#2b343e';
   const ACCENT = '#3ecad9', GOLD = '#e0aa46', GREEN = '#4fa196';
