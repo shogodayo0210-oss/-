@@ -177,7 +177,7 @@ function stormSeed(loadout) {
 
 // ------------------------------------------------------------------ 場の1体
 class Fighter {
-  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft) {
+  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft, spawnSeq) {
     this.spec = spec;
     this.side = side;
     this.x = x;
@@ -193,6 +193,8 @@ class Fighter {
     this.knockbacks_done = 0;
     this.summon_left = summonLeft === undefined ? 0.0 : summonLeft;
     this.lifespan_left = lifespanLeft === undefined ? Infinity : lifespanLeft;
+    // 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawnSeq）。
+    this.spawn_seq = spawnSeq === undefined ? 0 : spawnSeq;
   }
 
   get alive() { return this.hp > 0; }
@@ -234,6 +236,9 @@ class Side {
     this.income_left = this.levelRow.income_every_sec;
 
     this.fighters = [];
+    // 出撃した順に振るだけの通し番号。死んだ個体は間引かれて配列が作り直される
+    // ので、配列の添字は出撃順の目印にならない ―― view.js の重なり順はこれを使う。
+    this._spawnSeq = 0;
     this.deploy_cd = {};
     this.gcd_left = 0.0;
     this.casting = null;
@@ -499,7 +504,8 @@ class Battle {
     side.deploy_cd[unitId] = side.deployCooldown(spec);
     side.last_race = spec.race;          // 「連携」が次に見るのはこれ
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
-                                   side.facing));
+                                   side.facing, undefined, undefined,
+                                   side._spawnSeq++));
     return true;
   }
 
@@ -514,7 +520,8 @@ class Battle {
     side.trump_used = true;
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
                                    side.facing, spec.summon_sec,
-                                   spec.lifespan_sec + spec.summon_sec));
+                                   spec.lifespan_sec + spec.summon_sec,
+                                   side._spawnSeq++));
     this.note(side.index, `切り札 ${spec.name} を召喚（演出 ${spec.summon_sec}秒）`);
     return true;
   }

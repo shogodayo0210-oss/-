@@ -343,7 +343,7 @@ function stormSeed(loadout) {
 
 // ------------------------------------------------------------------ 場の1体
 class Fighter {
-  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft) {
+  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft, spawnSeq) {
     this.spec = spec;
     this.side = side;
     this.x = x;
@@ -359,6 +359,8 @@ class Fighter {
     this.knockbacks_done = 0;
     this.summon_left = summonLeft === undefined ? 0.0 : summonLeft;
     this.lifespan_left = lifespanLeft === undefined ? Infinity : lifespanLeft;
+    // 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawnSeq）。
+    this.spawn_seq = spawnSeq === undefined ? 0 : spawnSeq;
   }
 
   get alive() { return this.hp > 0; }
@@ -400,6 +402,9 @@ class Side {
     this.income_left = this.levelRow.income_every_sec;
 
     this.fighters = [];
+    // 出撃した順に振るだけの通し番号。死んだ個体は間引かれて配列が作り直される
+    // ので、配列の添字は出撃順の目印にならない ―― view.js の重なり順はこれを使う。
+    this._spawnSeq = 0;
     this.deploy_cd = {};
     this.gcd_left = 0.0;
     this.casting = null;
@@ -665,7 +670,8 @@ class Battle {
     side.deploy_cd[unitId] = side.deployCooldown(spec);
     side.last_race = spec.race;          // 「連携」が次に見るのはこれ
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
-                                   side.facing));
+                                   side.facing, undefined, undefined,
+                                   side._spawnSeq++));
     return true;
   }
 
@@ -680,7 +686,8 @@ class Battle {
     side.trump_used = true;
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
                                    side.facing, spec.summon_sec,
-                                   spec.lifespan_sec + spec.summon_sec));
+                                   spec.lifespan_sec + spec.summon_sec,
+                                   side._spawnSeq++));
     this.note(side.index, `切り札 ${spec.name} を召喚（演出 ${spec.summon_sec}秒）`);
     return true;
   }
@@ -1367,11 +1374,11 @@ if (typeof globalThis !== 'undefined') globalThis.ENGINE = ENGINE;
 
 // ---------------------------------------------------------------- 画面の寸法
 // にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
-const W = 1140, H = 712;
-const GROUND_Y = 380;          // ユニットが立つ線
-const HUD_Y = 412;             // ここから下が操作盤
-const SPELL_Y = 418;           // 呪文の段。札には効果の説明まで載せるので背が高い
-const SUMMON_Y = 548;          // 資金と召喚の段
+const W = 1320, H = 792;
+const GROUND_Y = 460;          // ユニットが立つ線。旧380から拡張 ―― 戦場をもっと広く
+const HUD_Y = 492;             // ここから下が操作盤
+const SPELL_Y = 498;           // 呪文の段。札には効果の説明まで載せるので背が高い
+const SUMMON_Y = 628;          // 資金と召喚の段
 const LANE_LEFT = 100, LANE_RIGHT = W - 100;
 // 画面上の高さ（見た目の大きさ）をここで決める。**元絵の解像度は問わない。**
 // view.py と同じ考え方 ―― 読み込んだ絵の実寸に合わせて、高さがここに来る
@@ -1650,12 +1657,14 @@ class View {
     }
   }
 
-  // 出撃時の位置から、重なったときの前後を決める。side.fighters は出撃順に
-  // 積むだけで並べ替えない（engine.js）ので、配列の添字がそのまま
-  // 「出撃時に決まって一生変わらない」値になる ―― これをハッシュに通すだけで、
-  // シミュレータの乱数に一切触れずに見た目だけの前後を作れる（view.py と同じ）。
-  static depthKey(side, spawnIndex) {
-    let h = (Math.imul(spawnIndex, 2654435761) + Math.imul(side, 0x9E3779B1)) >>> 0;
+  // 出撃時の位置から、重なったときの前後を決める。`Fighter.spawn_seq` は
+  // 出撃した順に振られ、一生変わらない（`Side._spawnSeq`、engine.js）。
+  // **配列の添字は使わない** ―― 死んだ個体は間引かれて `side.fighters` が
+  // 作り直されるので、添字は誰かが死ぬたびにずれる。これをハッシュに通す
+  // だけで、シミュレータの乱数に一切触れずに見た目だけの前後を作れる
+  // （view.py と同じ）。
+  static depthKey(side, spawnSeq) {
+    let h = (Math.imul(spawnSeq, 2654435761) + Math.imul(side, 0x9E3779B1)) >>> 0;
     return (h ^ (h >>> 15)) >>> 0;
   }
 
@@ -1666,11 +1675,11 @@ class View {
     for (const row of [2, 1, 0]) {
       const entries = [];
       for (const side of battle.sides) {
-        side.fighters.forEach((f, i) => {
+        for (const f of side.fighters) {
           if (f.alive && this.row(f.spec) === row) {
-            entries.push([View.depthKey(side.index, i), f]);
+            entries.push([View.depthKey(f.side, f.spawn_seq), f]);
           }
-        });
+        }
       }
       entries.sort((a, b) => a[0] - b[0]);
       for (const [, f] of entries) this.fighter(f, lane, row);

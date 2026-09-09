@@ -135,6 +135,8 @@ class Fighter:
     knockbacks_done: int = 0
     summon_left: float = 0.0
     lifespan_left: float = math.inf
+    # 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawn_seq）。
+    spawn_seq: int = 0
 
     @property
     def alive(self) -> bool:
@@ -204,6 +206,12 @@ class Side:
         self.income_left = float(self.level_row["income_every_sec"])
 
         self.fighters: list[Fighter] = []
+        # 出撃した順に振るだけの通し番号。**戦闘の数字には一切効かない** ――
+        # 死んだ個体は `Battle.step` の最後で配列から間引かれる（生存者だけの
+        # 配列に作り直す）ので、配列の添字は出撃順の目印にならない。
+        # 重なったときの前後（見た目だけの話。view.py/view.js）を、
+        # 出撃時に決まって一生変わらない値で描きたいので、その目印をここで持つ。
+        self._spawn_seq = 0
         self.deploy_cd: dict[str, float] = {}
         self.gcd_left = 0.0
         self.casting: Card | None = None
@@ -500,7 +508,9 @@ class Battle:
         side.deploy_cd[unit_id] = side.deploy_cooldown(spec)
         side.last_race = spec.race          # 「連携」が次に見るのはこれ
         side.fighters.append(Fighter(spec=spec, side=side.index, x=side.base_x,
-                                     hp=float(spec.hp), facing=side.facing))
+                                     hp=float(spec.hp), facing=side.facing,
+                                     spawn_seq=side._spawn_seq))
+        side._spawn_seq += 1
         return True
 
     def summon_trump(self, side: Side) -> bool:
@@ -515,7 +525,9 @@ class Battle:
         side.fighters.append(Fighter(
             spec=spec, side=side.index, x=side.base_x, hp=float(spec.hp),
             facing=side.facing, summon_left=spec.summon_sec,
-            lifespan_left=spec.lifespan_sec + spec.summon_sec))
+            lifespan_left=spec.lifespan_sec + spec.summon_sec,
+            spawn_seq=side._spawn_seq))
+        side._spawn_seq += 1
         self.note(side.index, f"切り札 {spec.name} を召喚（演出 {spec.summon_sec}秒）")
         return True
 

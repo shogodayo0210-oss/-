@@ -145,11 +145,21 @@ DPS を data に持たせないのと同じ理由 ―― 両方に書くと必�
 | 退場 | 2 | |
 | **計** | **13枚** | 1体あたり |
 
-**いまエンジンが読み込むのは、1体につき静止1枚（待機ポーズ）だけ。**
-`game/play/view.py` はユニットごとに `game/art/out/units/{id}.png` を
-1枚だけ読む。歩行・攻撃・被弾・退場のコマ送りをコードから読む仕組みは
-まだ実装していない ―― 下の配分表・接地位置の条件は、その機能が入った
-ときにそのまま使うためのもの。いま作る絵は無駄にはならない。
+**攻撃4コマのうち、待機・振りかぶり・当たり・戻りの4状態はデスクトップ版
+（`game/play/view.py`）が読み込む。** 歩行と被弾・退場はまだ無い。
+
+| ファイル名 | いつ表示されるか |
+| --- | --- |
+| `{id}.png` | 待機（既定。他のコマの絵が無いときのフォールバックにもなる） |
+| `{id}_windup.png` | `Fighter.windup_left > 0`（振りかぶり中） |
+| `{id}_hit.png` | 後隙（`exposed_left`）の頭のごく短い間 |
+| `{id}_recover.png` | 後隙の残り |
+
+どのコマも**無ければ待機の絵で代用される**ので、静止1枚しか無いユニットは
+いままで通り動かない絵のまま表示される ―― 全ユニットぶん揃える必要はない。
+状態の切り替えは `Battle` の残り時間（`windup_left`/`exposed_left`）から
+毎フレーム出し直しており、View 自身は状態を持たない（元々の約束通り）。
+Web版（`game/web/view.js`）はまだ対応していない（7章）。
 
 ### 攻撃アニメの配分が肝
 
@@ -259,10 +269,15 @@ $ python3 game/tools/sprites.py
 
 **実例：斥候鼠（`ratling`）。** 外部の画像生成AIで作った待機ポーズ＋攻撃3コマを
 `game/art/raw/ratling/`（`idle`/`windup`/`hit`/`recover`。元の合成シートは
-`source_sheet.png`）に置き、待機ポーズだけ `game/art/out/units/ratling.png`
-へコピーして差し替え済み。密集した状態・敵陣近くでのHPバー表示まで
-`python3 -m game.play --unit ratling,... --capture` で確認した。攻撃3コマは
-まだ差し込んでいない（4章の通り、コマ送りを読む機能が無いため）。
+`source_sheet.png`）に置き、4枚とも `game/art/out/units/ratling*.png`
+（`ratling.png`＝待機、`ratling_windup.png`／`ratling_hit.png`／
+`ratling_recover.png`）へコピーして差し替え済み。密集した状態・敵陣近くでの
+HPバー表示・攻撃コマの切り替わりまで `python3 -m game.play
+--unit ratling,... --capture` で確認した（4章）。
+
+`art_scale`（`art/looks.json`）も斥候鼠で初めて使った例 ―― 実際に差し込んで
+みたら、尾が長いぶん見た目の面積が他ユニットより大きく出たので `0.75` を
+指定して縮めてある。ゲームの数字（`characters.json`）は一切動いていない。
 
 ### Web版はまだ対応していない
 

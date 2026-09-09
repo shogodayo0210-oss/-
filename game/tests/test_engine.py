@@ -319,6 +319,30 @@ class TestRecovery(unittest.TestCase):
         self.assertAlmostEqual(opened / plain, GAME.combat["recover_damage_mult"])
 
 
+class TestSpawnSeq(unittest.TestCase):
+    """出撃順の通し番号（`Fighter.spawn_seq`）は、他の個体が死んでもずれない。
+
+    `Battle.step` は最後に死んだ個体を間引いて `side.fighters` を作り直す
+    （生存者だけの配列を新しく作る）ので、配列の添字をそのまま「出撃順」
+    として使うと、誰かが死ぬたびに残った個体の番号がずれる ―― 見た目の
+    重なり順（view.py/view.js）がそこでガクつく不具合になっていた。
+    """
+
+    def test_spawn_seq_survives_pruning_of_earlier_deaths(self):
+        bt = battle(money=1000)
+        side = bt.sides[0]
+        # 同じユニットは再出撃CDに引っかかるので、3種を1体ずつ出す。
+        for unit_id in ("grunt", "shieldman", "archer"):
+            self.assertTrue(bt.deploy(side, unit_id))
+        self.assertEqual([f.spawn_seq for f in side.fighters], [0, 1, 2])
+
+        side.fighters[0].hp = 0.0          # 最初に出した1体だけ倒す
+        bt.step()
+
+        self.assertEqual(len(side.fighters), 2)
+        self.assertEqual([f.spawn_seq for f in side.fighters], [1, 2])
+
+
 class TestKnockbackIntangibility(unittest.TestCase):
     """**ノックバック中は当たり判定が消える。**
 
