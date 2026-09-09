@@ -12,6 +12,10 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+/* .bar / .cols は display:flex / grid を持つので、hidden 属性だけでは
+   UA既定の [hidden]{display:none} を上書きされてしまう（詳細度は互角でも
+   author側の origin が勝つ）。編成画面のあいだ確実に消すため明示する。 */
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%; text-size-adjust:100%}
 body{
   margin:0; background:var(--ground); color:var(--ink);
@@ -101,7 +105,7 @@ code{font-size:.9em; color:var(--accent)}
 
   <p id="rotate"><b>端末を横にすると</b>画面が3倍ほど大きくなります。</p>
 
-  <div class="bar">
+  <div class="bar" id="bar" hidden>
     <label for="enemy">相手</label>
     <select id="enemy">
       <option value="rush">rush ― 育てずに攻める</option>
@@ -118,14 +122,15 @@ code{font-size:.9em; color:var(--accent)}
     </select>
     <button id="pause">一時停止</button>
     <button id="again">次の試合</button>
+    <button id="reselect">編成を変える</button>
     <span id="tally">0試合</span>
   </div>
 
-  <div class="cols">
+  <div class="cols" id="cols" hidden>
     <section>
       <h2>操作</h2>
       <div class="keys">
-        <div><b>1〜6</b><span>出撃。画面下のボタンを押しても同じ</span></div>
+        <div><b>1〜8</b><span>出撃。画面下のボタンを押しても同じ（選んだ数だけ）</span></div>
         <div><b>0</b><span>財布を育てる。<b>6秒かかり、その間は何も出せない</b></span></div>
         <div><b>Q</b><span>持ち込みの呪文（必ず使える1枚）</span></div>
         <div><b>W / E / R</b><span>ストックの呪文（流れてくる3枠）</span></div>
@@ -155,9 +160,13 @@ code{font-size:.9em; color:var(--accent)}
         記録はこの端末に残るだけで、どこにも送られません。
       </p>
       <p class="note">
-        相手は<b>まったく同じ6種・同じ呪文・同じ切り札</b>を持っています。
-        違うのは<b>資金をどこまで育ててから戦うか</b>だけ ――
+        相手は<b>あなたが選んだ編成とまったく同じユニット・呪文・切り札</b>を
+        持っています。違うのは<b>資金をどこまで育ててから戦うか</b>だけ ――
         負けた理由が読めるように、まず同じ条件にしてあります。
+      </p>
+      <p class="note">
+        <b>「編成を変える」</b>でいつでも編成画面に戻れます
+        （アバター → 出撃ユニット → 切り札・持ち込み呪文の3段階）。
       </p>
     </section>
   </div>
@@ -166,4 +175,5 @@ code{font-size:.9em; color:var(--accent)}
 <script>/*DATA*/</script>
 <script>/*ENGINE*/</script>
 <script>/*VIEW*/</script>
+<script>/*SELECT*/</script>
 <script>/*MAIN*/</script>

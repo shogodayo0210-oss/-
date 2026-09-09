@@ -144,10 +144,12 @@ class Sprites {
 
 // ---------------------------------------------------------------- 画面
 class View {
-  constructor(ctx, roster, game, art) {
+  // sprites を渡すと（select.js が読み込み済みのものを使い回す場合など）
+  // 二重に読み込まない。渡さなければ従来どおり自分で読み込む。
+  constructor(ctx, roster, game, art, sprites) {
     this.ctx = ctx;
     this.game = game;
-    this.sprites = new Sprites(art);
+    this.sprites = sprites || new Sprites(art);
     this.races = art.races;
 
     // ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
@@ -175,7 +177,7 @@ class View {
     }));
   }
 
-  ready() { return this.sprites.load(); }
+  ready() { return this.sprites._ready ? Promise.resolve() : this.sprites.load(); }
 
   // -------------------------------------------------------------- 座標
   px(xM, laneLength) {

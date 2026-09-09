@@ -2,26 +2,27 @@
 //
 // **フレームレートと試合の進みは別物。** 画面が重くなっても試合の中身は
 // 変わらない ―― engine の決定論はここで壊さない（Python 版と同じ作り）。
+//
+// 起動すると、まず select.js の編成画面（アバター→ユニット→切り札/呪文）を
+// 見せる。「この編成で開戦」を押した時点で初めて battle を組み立てる。
 
 'use strict';
 
 (function () {
-  const { View, W, H } = VIEW;
+  const { View } = VIEW;
 
   const canvas = document.getElementById('screen');
   const ctx = canvas.getContext('2d', { alpha: false });
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = VIEW.W;
+  canvas.height = VIEW.H;
 
   const game = ENGINE.loadGame(DATA.raw);
-  const trial = DATA.preset.trial;
-  const unitIds = trial.roster.map(u => u.id);
-  const roster = unitIds.map(id => game.units[id]);
-  const view = new View(ctx, roster, game, DATA.art);
 
   // 呪文ストックの並びは Python 側で引いたものを焼き込んである（build_web.py）。
   // Mersenne Twister を移植すると、そこが Python 版との食い違いの種になる。
   // 1枚1文字に畳んであるので、ここで呪文の名前に戻す。
+  // ―― この並びは編成（誰の何体）ではなく「相手の方針」と試合番号だけで
+  // 引いてあるので、編成画面でどのユニットを選んでも読み替えずに使える。
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const STOCKS = {};
   for (const name in DATA.stocks.matches) {
@@ -33,23 +34,52 @@
   }
   const MATCHES = STOCKS.balanced.length;
 
+  // 絵は編成画面と戦闘画面の両方が使うので、ここで1回だけ読み込む。
+  const sprites = new VIEW.Sprites(DATA.art);
+  const selectScreen = new SELECT.SelectScreen(
+    ctx, game, DATA.raw, DATA.preset, DATA.art, sprites);
+
+  let screen = 'select';         // 'select'（編成中） | 'battle'
+  let loading = false;           // 「開戦」を押してから View の絵が揃うまで
   let enemy = 'balanced';
-  let matchNo = 0;
+  let matchNo = -1;              // beginBattle() が最初の試合で +1 する
   let speed = 1.0;
   let paused = false;
   let battle = null;
   let controller = null;
+  let view = null;
+  let currentLoadout = null;     // {avatar, roster, brought, trump}
   const record = [];             // 遊んだ試合の結果（工程表 A-4 の記録用）
+
+  function beginBattle(loadoutChoice) {
+    loading = true;
+    currentLoadout = loadoutChoice;
+    const unitSpecs = loadoutChoice.roster.map(id => game.units[id]);
+    view = new View(ctx, unitSpecs, game, DATA.art, sprites);
+    view.ready().then(() => {
+      loading = false;
+      screen = 'battle';
+      matchNo += 1;
+      newBattle();
+      syncPanels();
+    });
+  }
+
+  function openSelect() {
+    screen = 'select';
+    selectScreen.step = 0;
+    syncPanels();
+  }
 
   function newBattle() {
     const pair = STOCKS[enemy][matchNo % MATCHES];
     controller = new ENGINE.Controller();
     const me = {
-      avatar: trial.avatar, roster: unitIds,
-      brought: trial.brought, trump: trial.trump,
+      avatar: currentLoadout.avatar, roster: currentLoadout.roster,
+      brought: currentLoadout.brought, trump: currentLoadout.trump,
     };
     // 既定で**相手もまったく同じ持ち物**（工程表 塊A-3）。
-    // 相手だけ8種＋切り札という状態では、負けても何が悪いのか分からない。
+    // 相手だけ編成という状態では、負けても何が悪いのか分からない。
     battle = new ENGINE.Battle(game, me, me, controller.asPolicy(),
                                ENGINE.POLICIES[enemy], pair[0], pair[1]);
     paused = false;
@@ -70,19 +100,36 @@
   // ---------------------------------------------------------------- 入力
   function canvasPoint(event) {
     const box = canvas.getBoundingClientRect();
-    return [(event.clientX - box.left) * (W / box.width),
-            (event.clientY - box.top) * (H / box.height)];
+    return [(event.clientX - box.left) * (VIEW.W / box.width),
+            (event.clientY - box.top) * (VIEW.H / box.height)];
   }
 
   canvas.addEventListener('pointerdown', event => {
     event.preventDefault();
-    if (battle.finished()) { restart(); return; }
     const p = canvasPoint(event);
+    if (screen === 'select') {
+      if (loading) return;              // 開戦処理中は二重に受け付けない
+      const action = selectScreen.actionAt(p[0], p[1]);
+      const loadout = selectScreen.apply(action);
+      if (loadout) beginBattle(loadout);
+      return;
+    }
+    if (battle.finished()) { restart(); return; }
     send(view.actionAt(p[0], p[1]));
   });
 
   window.addEventListener('keydown', event => {
     const key = event.key.toLowerCase();
+    if (screen === 'select') {
+      if (loading) return;
+      const action = selectScreen.actionForKey(key);
+      if (action) {
+        event.preventDefault();
+        const loadout = selectScreen.apply(action);
+        if (loadout) beginBattle(loadout);
+      }
+      return;
+    }
     if (key === ' ' || event.code === 'Space') {
       event.preventDefault();
       paused = !paused;
@@ -104,27 +151,37 @@
 
   // ---------------------------------------------------------------- 操作盤
   const els = {
+    bar: document.getElementById('bar'),
+    cols: document.getElementById('cols'),
     enemy: document.getElementById('enemy'),
     speed: document.getElementById('speed'),
     pause: document.getElementById('pause'),
     again: document.getElementById('again'),
+    reselect: document.getElementById('reselect'),
     tally: document.getElementById('tally'),
     log: document.getElementById('log'),
   };
 
   els.enemy.addEventListener('change', () => {
     enemy = els.enemy.value;
-    matchNo += 1;
-    newBattle();
+    if (screen === 'battle') restart();
   });
   els.speed.addEventListener('change', () => {
     speed = parseFloat(els.speed.value);
   });
   els.pause.addEventListener('click', () => { paused = !paused; syncChrome(); });
   els.again.addEventListener('click', restart);
+  els.reselect.addEventListener('click', openSelect);
 
   function syncChrome() {
     els.pause.textContent = paused ? '再開' : '一時停止';
+  }
+
+  // 編成中は戦闘の操作盤を隠す。今どちらの画面かが一目で分かるように。
+  function syncPanels() {
+    const inBattle = screen === 'battle';
+    if (els.bar) els.bar.hidden = !inBattle;
+    if (els.cols) els.cols.hidden = !inBattle;
   }
 
   // 記録はこの端末の中だけに置く。どこにも送らない。
@@ -193,16 +250,19 @@
     const dt = last ? Math.min((now - last) / 1000.0, 0.25) : 0.0;
     last = now;
 
-    if (!paused && !battle.finished()) {
-      accumulator += dt * speed;
-      while (accumulator >= TICK && !battle.finished()) {
-        battle.step();
-        accumulator -= TICK;
+    if (screen === 'battle' && battle) {
+      if (!paused && !battle.finished()) {
+        accumulator += dt * speed;
+        while (accumulator >= TICK && !battle.finished()) {
+          battle.step();
+          accumulator -= TICK;
+        }
       }
+      if (battle.finished()) noteResult();
+      view.draw(battle, 0, paused);
+    } else {
+      selectScreen.draw();
     }
-    if (battle.finished()) noteResult();
-
-    view.draw(battle, 0, paused);
     requestAnimationFrame(frame);
   }
 
@@ -210,8 +270,9 @@
   const fonts = document.fonts ? document.fonts.ready : Promise.resolve();
   loadRecord();
   renderRecord();
-  Promise.all([view.ready(), fonts]).then(() => {
-    newBattle();
+  syncPanels();
+  Promise.all([sprites.load(), fonts]).then(() => {
+    selectScreen.draw();
     requestAnimationFrame(frame);
   });
 })();
