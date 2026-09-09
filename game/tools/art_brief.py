@@ -141,9 +141,10 @@ def prompt_for(spec: Unit, game: GameData, scale: Scale, look: dict,
     """ChatGPT にそのまま貼る1文。"""
     race = races[spec.race]
     colors = ramp[spec.race]
-    size = 96 if getattr(spec, "lifespan_sec", 0) else 48
+    trump = bool(getattr(spec, "lifespan_sec", 0))
+    presence = "画面に大きく存在感を出す1体（切り札）" if trump else "通常サイズの1体"
     lines = [
-        f"{size}×{size}ドットのドット絵を1枚。{style['common']}",
+        f"{presence}を1枚。{style['common']}",
         "",
         f"【キャラ】{spec.name}（{spec.race}）。{look['look']}。",
         f"持ち物は{look['weapon']}。{look['pose']}。",
@@ -220,7 +221,8 @@ def build(game: GameData) -> str:
         out += [f"### {bg['name']}（`{bg['id']}`）", "",
                 f"いつ使うか：{bg['when']}", "", "```text",
                 f"横長の背景を1枚。{bg['prompt']}。"
-                "ドット絵。3層（遠景・中景・地面）に分けて、それぞれ別レイヤーで。"
+                "キャラと同じ塗り絵調（平塗り〜セルシェード）。"
+                "3層（遠景・中景・地面）に分けて、それぞれ別レイヤーで。"
                 "**中央の帯は彩度と明度を落とす** ―― ここに40体のキャラが並ぶので、"
                 "背景が主張すると誰が誰だか分からなくなる。"
                 "地面は水平で、20mごとの目盛りを重ねられるように模様を控える。"

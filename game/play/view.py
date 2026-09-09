@@ -31,12 +31,14 @@ SPELL_Y = 418           # 呪文の段。札には効果の説明まで載せる
 SUMMON_Y = 548          # 資金と召喚の段
 LANE_LEFT, LANE_RIGHT = 100, W - 100
 
-UNIT_PX = 48            # art/README.md 1章の実寸
-AVATAR_PX = 64
-# 等倍だと画面に対して小さすぎる。art/README.md 1章の「等倍〜2倍、
-# 画面高さのおよそ1/6」に合わせて2倍で出す。補間しない scale を使うので
-# ドットは潰れない。
-SCALE = 2
+# 画面上の高さ（見た目の大きさ）をここで決める。**元絵の解像度は問わない。**
+# 48pxのドット絵でも、もっと大きい塗り絵調の絵でも、読み込んだ絵の実寸に
+# 合わせて高さがここに来るよう縮尺をかける ―― art/README.md 1章の
+# 「画面高さのおよそ1/6」がユニット、拠点はその1.3倍という目安（旧: 48px/64pxを
+# 2倍表示していたのと同じ見た目の大きさ）。元絵が変わってもレーンの密度や
+# HUDの寸法を触らずに済む。
+UNIT_TARGET_H = 96
+AVATAR_TARGET_H = 128
 
 # ---------------------------------------------------------------- 色
 # art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
@@ -99,9 +101,19 @@ class Sprites:
         self._races = _race_colors()
 
     @staticmethod
-    def _grow(surf: pygame.Surface) -> pygame.Surface:
-        return pygame.transform.scale(
-            surf, (surf.get_width() * SCALE, surf.get_height() * SCALE))
+    def _grow(surf: pygame.Surface, target_h: int) -> pygame.Surface:
+        """元絵の実寸に関わらず、高さが `target_h` に来るよう縦横同倍率で拡縮する。
+
+        ドット絵（48px）が来ても、もっと高精細な絵が来ても同じ扱いにできる。
+        滑らかな `smoothscale` を使う ―― ドット絵前提の `scale`（最近傍・
+        カクカクのまま拡大）は、階調のある絵だと縁がギザギザになる。
+        """
+        h = surf.get_height()
+        if h <= 0:
+            return surf
+        ratio = target_h / h
+        size = (max(1, round(surf.get_width() * ratio)), target_h)
+        return pygame.transform.smoothscale(surf, size)
 
     def _entry(self, spec: Unit, flip: bool):
         key = (spec.id, flip)
@@ -109,10 +121,10 @@ class Sprites:
             path = ART / "out" / "units" / f"{spec.id}.png"
             surf = (pygame.image.load(str(path)).convert_alpha()
                     if path.exists() else self._placeholder(spec))
-            surf = self._grow(surf)
+            surf = self._grow(surf, UNIT_TARGET_H)
             if flip:
                 surf = pygame.transform.flip(surf, True, False)
-            # 48×48 の余白ぶんを覚えておく。絵の実体がどこから始まるかを
+            # 元絵の余白ぶんを覚えておく。絵の実体がどこから始まるかを
             # 見ないと、体力の棒が頭の遥か上に浮く。
             self._cache[key] = (surf, surf.get_bounding_rect())
         return self._cache[key]
@@ -129,7 +141,8 @@ class Sprites:
             path = ART / "out" / "avatars" / f"{avatar_id}.png"
             if not path.exists():
                 return None
-            surf = self._grow(pygame.image.load(str(path)).convert_alpha())
+            surf = self._grow(pygame.image.load(str(path)).convert_alpha(),
+                              AVATAR_TARGET_H)
             self._avatars[key] = (pygame.transform.flip(surf, True, False)
                                   if flip else surf)
         return self._avatars[key]
@@ -289,15 +302,33 @@ class View:
                 pygame.draw.rect(self.surface, MUTED,
                                  (x - 24, GROUND_Y - 96, 48, 96))
 
+    @staticmethod
+    def _depth_key(side: int, spawn_index: int) -> int:
+        """出撃時の位置から、重なったときの前後を決める。
+
+        `side.fighters` は出撃順に積むだけで並べ替えない（`battle.py`）ので、
+        配列の添字がそのまま「出撃時に決まって一生変わらない」値になる ――
+        これをハッシュに通すだけで、シミュレータの乱数に一切触れずに
+        見た目だけの前後を作れる（毎回同じ並びに固定されるのを避けるための
+        ばらけさせ。同じユニットが並んでも壁のように単調に重ならない）。
+        """
+        h = (spawn_index * 2654435761 + side * 0x9E3779B1) & 0xFFFFFFFF
+        return h ^ (h >> 15)
+
     def _fighters(self, battle: Battle) -> None:
         lane = battle.game.lane_length
-        # 奥の列から描く。前に立つものが手前に重なる。
+        # 奥の列から描く。列の中は出撃時に決まる前後で、手前のものを後に描く
+        # （＝重なった部分は手前のキャラだけが見える）。
         for row in (2, 1, 0):
-            for side in battle.sides:
-                for f in side.fighters:
-                    if not f.alive or self._row(f.spec) != row:
-                        continue
-                    self._fighter(f, lane, row)
+            entries = [
+                (self._depth_key(side.index, i), f)
+                for side in battle.sides
+                for i, f in enumerate(side.fighters)
+                if f.alive and self._row(f.spec) == row
+            ]
+            entries.sort(key=lambda e: e[0])
+            for _, f in entries:
+                self._fighter(f, lane, row)
 
     def _fighter(self, f: Fighter, lane: float, row: int) -> None:
         mine = f.side == 0

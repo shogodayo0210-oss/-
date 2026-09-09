@@ -16,7 +16,11 @@ const HUD_Y = 412;             // ここから下が操作盤
 const SPELL_Y = 418;           // 呪文の段。札には効果の説明まで載せるので背が高い
 const SUMMON_Y = 548;          // 資金と召喚の段
 const LANE_LEFT = 100, LANE_RIGHT = W - 100;
-const SCALE = 2;               // 仮絵は48px。等倍だと画面に対して小さすぎる
+// 画面上の高さ（見た目の大きさ）をここで決める。**元絵の解像度は問わない。**
+// view.py と同じ考え方 ―― 読み込んだ絵の実寸に合わせて、高さがここに来る
+// よう縦横同倍率で縮尺をかける。
+const UNIT_TARGET_H = 96;
+const AVATAR_TARGET_H = 128;
 
 // ---------------------------------------------------------------- 色
 // art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
@@ -134,11 +138,15 @@ class Sprites {
   unit(id) { return this._cache.get(`unit:${id}`); }
   avatar(id) { return this._cache.get(`avatar:${id}`); }
 
-  // 48×48 の余白ぶん。絵の実体がどこから始まるかを見ないと、
-  // 体力の棒が頭の遥か上に浮く。
+  // 元絵の余白ぶん（元絵のピクセル単位で焼き込んである）。絵の実体が
+  // どこから始まるかを見ないと、体力の棒が頭の遥か上に浮く。表示は
+  // 元絵の実寸に合わせた縮尺で行うので、ここも同じ縮尺をかけ直す。
   bboxTop(id) {
     const top = this.art.bbox[id];
-    return (top === undefined ? 0 : top) * SCALE;
+    if (top === undefined) return 0;
+    const img = this.unit(id);
+    const h = img && img.naturalHeight ? img.naturalHeight : UNIT_TARGET_H;
+    return top * (UNIT_TARGET_H / h);
   }
 }
 
@@ -250,18 +258,30 @@ class View {
       const img = this.sprites.avatar(side.loadout.avatar);
       const x = this.px(side.base_x, lane);
       if (img && img.complete && img.naturalWidth) {
-        const w = img.naturalWidth * SCALE, h = img.naturalHeight * SCALE;
+        const [w, h] = View.scaledSize(img, AVATAR_TARGET_H);
         this.blit(img, x - w / 2, GROUND_Y - h, w, h, side.index === 1);
       } else {
-        this.fill([x - 24, GROUND_Y - 96, 48, 96], MUTED);
+        this.fill([x - AVATAR_TARGET_H / 4, GROUND_Y - AVATAR_TARGET_H,
+                   AVATAR_TARGET_H / 2, AVATAR_TARGET_H], MUTED);
       }
     }
   }
 
-  // 仮絵をドットのまま拡大して置く。flip のときだけ左右を返す。
+  // 元絵の実寸に関わらず、高さが targetH に来るよう縦横同倍率で拡縮した
+  // ときの [幅, 高さ] を返す。view.py の _grow と同じ考え方。
+  static scaledSize(img, targetH) {
+    const h = img && img.naturalHeight ? img.naturalHeight : targetH;
+    const w = img && img.naturalWidth ? img.naturalWidth : targetH;
+    const ratio = targetH / h;
+    return [Math.round(w * ratio), targetH];
+  }
+
+  // 絵を置く。flip のときだけ左右を返す。塗り絵調の絵を前提に滑らかに
+  // 拡縮する（ドット絵前提の最近傍拡大はやめた ―― 縁がギザギザになるため）。
   blit(img, x, y, w, h, flip) {
     const ctx = this.ctx;
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     if (flip) {
       ctx.save();
       ctx.translate(x + w, y);
@@ -273,16 +293,30 @@ class View {
     }
   }
 
+  // 出撃時の位置から、重なったときの前後を決める。side.fighters は出撃順に
+  // 積むだけで並べ替えない（engine.js）ので、配列の添字がそのまま
+  // 「出撃時に決まって一生変わらない」値になる ―― これをハッシュに通すだけで、
+  // シミュレータの乱数に一切触れずに見た目だけの前後を作れる（view.py と同じ）。
+  static depthKey(side, spawnIndex) {
+    let h = (Math.imul(spawnIndex, 2654435761) + Math.imul(side, 0x9E3779B1)) >>> 0;
+    return (h ^ (h >>> 15)) >>> 0;
+  }
+
   fighters(battle) {
     const lane = battle.game.laneLength;
-    // 奥の列から描く。前に立つものが手前に重なる。
+    // 奥の列から描く。列の中は出撃時に決まる前後で、手前のものを後に描く
+    // （＝重なった部分は手前のキャラだけが見える）。
     for (const row of [2, 1, 0]) {
+      const entries = [];
       for (const side of battle.sides) {
-        for (const f of side.fighters) {
-          if (!f.alive || this.row(f.spec) !== row) continue;
-          this.fighter(f, lane, row);
-        }
+        side.fighters.forEach((f, i) => {
+          if (f.alive && this.row(f.spec) === row) {
+            entries.push([View.depthKey(side.index, i), f]);
+          }
+        });
       }
+      entries.sort((a, b) => a[0] - b[0]);
+      for (const [, f] of entries) this.fighter(f, lane, row);
     }
   }
 
@@ -295,8 +329,7 @@ class View {
     const x = this.px(f.x, lane);
     const feet = GROUND_Y - lift;
     const team = mine ? GREEN : RED;
-    const w = (img && img.naturalWidth ? img.naturalWidth : 48) * SCALE;
-    const h = (img && img.naturalHeight ? img.naturalHeight : 48) * SCALE;
+    const [w, h] = View.scaledSize(img, UNIT_TARGET_H);
     const top = feet - h;
 
     // 足元の楕円1枚。にゃんこ大戦争のやり方をそのまま採る。
@@ -365,7 +398,8 @@ class View {
       // 決め打ちの高さではなく実際のスプライトから出す（無ければ
       // `field` の代替矩形と同じ96px）。
       const img = this.sprites.avatar(side.loadout.avatar);
-      const h = (img && img.complete && img.naturalWidth) ? img.naturalHeight * SCALE : 96;
+      const h = (img && img.complete && img.naturalWidth)
+        ? View.scaledSize(img, AVATAR_TARGET_H)[1] : AVATAR_TARGET_H;
       const top = GROUND_Y - h;
       const rise = Math.trunc(20 * (age / WALL_LABEL_SEC));
       const y = top - 24 - rise;
