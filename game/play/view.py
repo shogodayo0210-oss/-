@@ -96,11 +96,35 @@ def _art_scales() -> dict[str, float]:
     """art/looks.json の任意項目 `art_scale`。表示だけの縮尺の掛け目（既定1.0）。
 
     ゲームの数字（characters.json）には一切触れない ―― DPS と同じ理由で、
-    見た目の調整と data を混ぜない。
+    見た目の調整と data を混ぜない。下の `_cost_scales` と掛け合わさる
+    （コストなりの大きさに対する**追加の**微調整という位置づけ）。
     """
     with open(ART / "looks.json", encoding="utf-8") as f:
         raw = json.load(f)["units"]
     return {uid: entry.get("art_scale", 1.0) for uid, entry in raw.items()}
+
+
+COST_SCALE_MIN, COST_SCALE_MAX = 0.7, 1.3
+
+
+def _cost_scales(game) -> dict[str, float]:
+    """コストが高いほど大きく見せる ―― art/README.md 3章
+    「コストが高い＝大きい。キャンバスを埋める」を実際の描画に適用する。
+
+    生の cost をそのまま比例させると、安いユニットが大半を占める分布の下では
+    高コスト側だけが伸びてしまう。art_brief.py の `Scale` と同じ、
+    ロースター内の**順位**（percentile）で正規化する。
+    """
+    units = list(game.units.values())
+    costs = sorted(u.cost for u in units)
+    denom = max(len(costs) - 1, 1)
+
+    def rank(cost: int) -> float:
+        below = sum(1 for c in costs if c < cost)
+        return below / denom
+
+    return {u.id: COST_SCALE_MIN + rank(u.cost) * (COST_SCALE_MAX - COST_SCALE_MIN)
+            for u in units}
 
 
 ANIM_STATES = ("idle", "windup", "hit", "recover")
@@ -126,11 +150,12 @@ def _anim_state(f: Fighter) -> str:
 class Sprites:
     """PNG を読んで、向き・コマごとに使い回す。"""
 
-    def __init__(self):
+    def __init__(self, game):
         self._cache: dict[tuple[str, bool, str], tuple[pygame.Surface, pygame.Rect]] = {}
         self._avatars: dict[str, pygame.Surface] = {}
         self._races = _race_colors()
-        self._scales = _art_scales()
+        self._art_overrides = _art_scales()
+        self._cost_scales = _cost_scales(game)
 
     @staticmethod
     def _grow(surf: pygame.Surface, target_h: int) -> pygame.Surface:
@@ -170,7 +195,8 @@ class Sprites:
             return entry
         else:
             surf = self._placeholder(spec)
-        scale = self._scales.get(spec.id, 1.0)
+        scale = (self._cost_scales.get(spec.id, 1.0)
+                 * self._art_overrides.get(spec.id, 1.0))
         surf = self._grow(surf, max(1, round(UNIT_TARGET_H * scale)))
         if flip:
             surf = pygame.transform.flip(surf, True, False)
@@ -252,7 +278,7 @@ class View:
     def __init__(self, surface: pygame.Surface, roster: tuple[Unit, ...], game):
         self.surface = surface
         self.game = game
-        self.sprites = Sprites()
+        self.sprites = Sprites(game)
         self.f_small = load_font(15)
         self.f_body = load_font(18)
         self.f_bold = load_font(20, bold=True)

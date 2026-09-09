@@ -1475,6 +1475,24 @@ function cardCondition(card) {
   return parts.length ? parts.join('・') + 'でだけ撃てる' : '';
 }
 
+const COST_SCALE_MIN = 0.7, COST_SCALE_MAX = 1.3;
+
+// コストが高いほど大きく見せる ―― art/README.md 3章「コストが高い＝大きい。
+// キャンバスを埋める」を実際の描画にも適用する。生の cost をそのまま比例
+// させると安いユニットが大半を占める分布の下で高コスト側だけが伸びるので、
+// ロースター内の順位（percentile）で正規化する（view.py と同じ考え方）。
+function costScales(game) {
+  const units = Object.values(game.units);
+  const costs = units.map(u => u.cost).sort((a, b) => a - b);
+  const denom = Math.max(costs.length - 1, 1);
+  const rank = cost => costs.filter(c => c < cost).length / denom;
+  const out = {};
+  for (const u of units) {
+    out[u.id] = COST_SCALE_MIN + rank(u.cost) * (COST_SCALE_MAX - COST_SCALE_MIN);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- 絵
 // PNG は data: URI で焼き込んである（build_web.py）。向きごとに使い回す。
 class Sprites {
@@ -1504,13 +1522,14 @@ class Sprites {
 
   // 元絵の余白ぶん（元絵のピクセル単位で焼き込んである）。絵の実体が
   // どこから始まるかを見ないと、体力の棒が頭の遥か上に浮く。表示は
-  // 元絵の実寸に合わせた縮尺で行うので、ここも同じ縮尺をかけ直す。
-  bboxTop(id) {
+  // 元絵の実寸に合わせた縮尺で行うので、ここも同じ縮尺（呼び出し側が
+  // 実際に描画に使った高さ＝コストの掛け目込み）をかけ直す。
+  bboxTop(id, targetH) {
     const top = this.art.bbox[id];
     if (top === undefined) return 0;
     const img = this.unit(id);
-    const h = img && img.naturalHeight ? img.naturalHeight : UNIT_TARGET_H;
-    return top * (UNIT_TARGET_H / h);
+    const h = img && img.naturalHeight ? img.naturalHeight : targetH;
+    return top * (targetH / h);
   }
 }
 
@@ -1521,6 +1540,7 @@ class View {
     this.game = game;
     this.sprites = new Sprites(art);
     this.races = art.races;
+    this.costScales = costScales(game);
 
     // ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
     const slots = game.stockSlots;
@@ -1695,7 +1715,8 @@ class View {
     const x = this.px(f.x, lane);
     const feet = GROUND_Y - lift;
     const team = mine ? GREEN : RED;
-    const [w, h] = View.scaledSize(img, UNIT_TARGET_H);
+    const scale = this.costScales[f.spec.id] || 1.0;
+    const [w, h] = View.scaledSize(img, UNIT_TARGET_H * scale);
     const top = feet - h;
 
     // 足元の楕円1枚。にゃんこ大戦争のやり方をそのまま採る。
@@ -1722,7 +1743,7 @@ class View {
                 this.races[f.spec.race] || MUTED);
     }
 
-    const head = top + this.sprites.bboxTop(f.spec.id);
+    const head = top + this.sprites.bboxTop(f.spec.id, UNIT_TARGET_H * scale);
     if (f.hp < f.spec.hp) {
       this.bar([x - 22, head - 9, 44, 4], f.hp / f.spec.hp, team, '#12161b');
     }
