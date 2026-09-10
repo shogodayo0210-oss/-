@@ -137,11 +137,16 @@ def build(matches: int) -> Path:
            for name in DATA_NAMES}
     preset = json.loads(
         (DATA_DIR / "preset_roster.json").read_text(encoding="utf-8"))
+    # 塊A-4／A-5 の判定基準。画面に基準を書き写さないための持ち込み ――
+    # 工程表と画面が別々に数字を持つと、必ずどちらかがズレる。
+    playtest = json.loads(
+        (DATA_DIR / "playtest.json").read_text(encoding="utf-8"))
 
     OUT.mkdir(parents=True, exist_ok=True)
     payload = {
         "raw": raw,
         "preset": preset,
+        "playtest": playtest,
         "art": art_bundle(game, unit_ids, [trial["avatar"]]),
         "stocks": stock_table(game, trial, matches),
     }

@@ -41,6 +41,12 @@
   let controller = null;
   const record = [];             // 遊んだ試合の結果（工程表 A-4 の記録用）
 
+  // 判定基準は data/playtest.json から来る。**画面側では書き換えない** ――
+  // 遊んだ後に基準を作ると必ず自分に甘くなるので（工程表 塊A「判定のしかた」）。
+  const CRIT = DATA.playtest;
+  const GRADED = 2;              // この版から機械の計測が入っている記録
+  let spedUp = false;            // この試合で×1より速くしたか
+
   function newBattle() {
     const pair = STOCKS[enemy][matchNo % MATCHES];
     controller = new ENGINE.Controller();
@@ -55,6 +61,8 @@
     paused = false;
     accumulator = 0.0;
     counted = false;
+    spedUp = false;
+    hideAsk();
     syncChrome();
   }
 
@@ -98,6 +106,13 @@
   });
 
   function restart() {
+    // 「もう1回」を押したかは、**決着した試合に対して**数える（工程表 A-4）。
+    // 途中で投げ出して次を始めたのは「もう1回」ではないので、counted で絞る。
+    if (counted && record.length) {
+      record[record.length - 1].again = true;
+      saveRecord();
+      renderJudge();
+    }
     matchNo += 1;
     newBattle();
   }
@@ -110,15 +125,24 @@
     again: document.getElementById('again'),
     tally: document.getElementById('tally'),
     log: document.getElementById('log'),
+    judge: document.getElementById('judge'),
+    verdict: document.getElementById('verdict'),
+    ask: document.getElementById('ask'),
+    askNext: document.getElementById('ask-next'),
+    askUnread: document.getElementById('ask-unread'),
+    askLine: document.getElementById('ask-line'),
+    askSave: document.getElementById('ask-save'),
   };
 
   els.enemy.addEventListener('change', () => {
     enemy = els.enemy.value;
-    matchNo += 1;
-    newBattle();
+    restart();
   });
   els.speed.addEventListener('change', () => {
     speed = parseFloat(els.speed.value);
+    // 「退屈して速度を上げた」は**試合中のものだけ**数える。決着を見終わって
+    // から早送りするのは退屈ではなく、次を始めるための操作なので。
+    if (speed > 1 && battle && !battle.finished()) spedUp = true;
   });
   els.pause.addEventListener('click', () => { paused = !paused; syncChrome(); });
   els.again.addEventListener('click', restart);
@@ -150,15 +174,169 @@
     const r = ENGINE.resultOf(battle);
     const full = game.baseHp;
     record.push({
+      v: GRADED,
       enemy,
       win: r.winner === 0 ? '勝ち' : (r.winner === null ? '分け' : '負け'),
       seconds: r.seconds,
       dealt: (full - r.base_hp[1]) / full,
       taken: (full - r.base_hp[0]) / full,
       level: r.level[0],
+      // 判定の4本。機械が数える2本はここで埋まり、人が答える2本は
+      // null のまま ―― 答えるまで判定に混ぜない（甘い側に倒れるので）。
+      again: false,
+      sped_up: spedUp,
+      next_time: null,
+      unread: null,
+      line: '',
     });
     saveRecord();
     renderRecord();
+    showAsk();
+    renderJudge();
+  }
+
+  // ------------------------------------------------- 塊A-4：終わった直後に答える
+  // 機械に数えられないのは2本だけ ―― 「次はこうしよう」と思った回数と、
+  // 最後まで結果が読めなかったか。工程表の「1試合ごとに1行書く」もここ。
+  let answer = { next_time: null, unread: null };
+
+  function picks(host, options, onPick) {
+    host.innerHTML = '';
+    for (const [label, value] of options) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', () => {
+        for (const other of host.children) {
+          other.setAttribute('aria-pressed', 'false');
+        }
+        button.setAttribute('aria-pressed', 'true');
+        onPick(value);
+        els.askSave.disabled =
+          answer.next_time === null || answer.unread === null;
+      });
+      host.appendChild(button);
+    }
+  }
+
+  picks(els.askNext, [['0', 0], ['1', 1], ['2', 2], ['3回以上', 3]],
+        v => { answer.next_time = v; });
+  picks(els.askUnread, [['はい', true], ['いいえ', false]],
+        v => { answer.unread = v; });
+
+  function showAsk() {
+    answer = { next_time: null, unread: null };
+    for (const host of [els.askNext, els.askUnread]) {
+      for (const b of host.children) b.setAttribute('aria-pressed', 'false');
+    }
+    els.askLine.value = '';
+    els.askSave.disabled = true;
+    els.askSave.textContent = 'この試合を記録する';
+    els.ask.classList.add('on');
+  }
+
+  function hideAsk() {
+    els.ask.classList.remove('on');
+  }
+
+  els.askSave.addEventListener('click', () => {
+    if (!record.length) return;
+    if (answer.next_time === null || answer.unread === null) return;
+    const row = record[record.length - 1];
+    row.next_time = answer.next_time;
+    row.unread = answer.unread;
+    row.line = els.askLine.value.trim();
+    saveRecord();
+    renderRecord();
+    renderJudge();
+    hideAsk();
+  });
+
+  // ------------------------------------------------------------ 塊A-5：判定
+  // 基準も線も data から来る。ここは数えて並べるだけ。
+  function measure(criterion, rows) {
+    const values = rows.map(r => r[criterion.id])
+                       .filter(v => v !== null && v !== undefined);
+    if (!values.length) return null;
+    if (criterion.aggregate === 'mean') {
+      return values.reduce((sum, v) => sum + Number(v), 0) / values.length;
+    }
+    return values.filter(Boolean).length;
+  }
+
+  function passes(criterion, value) {
+    return criterion.compare === 'at_most'
+      ? value <= criterion.line : value >= criterion.line;
+  }
+
+  function lineText(criterion) {
+    const bound = criterion.compare === 'at_most' ? '以下' : '以上';
+    return `${criterion.line}${criterion.unit}${bound}`;
+  }
+
+  function renderJudge() {
+    // 機械の計測が入る前の記録は判定に混ぜない（数えていないものを
+    // 「0回」として数えると、勝手に厳しい側へ倒れる）。
+    const graded = record.filter(r => r.v >= GRADED);
+    const rows = graded.slice(-CRIT.window);
+    const answered = rows.filter(
+      r => r.next_time !== null && r.next_time !== undefined).length;
+    const full = rows.length >= CRIT.window;
+
+    els.judge.innerHTML = '';
+    let broken = 0;
+    let pending = 0;
+    for (const criterion of CRIT.criteria) {
+      const value = measure(criterion, rows);
+      const ready = criterion.asks === 'human'
+        ? full && answered >= CRIT.window : full;
+      const shown = value === null ? '―'
+        : (criterion.aggregate === 'mean' ? value.toFixed(1) : String(value));
+      let mark = '', cls = 'wait';
+      if (!ready) {
+        mark = '計測中';
+        pending += 1;
+      } else if (passes(criterion, value)) {
+        mark = '通過';
+        cls = 'ok';
+      } else {
+        mark = '割れている';
+        cls = 'ng';
+        broken += 1;
+      }
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML =
+        `<span class="name">${criterion.label}</span>` +
+        `<span class="val">${shown}${criterion.unit}</span>` +
+        `<span class="line">${lineText(criterion)}</span>` +
+        `<span class="${cls}">${mark}</span>`;
+      row.title = criterion.note || '';
+      els.judge.appendChild(row);
+    }
+
+    if (pending) {
+      const left = Math.max(0, CRIT.window - rows.length);
+      const unanswered = rows.length - answered;
+      els.verdict.className = 'wait';
+      els.verdict.textContent =
+        `判定まであと${left}試合` +
+        (unanswered ? `（未回答 ${unanswered}試合）` : '') +
+        ` ―― ${CRIT.window}試合そろってから、${CRIT.fail_limit}本以上割れていたら塊Bに進まない。`;
+      return;
+    }
+    if (broken >= CRIT.fail_limit) {
+      els.verdict.className = 'ng';
+      els.verdict.textContent =
+        `${broken}本が線を割っている ―― 塊Bに進まない。` +
+        'ルールを直して塊Aをやり直す（ここで1ヶ月使うほうが、後で6ヶ月失うより安い）。';
+      return;
+    }
+    els.verdict.className = 'ok';
+    els.verdict.textContent = broken
+      ? `割れているのは${broken}本 ―― ${CRIT.fail_limit}本には届かないので、塊Bへ進める。`
+      : '4本とも通過 ―― 塊Bへ進める。';
   }
 
   function renderRecord() {
@@ -178,6 +356,12 @@
         `<span>与 ${(r.dealt * 100).toFixed(0)}%</span>` +
         `<span>被 ${(r.taken * 100).toFixed(0)}%</span>` +
         `<span>財布 Lv${r.level}</span>`;
+      if (r.line) {
+        // 工程表 A-4 の「1行」。数字より、後で読み返すのはこちら。
+        const said = document.createElement('span');
+        said.textContent = `「${r.line}」`;
+        row.appendChild(said);
+      }
       els.log.appendChild(row);
     });
   }
@@ -210,6 +394,7 @@
   const fonts = document.fonts ? document.fonts.ready : Promise.resolve();
   loadRecord();
   renderRecord();
+  renderJudge();
   Promise.all([view.ready(), fonts]).then(() => {
     newBattle();
     requestAnimationFrame(frame);
