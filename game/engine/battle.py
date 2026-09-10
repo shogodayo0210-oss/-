@@ -135,6 +135,12 @@ class Fighter:
     knockbacks_done: int = 0
     summon_left: float = 0.0
     lifespan_left: float = math.inf
+    # 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawn_seq）。
+    spawn_seq: int = 0
+    # **見た目専用。** このtickで実際に前進したか（歩行コマの切り替えに使う）。
+    # `step_fighter` の冒頭で毎tick False に戻し、移動した分岐でだけ True にする
+    # ―― spawn_seq と同じく、シミュレーションにもconform.pyの指紋にも触れない。
+    moving: bool = False
 
     @property
     def alive(self) -> bool:
@@ -204,6 +210,12 @@ class Side:
         self.income_left = float(self.level_row["income_every_sec"])
 
         self.fighters: list[Fighter] = []
+        # 出撃した順に振るだけの通し番号。**戦闘の数字には一切効かない** ――
+        # 死んだ個体は `Battle.step` の最後で配列から間引かれる（生存者だけの
+        # 配列に作り直す）ので、配列の添字は出撃順の目印にならない。
+        # 重なったときの前後（見た目だけの話。view.py/view.js）を、
+        # 出撃時に決まって一生変わらない値で描きたいので、その目印をここで持つ。
+        self._spawn_seq = 0
         self.deploy_cd: dict[str, float] = {}
         self.gcd_left = 0.0
         self.casting: Card | None = None
@@ -500,7 +512,9 @@ class Battle:
         side.deploy_cd[unit_id] = side.deploy_cooldown(spec)
         side.last_race = spec.race          # 「連携」が次に見るのはこれ
         side.fighters.append(Fighter(spec=spec, side=side.index, x=side.base_x,
-                                     hp=float(spec.hp), facing=side.facing))
+                                     hp=float(spec.hp), facing=side.facing,
+                                     spawn_seq=side._spawn_seq))
+        side._spawn_seq += 1
         return True
 
     def summon_trump(self, side: Side) -> bool:
@@ -515,7 +529,9 @@ class Battle:
         side.fighters.append(Fighter(
             spec=spec, side=side.index, x=side.base_x, hp=float(spec.hp),
             facing=side.facing, summon_left=spec.summon_sec,
-            lifespan_left=spec.lifespan_sec + spec.summon_sec))
+            lifespan_left=spec.lifespan_sec + spec.summon_sec,
+            spawn_seq=side._spawn_seq))
+        side._spawn_seq += 1
         self.note(side.index, f"切り札 {spec.name} を召喚（演出 {spec.summon_sec}秒）")
         return True
 
@@ -775,6 +791,10 @@ class Battle:
         side = self.sides[fighter.side]
         dt = self.tick
 
+        # 見た目専用のリセット。今回のtickで実際に進んだ場合だけ、
+        # 末尾の移動分岐が改めて True に立てる。
+        fighter.moving = False
+
         # **後隙は実時間で抜ける。** ノックバックされようが気絶させられようが、
         # 振り切った直後の時間は同じだけ流れる ―― 状態で伸び縮みさせると、
         # 「押し戻して後隙を伸ばす」という読みようのない挙動が生まれる。
@@ -823,6 +843,7 @@ class Battle:
         speed = side.stat("speed", fighter.spec.speed_mps, fighter.spec.race)
         moved = fighter.x + fighter.facing * speed * dt
         fighter.x = max(0.0, min(self.game.lane_length, moved))
+        fighter.moving = True
 
     # ------------------------------------------------------------------ 進行
     def step(self) -> None:
@@ -971,7 +992,11 @@ class Battle:
         # 広がるが上限がある。上限なしで測ったら、半径がレーンを覆った時点で
         # **誰も敵拠点まで歩けなくなり**、900秒まで0対0のままだった ――
         # 全部を殺す雷は押し合いを壊すのではなく、前進そのものを禁止する。
-        radius = min(self.storm_radius + self.storm_growth * self.bolts_fallen,
+        # bolts_fallen は「対」ではなく個々の落雷を数える（1組で2ずつ増える）
+        # ので、伸びは対の数（//2）で刻む ―― でないと1組につき2段分
+        # 伸びてしまい、12→14→…→20のはずが12→16→20になる。
+        pairs_fallen = self.bolts_fallen // 2
+        radius = min(self.storm_radius + self.storm_growth * pairs_fallen,
                      self.storm_radius_max)
         # **必ず対で落ちる。** 落ちる場所は乱数だが、鏡の位置にも同時に落ちる
         # （x と レーン長−x）。1発だけだと、どちら側の半分に落ちたかで
@@ -1045,12 +1070,10 @@ class Result:
             winner = 0 if hp[1] <= 0 else 1
             reason = "拠点撃破"
         else:
-            full = battle.game.base_hp
-            dealt = ((full - hp[1]) / full, (full - hp[0]) / full)
-            if abs(dealt[0] - dealt[1]) < 1e-9:
-                winner, reason = None, "時間切れ・与ダメージ同率"
-            else:
-                winner = 0 if dealt[0] > dealt[1] else 1
-                reason = "時間切れ・与ダメージ割合"
+            # 両拠点が残ったまま終わるのは hard_stop（安全弁）だけ ――
+            # 時間切れという結末は無くした（設計書1.2）ので、与ダメージ割合で
+            # 勝敗を付けてはいけない。安全弁は「勝敗の仕組み」ではなく
+            # シミュレータが止まらなくなるのを防ぐためだけの装置。
+            winner, reason = None, "安全弁（決着せず）"
         return cls(winner=winner, reason=reason, seconds=battle.t, base_hp=hp,
                    level=(a.level, b.level), events=battle.events)

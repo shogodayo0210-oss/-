@@ -10,13 +10,17 @@
 
 // ---------------------------------------------------------------- 画面の寸法
 // にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
-const W = 1140, H = 712;
-const GROUND_Y = 380;          // ユニットが立つ線
-const HUD_Y = 412;             // ここから下が操作盤
-const SPELL_Y = 418;           // 呪文の段。札には効果の説明まで載せるので背が高い
-const SUMMON_Y = 548;          // 資金と召喚の段
+const W = 1320, H = 792;
+const GROUND_Y = 460;          // ユニットが立つ線。旧380から拡張 ―― 戦場をもっと広く
+const HUD_Y = 492;             // ここから下が操作盤
+const SPELL_Y = 498;           // 呪文の段。札には効果の説明まで載せるので背が高い
+const SUMMON_Y = 628;          // 資金と召喚の段
 const LANE_LEFT = 100, LANE_RIGHT = W - 100;
-const SCALE = 2;               // 仮絵は48px。等倍だと画面に対して小さすぎる
+// 画面上の高さ（見た目の大きさ）をここで決める。**元絵の解像度は問わない。**
+// view.py と同じ考え方 ―― 読み込んだ絵の実寸に合わせて、高さがここに来る
+// よう縦横同倍率で縮尺をかける。
+const UNIT_TARGET_H = 96;
+const AVATAR_TARGET_H = 128;
 
 // ---------------------------------------------------------------- 色
 // art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
@@ -42,8 +46,8 @@ const WALL_LABEL_SEC = 0.6;       // 「WALL」表示を出しておく秒数
 const CAST_FLASH_SEC = 0.25;      // 画面端フラッシュの長さ
 
 // 伝言2：**ノックバックが目で分からなかった**（設計書2.11・14章）。
-// 後退は20m ―― 画面では78pxで、キャラの絵（96px幅）より狭い。位置が変わった
-// ことだけを見せても事件に見えないので、**どこから下がったか**（跡）と、
+// 後退は20m ―― 画面では93px。同じ93pxが巨兵には7.1秒で斥候鼠には2.1秒なので、
+// 位置が変わったことだけでは事件の大きさが伝わらない。**どこから下がったか**（跡）と、
 // **判定が消えていること**（Fighter.hittable）の2つを描く。view.py と同じ数字。
 const KB_TRAIL_ALPHA = 0.65;      // 下がった跡の濃さ。硬直の残り時間ぶん薄くなる
 const KB_TRAIL_H = 34;            // 跡の高さ（足元から）
@@ -115,6 +119,24 @@ function cardCondition(card) {
   return parts.length ? parts.join('・') + 'でだけ撃てる' : '';
 }
 
+const COST_SCALE_MIN = 0.7, COST_SCALE_MAX = 1.3;
+
+// コストが高いほど大きく見せる ―― art/README.md 3章「コストが高い＝大きい。
+// キャンバスを埋める」を実際の描画にも適用する。生の cost をそのまま比例
+// させると安いユニットが大半を占める分布の下で高コスト側だけが伸びるので、
+// ロースター内の順位（percentile）で正規化する（view.py と同じ考え方）。
+function costScales(game) {
+  const units = Object.values(game.units);
+  const costs = units.map(u => u.cost).sort((a, b) => a - b);
+  const denom = Math.max(costs.length - 1, 1);
+  const rank = cost => costs.filter(c => c < cost).length / denom;
+  const out = {};
+  for (const u of units) {
+    out[u.id] = COST_SCALE_MIN + rank(u.cost) * (COST_SCALE_MAX - COST_SCALE_MIN);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- 絵
 // PNG は data: URI で焼き込んである（build_web.py）。向きごとに使い回す。
 class Sprites {
@@ -142,21 +164,29 @@ class Sprites {
   unit(id) { return this._cache.get(`unit:${id}`); }
   avatar(id) { return this._cache.get(`avatar:${id}`); }
 
-  // 48×48 の余白ぶん。絵の実体がどこから始まるかを見ないと、
-  // 体力の棒が頭の遥か上に浮く。
-  bboxTop(id) {
+  // 元絵の余白ぶん（元絵のピクセル単位で焼き込んである）。絵の実体が
+  // どこから始まるかを見ないと、体力の棒が頭の遥か上に浮く。表示は
+  // 元絵の実寸に合わせた縮尺で行うので、ここも同じ縮尺（呼び出し側が
+  // 実際に描画に使った高さ＝コストの掛け目込み）をかけ直す。
+  bboxTop(id, targetH) {
     const top = this.art.bbox[id];
-    return (top === undefined ? 0 : top) * SCALE;
+    if (top === undefined) return 0;
+    const img = this.unit(id);
+    const h = img && img.naturalHeight ? img.naturalHeight : targetH;
+    return top * (targetH / h);
   }
 }
 
 // ---------------------------------------------------------------- 画面
 class View {
-  constructor(ctx, roster, game, art) {
+  // sprites を渡すと（select.js が読み込み済みのものを使い回す場合など）
+  // 二重に読み込まない。渡さなければ従来どおり自分で読み込む。
+  constructor(ctx, roster, game, art, sprites) {
     this.ctx = ctx;
     this.game = game;
-    this.sprites = new Sprites(art);
+    this.sprites = sprites || new Sprites(art);
     this.races = art.races;
+    this.costScales = costScales(game);
 
     // ── 呪文の段：持ち込み1枠 ＋ ストック3枠 ＋ 切り札 ──────────
     const slots = game.stockSlots;
@@ -183,7 +213,7 @@ class View {
     }));
   }
 
-  ready() { return this.sprites.load(); }
+  ready() { return this.sprites._ready ? Promise.resolve() : this.sprites.load(); }
 
   // -------------------------------------------------------------- 座標
   px(xM, laneLength) {
@@ -258,18 +288,30 @@ class View {
       const img = this.sprites.avatar(side.loadout.avatar);
       const x = this.px(side.base_x, lane);
       if (img && img.complete && img.naturalWidth) {
-        const w = img.naturalWidth * SCALE, h = img.naturalHeight * SCALE;
+        const [w, h] = View.scaledSize(img, AVATAR_TARGET_H);
         this.blit(img, x - w / 2, GROUND_Y - h, w, h, side.index === 1);
       } else {
-        this.fill([x - 24, GROUND_Y - 96, 48, 96], MUTED);
+        this.fill([x - AVATAR_TARGET_H / 4, GROUND_Y - AVATAR_TARGET_H,
+                   AVATAR_TARGET_H / 2, AVATAR_TARGET_H], MUTED);
       }
     }
   }
 
-  // 仮絵をドットのまま拡大して置く。flip のときだけ左右を返す。
+  // 元絵の実寸に関わらず、高さが targetH に来るよう縦横同倍率で拡縮した
+  // ときの [幅, 高さ] を返す。view.py の _grow と同じ考え方。
+  static scaledSize(img, targetH) {
+    const h = img && img.naturalHeight ? img.naturalHeight : targetH;
+    const w = img && img.naturalWidth ? img.naturalWidth : targetH;
+    const ratio = targetH / h;
+    return [Math.round(w * ratio), targetH];
+  }
+
+  // 絵を置く。flip のときだけ左右を返す。塗り絵調の絵を前提に滑らかに
+  // 拡縮する（ドット絵前提の最近傍拡大はやめた ―― 縁がギザギザになるため）。
   blit(img, x, y, w, h, flip) {
     const ctx = this.ctx;
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     if (flip) {
       ctx.save();
       ctx.translate(x + w, y);
@@ -281,16 +323,32 @@ class View {
     }
   }
 
+  // 出撃時の位置から、重なったときの前後を決める。`Fighter.spawn_seq` は
+  // 出撃した順に振られ、一生変わらない（`Side._spawnSeq`、engine.js）。
+  // **配列の添字は使わない** ―― 死んだ個体は間引かれて `side.fighters` が
+  // 作り直されるので、添字は誰かが死ぬたびにずれる。これをハッシュに通す
+  // だけで、シミュレータの乱数に一切触れずに見た目だけの前後を作れる
+  // （view.py と同じ）。
+  static depthKey(side, spawnSeq) {
+    let h = (Math.imul(spawnSeq, 2654435761) + Math.imul(side, 0x9E3779B1)) >>> 0;
+    return (h ^ (h >>> 15)) >>> 0;
+  }
+
   fighters(battle) {
     const lane = battle.game.laneLength;
-    // 奥の列から描く。前に立つものが手前に重なる。
+    // 奥の列から描く。列の中は出撃時に決まる前後で、手前のものを後に描く
+    // （＝重なった部分は手前のキャラだけが見える）。
     for (const row of [2, 1, 0]) {
+      const entries = [];
       for (const side of battle.sides) {
         for (const f of side.fighters) {
-          if (!f.alive || this.row(f.spec) !== row) continue;
-          this.fighter(f, lane, row, battle);
+          if (f.alive && this.row(f.spec) === row) {
+            entries.push([View.depthKey(f.side, f.spawn_seq), f]);
+          }
         }
       }
+      entries.sort((a, b) => a[0] - b[0]);
+      for (const [, f] of entries) this.fighter(f, lane, row, battle);
     }
   }
 
@@ -303,8 +361,8 @@ class View {
     const x = this.px(f.x, lane);
     const feet = GROUND_Y - lift;
     const team = mine ? GREEN : RED;
-    const w = (img && img.naturalWidth ? img.naturalWidth : 48) * SCALE;
-    const h = (img && img.naturalHeight ? img.naturalHeight : 48) * SCALE;
+    const scale = this.costScales[f.spec.id] || 1.0;
+    const [w, h] = View.scaledSize(img, UNIT_TARGET_H * scale);
     const top = feet - h;
     const stunned = f.stun_left > 0;       // 下がった直後。判定が消えている
 
@@ -340,7 +398,7 @@ class View {
                 this.races[f.spec.race] || MUTED);
     }
 
-    const head = top + this.sprites.bboxTop(f.spec.id);
+    const head = top + this.sprites.bboxTop(f.spec.id, UNIT_TARGET_H * scale);
     if (f.hp < f.spec.hp) {
       this.hpBar([x - 22, head - 9, 44, 4], f, team, battle);
     }
@@ -384,8 +442,8 @@ class View {
 
   // **「いま下がった」を出す。**
   //
-  // 後退そのものは20m ―― 画面では78pxで、キャラの絵より狭い。位置の変化だけ
-  // では事件に見えないので、**どこから下がったか**を跡で残す。跡の長さが
+  // 後退そのものは20m ―― 画面では93px。位置の変化だけでは、それが7.1秒ぶん
+  // なのか2.1秒ぶんなのか分からないので、**どこから下がったか**を跡で残す。跡の長さが
   // そのまま失った20mで、硬直の0.4秒のあいだ薄れながら消える。
   //
   // **View がフレームをまたぐ状態を持たない**という約束は守っている ――
@@ -438,7 +496,8 @@ class View {
       // 決め打ちの高さではなく実際のスプライトから出す（無ければ
       // `field` の代替矩形と同じ96px）。
       const img = this.sprites.avatar(side.loadout.avatar);
-      const h = (img && img.complete && img.naturalWidth) ? img.naturalHeight * SCALE : 96;
+      const h = (img && img.complete && img.naturalWidth)
+        ? View.scaledSize(img, AVATAR_TARGET_H)[1] : AVATAR_TARGET_H;
       const top = GROUND_Y - h;
       const rise = Math.trunc(20 * (age / WALL_LABEL_SEC));
       const y = top - 24 - rise;
@@ -492,23 +551,25 @@ class View {
       const em = Math.trunc(battle.t) / 60 | 0;
       const es = String(Math.trunc(battle.t) % 60).padStart(2, '0');
       this.text(`${em}:${es}`, F_SMALL, MUTED, W / 2, 50, 'center');
-    } else {
-      const left = Math.max(0.0, battle.storm_at - battle.t);
-      const mm = Math.trunc(left) / 60 | 0;
-      const ss = String(Math.trunc(left) % 60).padStart(2, '0');
-      this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
-      this.text('落雷まで', F_SMALL, MUTED, W / 2, 50, 'center');
+      // 配布は雷が降り始めるより前に必ず終わっている（validate.py の
+      // check_sudden_death が縛る）ので、ここでは出さない ―― 出しても
+      // 常に空の「残り」が上の経過時間に重なるだけになる（view.py と同じ）。
+      return;
     }
+    const left = Math.max(0.0, battle.storm_at - battle.t);
+    const mm = Math.trunc(left) / 60 | 0;
+    const ss = String(Math.trunc(left) % 60).padStart(2, '0');
+    this.text(`${mm}:${ss}`, F_NUM, INK, W / 2, 26, 'center');
+    this.text('落雷まで', F_SMALL, MUTED, W / 2, 50, 'center');
 
     // 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
     // 「あと何秒でいくら入るか」だけ（view.py と同じ）。
+    // 「落雷まで」と行を分ける（同じ高さに描くと両方とも読めなくなる）。
     const drop = battle.nextDrop();
-    if (drop === null) {
-      this.text('残り', F_SMALL, MUTED, W / 2, 50, 'center');
-      return;
+    if (drop !== null) {
+      this.text(`両者 +${drop[1]}  あと${drop[0].toFixed(0)}秒`, F_SMALL, MUTED,
+                W / 2, 68, 'center');
     }
-    this.text(`両者 +${drop[1]}  あと${drop[0].toFixed(0)}秒`, F_SMALL, MUTED,
-              W / 2, 52, 'center');
   }
 
   // ---------------------------------------------------------- 操作盤：呪文

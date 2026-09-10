@@ -177,7 +177,7 @@ function stormSeed(loadout) {
 
 // ------------------------------------------------------------------ 場の1体
 class Fighter {
-  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft) {
+  constructor(spec, side, x, hp, facing, summonLeft, lifespanLeft, spawnSeq) {
     this.spec = spec;
     this.side = side;
     this.x = x;
@@ -193,6 +193,11 @@ class Fighter {
     this.knockbacks_done = 0;
     this.summon_left = summonLeft === undefined ? 0.0 : summonLeft;
     this.lifespan_left = lifespanLeft === undefined ? Infinity : lifespanLeft;
+    // 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawnSeq）。
+    this.spawn_seq = spawnSeq === undefined ? 0 : spawnSeq;
+    // 見た目専用。このtickで実際に前進したか（battle.py と同じ、spawn_seq 同様
+    // シミュレーションには触れない）。stepFighter が毎tick立て直す。
+    this.moving = false;
   }
 
   get alive() { return this.hp > 0; }
@@ -234,6 +239,9 @@ class Side {
     this.income_left = this.levelRow.income_every_sec;
 
     this.fighters = [];
+    // 出撃した順に振るだけの通し番号。死んだ個体は間引かれて配列が作り直される
+    // ので、配列の添字は出撃順の目印にならない ―― view.js の重なり順はこれを使う。
+    this._spawnSeq = 0;
     this.deploy_cd = {};
     this.gcd_left = 0.0;
     this.casting = null;
@@ -499,7 +507,8 @@ class Battle {
     side.deploy_cd[unitId] = side.deployCooldown(spec);
     side.last_race = spec.race;          // 「連携」が次に見るのはこれ
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
-                                   side.facing));
+                                   side.facing, undefined, undefined,
+                                   side._spawnSeq++));
     return true;
   }
 
@@ -514,7 +523,8 @@ class Battle {
     side.trump_used = true;
     side.fighters.push(new Fighter(spec, side.index, side.base_x, spec.hp,
                                    side.facing, spec.summon_sec,
-                                   spec.lifespan_sec + spec.summon_sec));
+                                   spec.lifespan_sec + spec.summon_sec,
+                                   side._spawnSeq++));
     this.note(side.index, `切り札 ${spec.name} を召喚（演出 ${spec.summon_sec}秒）`);
     return true;
   }
@@ -732,6 +742,9 @@ class Battle {
     const side = this.sides[fighter.side];
     const dt = this.tick;
 
+    // 見た目専用のリセット。実際に進んだ場合だけ末尾の分岐が立て直す。
+    fighter.moving = false;
+
     // **後隙は実時間で抜ける。** 押し戻されても気絶しても同じだけ流れる。
     if (fighter.exposed_left > 0) fighter.exposed_left -= dt;
 
@@ -764,6 +777,7 @@ class Battle {
     const speed = side.stat('speed', fighter.spec.speed_mps, fighter.spec.race);
     const moved = fighter.x + fighter.facing * speed * dt;
     fighter.x = Math.max(0.0, Math.min(this.game.laneLength, moved));
+    fighter.moving = true;
   }
 
   // ---------------------------------------------------------------- 進行
@@ -911,8 +925,11 @@ class Battle {
   scheduleBolt() {
     const lane = this.game.laneLength;
     const where = this.rng.unit() * lane;
+    // bolts_fallen は対ではなく個々の落雷を数える（1組で2ずつ増える）ので、
+    // 伸びは対の数（Python 側と同じ // 2 = 整数除算）で刻む（battle.py と同じ）。
+    const pairsFallen = Math.floor(this.bolts_fallen / 2);
     const radius = Math.min(
-      this.storm_radius + this.storm_growth * this.bolts_fallen,
+      this.storm_radius + this.storm_growth * pairsFallen,
       this.storm_radius_max);
     // **必ず対で落ちる**（battle.py と同じ）。1発だけだと、どちら側の半分に
     // 落ちたかで有利不利がつく。対にすると左右は釣り合ったまま線だけが欠ける。
@@ -972,14 +989,9 @@ function resultOf(battle) {
     winner = hp[1] <= 0 ? 0 : 1;
     reason = '拠点撃破';
   } else {
-    const full = battle.game.baseHp;
-    const dealt = [(full - hp[1]) / full, (full - hp[0]) / full];
-    if (Math.abs(dealt[0] - dealt[1]) < 1e-9) {
-      winner = null; reason = '時間切れ・与ダメージ同率';
-    } else {
-      winner = dealt[0] > dealt[1] ? 0 : 1;
-      reason = '時間切れ・与ダメージ割合';
-    }
+    // 両拠点が残ったまま終わるのは hard_stop（安全弁）だけ ―― 時間切れという
+    // 結末は無くしたので、与ダメージ割合で勝敗を付けてはいけない（battle.py と同じ）。
+    winner = null; reason = '安全弁（決着せず）';
   }
   return {
     winner, reason, seconds: battle.t, base_hp: hp,

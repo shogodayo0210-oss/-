@@ -329,7 +329,7 @@
       "cooldown_sec": 11,
       "hp": 740,
       "attack": 120,
-      "attack_interval_sec": 1.8,
+      "attack_interval_sec": 2.34,
       "attack_windup_sec": 0.35,
       "attack_band_m": [
         0,
@@ -352,7 +352,7 @@
       "cooldown_sec": 12,
       "hp": 700,
       "attack": 140,
-      "attack_interval_sec": 1.7,
+      "attack_interval_sec": 2.21,
       "attack_windup_sec": 0.3,
       "attack_band_m": [
         0,
@@ -444,7 +444,7 @@
       "cooldown_sec": 15,
       "hp": 820,
       "attack": 118,
-      "attack_interval_sec": 2.0,
+      "attack_interval_sec": 2.6,
       "attack_windup_sec": 0.35,
       "attack_band_m": [
         28,
@@ -651,7 +651,7 @@
       "cooldown_sec": 24,
       "hp": 820,
       "attack": 230,
-      "attack_interval_sec": 2.2,
+      "attack_interval_sec": 2.86,
       "attack_windup_sec": 0.5,
       "attack_band_m": [
         0,
@@ -675,7 +675,7 @@
       "cooldown_sec": 25,
       "hp": 560,
       "attack": 330,
-      "attack_interval_sec": 3.2,
+      "attack_interval_sec": 4.16,
       "attack_windup_sec": 0.8,
       "attack_band_m": [
         42,
@@ -698,7 +698,7 @@
       "cooldown_sec": 26,
       "hp": 700,
       "attack": 350,
-      "attack_interval_sec": 3.5,
+      "attack_interval_sec": 4.55,
       "attack_windup_sec": 0.7,
       "attack_band_m": [
         32,
@@ -721,7 +721,7 @@
       "cooldown_sec": 28,
       "hp": 720,
       "attack": 310,
-      "attack_interval_sec": 3.0,
+      "attack_interval_sec": 3.9,
       "attack_windup_sec": 0.65,
       "attack_band_m": [
         36,
@@ -814,7 +814,7 @@
       "cooldown_sec": 33,
       "hp": 900,
       "attack": 380,
-      "attack_interval_sec": 3.4,
+      "attack_interval_sec": 4.42,
       "attack_windup_sec": 0.75,
       "attack_band_m": [
         0,

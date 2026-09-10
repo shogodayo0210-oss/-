@@ -132,6 +132,10 @@ def build(matches: int) -> Path:
     game = load()
     trial = trial_roster()
     unit_ids = [u["id"] for u in trial["roster"]]
+    # 選出画面（select.js）は41体・12アバターの全部から選べる必要がある
+    # ので、仮絵は試遊ロースターぶんだけでなく**全部**焼き込む。
+    all_unit_ids = list(game.units.keys())
+    all_avatar_ids = list(game.avatars.keys())
 
     raw = {name: json.loads((DATA_DIR / f"{name}.json").read_text(encoding="utf-8"))
            for name in DATA_NAMES}
@@ -147,7 +151,7 @@ def build(matches: int) -> Path:
         "raw": raw,
         "preset": preset,
         "playtest": playtest,
-        "art": art_bundle(game, unit_ids, [trial["avatar"]]),
+        "art": art_bundle(game, all_unit_ids, all_avatar_ids),
         "stocks": stock_table(game, trial, matches),
     }
 
@@ -157,6 +161,7 @@ def build(matches: int) -> Path:
                                                  separators=(",", ":")) + ";",
         "/*ENGINE*/": (WEB / "engine.js").read_text(encoding="utf-8"),
         "/*VIEW*/": (WEB / "view.js").read_text(encoding="utf-8"),
+        "/*SELECT*/": (WEB / "select.js").read_text(encoding="utf-8"),
         "/*MAIN*/": (WEB / "main.js").read_text(encoding="utf-8"),
     }
     for mark, body in parts.items():
@@ -173,7 +178,7 @@ def build(matches: int) -> Path:
 
     size = target.stat().st_size
     print(f"{target.relative_to(ROOT)} — {size / 1024:.0f} KB")
-    print(f"  ユニット {len(unit_ids)} / アバター 1 / "
+    print(f"  ユニット {len(all_unit_ids)} / アバター {len(all_avatar_ids)} / "
           f"呪文の並び {len(payload['stocks']['matches'])}方針 × {matches}試合")
     return target
 
