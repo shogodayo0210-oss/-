@@ -41,6 +41,14 @@ const TRAINING_POPUP_SEC = 1.2;   // 「財布 LvUP！」を出しておく秒�
 const WALL_LABEL_SEC = 0.6;       // 「WALL」表示を出しておく秒数
 const CAST_FLASH_SEC = 0.25;      // 画面端フラッシュの長さ
 
+// 伝言2：**ノックバックが目で分からなかった**（設計書2.11・14章）。
+// 後退は20m ―― 画面では78pxで、キャラの絵（96px幅）より狭い。位置が変わった
+// ことだけを見せても事件に見えないので、**どこから下がったか**（跡）と、
+// **判定が消えていること**（Fighter.hittable）の2つを描く。view.py と同じ数字。
+const KB_TRAIL_ALPHA = 0.65;      // 下がった跡の濃さ。硬直の残り時間ぶん薄くなる
+const KB_TRAIL_H = 34;            // 跡の高さ（足元から）
+const KB_GHOST_ALPHA = 0.43;      // 硬直中の本体。透けているのが「的ではない」の意
+
 const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
 const F_SMALL = `15px ${JP}`;
 const F_BODY = `18px ${JP}`;
@@ -280,13 +288,13 @@ class View {
       for (const side of battle.sides) {
         for (const f of side.fighters) {
           if (!f.alive || this.row(f.spec) !== row) continue;
-          this.fighter(f, lane, row);
+          this.fighter(f, lane, row, battle);
         }
       }
     }
   }
 
-  fighter(f, lane, row) {
+  fighter(f, lane, row, battle) {
     const ctx = this.ctx;
     const mine = f.side === 0;
     const flip = !mine;                    // 敵は左を向く
@@ -298,17 +306,25 @@ class View {
     const w = (img && img.naturalWidth ? img.naturalWidth : 48) * SCALE;
     const h = (img && img.naturalHeight ? img.naturalHeight : 48) * SCALE;
     const top = feet - h;
+    const stunned = f.stun_left > 0;       // 下がった直後。判定が消えている
+
+    // 下がった跡は本体より先に描く（下に敷く）。
+    if (stunned) this.knockback(f, lane, x, feet, battle);
 
     // 足元の楕円1枚。にゃんこ大戦争のやり方をそのまま採る。
     // 影を陣営の色で塗ると、同じ絵でもどちら側かが一目で分かる。
+    // **硬直中は塗らずに輪郭だけにする** ―― 塗り＝「ここに立っている的」、
+    // 輪郭だけ＝「居るが、的ではない」（view.py と同じ）。
     ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = team;
     ctx.beginPath();
     ctx.ellipse(x, feet - 2, w / 2, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
+    if (!stunned) {
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = team;
+      ctx.fill();
+    }
     ctx.globalAlpha = 0.6;
-    ctx.strokeStyle = team;
+    ctx.strokeStyle = stunned ? ACCENT : team;
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
@@ -316,6 +332,7 @@ class View {
     if (img && img.complete && img.naturalWidth) {
       ctx.save();
       if (f.summon_left > 0) ctx.globalAlpha = 0.35;   // 召喚演出のあいだは半透明
+      else if (stunned) ctx.globalAlpha = KB_GHOST_ALPHA;   // 硬直中は的ではない
       this.blit(img, x - w / 2, top, w, h, flip);
       ctx.restore();
     } else {
@@ -325,7 +342,7 @@ class View {
 
     const head = top + this.sprites.bboxTop(f.spec.id);
     if (f.hp < f.spec.hp) {
-      this.bar([x - 22, head - 9, 44, 4], f.hp / f.spec.hp, team, '#12161b');
+      this.hpBar([x - 22, head - 9, 44, 4], f, team, battle);
     }
 
     // 振りかぶり。設計書7.5の「大きい一撃は発生0.6秒以上」を画面に出す。
@@ -341,12 +358,68 @@ class View {
                RED, '#12161b');
     }
 
-    if (f.stun_left > 0) {
-      ctx.fillStyle = GOLD;
-      ctx.beginPath();
-      ctx.arc(x, head - 24, 3, 0, Math.PI * 2);
-      ctx.fill();
+    // **「いま無敵」。** 硬直中の0.4秒は殴られず、敵の足も止めない。
+    // 足元の輪郭と半透明だけだと「そういう絵柄」にも見えるので言い切る。
+    if (stunned) {
+      this.text('無敵', F_SMALL, ACCENT, x, head - 28, 'center');
     }
+  }
+
+  // 体力の棒。**ノックバックの区切りを線で入れる。**
+  //
+  // 後退は「体力を kb 個に割った区切りを跨いだ瞬間」に起きる（設計書2.11）。
+  // つまりこの線は *次にどこで下がるか* の予定表そのもの。`kb` は呪文の
+  // かかった後の実効値なので、死守・踏破（ノックバック×0）が効いている
+  // あいだは線が消える ―― 「いま押し戻せない相手」が形で分かる。
+  hpBar(rect, f, team, battle) {
+    this.bar(rect, f.hp / f.spec.hp, team, '#12161b');
+    const side = battle.sides[f.side];
+    const kb = side.stat('knockback', f.spec.knockback, f.spec.race);
+    if (kb < 2) return;      // 1回＝跨ぐのは死ぬときだけ。線を引く意味が無い
+    for (let i = 1; i < Math.trunc(kb); i++) {
+      const at = rect[0] + Math.trunc(rect[2] * i / kb);
+      this.fill([at, rect[1], 1, rect[3]], '#12161b');
+    }
+  }
+
+  // **「いま下がった」を出す。**
+  //
+  // 後退そのものは20m ―― 画面では78pxで、キャラの絵より狭い。位置の変化だけ
+  // では事件に見えないので、**どこから下がったか**を跡で残す。跡の長さが
+  // そのまま失った20mで、硬直の0.4秒のあいだ薄れながら消える。
+  //
+  // **View がフレームをまたぐ状態を持たない**という約束は守っている ――
+  // 起点は `x + 向き × 後退距離` として盤面から出る。硬直中は動かないので、
+  // この値は硬直のあいだ固定される。
+  knockback(f, lane, x, feet, battle) {
+    const ctx = this.ctx;
+    const origin = this.px(
+      Math.max(0.0, Math.min(lane, f.x + f.facing * battle.kb_distance)), lane);
+    const fade = Math.max(0.0, Math.min(1.0, f.stun_left / Math.max(battle.kb_stun, 1e-6)));
+    const left = Math.min(origin, x), right = Math.max(origin, x);
+    const width = Math.max(2, right - left);
+    const topY = feet - KB_TRAIL_H - 2;
+
+    ctx.save();
+    ctx.strokeStyle = ACCENT;
+    // 横線を数本。密集していても「後ろに引かれた」向きだけは読める。
+    ctx.globalAlpha = KB_TRAIL_ALPHA * fade * 0.5;
+    ctx.lineWidth = 1;
+    for (const y of [10, 18, 26]) {
+      ctx.beginPath();
+      ctx.moveTo(left, topY + y + 0.5);
+      ctx.lineTo(left + width - 1, topY + y + 0.5);
+      ctx.stroke();
+    }
+    // 起点の印 ―― 「ここに居た」。跡の端に立てる。
+    ctx.globalAlpha = KB_TRAIL_ALPHA * fade;
+    ctx.lineWidth = 2;
+    const tick = (origin <= x ? left : left + width - 1) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(tick, topY + 2);
+    ctx.lineTo(tick, topY + KB_TRAIL_H - 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // -------------------------------------------------------------- 壁の一撃

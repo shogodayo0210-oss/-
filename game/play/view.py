@@ -61,6 +61,19 @@ TRAINING_POPUP_SEC = 1.2     # 「財布 LvUP！」を出しておく秒数
 WALL_LABEL_SEC = 0.6         # 「WALL」表示を出しておく秒数
 CAST_FLASH_SEC = 0.25        # 画面端フラッシュの長さ
 
+# 伝言2：**ノックバックが目で分からなかった**（設計書2.11・14章「まだ無いもの」）。
+# 後退は20m ―― 画面では78pxで、キャラの絵（96px幅）より狭い。*自分の体の幅より
+# 狭い移動*なので、位置が変わったことだけを見せても事件に見えない。時間としては
+# 巨兵で7.1秒と長いのに、瞬間の見た目が地味、という食い違いがそこにあった。
+#
+# だから距離ではなく2つを描く ―― **どこから下がったか**（跡）と、
+# **判定が消えていること**（`Fighter.hittable`。殴られず、すり抜けられる）。
+# 色は盤面で他に使っていない ACCENT に寄せる。金＝振りかぶり「来るぞ」、
+# 赤＝後隙「いまなら通る」に対して、水色＝**「いま的ではない」**。
+KB_TRAIL_ALPHA = 165         # 下がった跡の濃さ。硬直の残り時間ぶん薄くなる
+KB_TRAIL_H = 34              # 跡の高さ（足元から）
+KB_GHOST_ALPHA = 110         # 硬直中の本体。透けているのが「的ではない」の意
+
 # 日本語が出るフォントを順に探す。無ければ pygame の既定にする。
 JP_FONTS = ("ipagothic", "ipapgothic", "notosanscjkjp", "notosansjp",
             "vlgothic", "takaogothic", "wenquanyizenheimono", "unifontjp")
@@ -297,9 +310,9 @@ class View:
                 for f in side.fighters:
                     if not f.alive or self._row(f.spec) != row:
                         continue
-                    self._fighter(f, lane, row)
+                    self._fighter(f, lane, row, battle)
 
-    def _fighter(self, f: Fighter, lane: float, row: int) -> None:
+    def _fighter(self, f: Fighter, lane: float, row: int, battle: Battle) -> None:
         mine = f.side == 0
         flip = not mine                    # 敵は左を向く
         sprite = self.sprites.unit(f.spec, flip)
@@ -308,23 +321,35 @@ class View:
         feet = GROUND_Y - lift
         rect = sprite.get_rect(midbottom=(x, feet))
         team = GREEN if mine else RED
+        stunned = f.stun_left > 0          # 下がった直後。判定が消えている
+
+        # 下がった跡は本体より先に描く（下に敷く）。
+        if stunned:
+            self._knockback(f, lane, x, feet, battle)
 
         # 足元の楕円1枚。にゃんこ大戦争のやり方をそのまま採る（art/README.md 0章）。
         # 影を陣営の色で塗ると、同じ絵でもどちら側かが一目で分かる。
+        # **硬直中は塗らずに輪郭だけにする** ―― 当たり判定が消えていることを、
+        # いちばん目に入る足元で言う。塗り＝「ここに立っている的」、
+        # 輪郭だけ＝「居るが、的ではない」。
         shadow = pygame.Surface((sprite.get_width(), 14), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow, (*team, 70), shadow.get_rect())
-        pygame.draw.ellipse(shadow, (*team, 150), shadow.get_rect(), 2)
+        if not stunned:
+            pygame.draw.ellipse(shadow, (*team, 70), shadow.get_rect())
+        pygame.draw.ellipse(shadow, (*(ACCENT if stunned else team), 150),
+                            shadow.get_rect(), 2)
         self.surface.blit(shadow, shadow.get_rect(center=(x, feet - 2)))
 
         if f.summon_left > 0:                      # 召喚演出のあいだは半透明
             sprite = sprite.copy()
             sprite.set_alpha(90)
+        elif stunned:                              # 硬直中は的ではない
+            sprite = sprite.copy()
+            sprite.set_alpha(KB_GHOST_ALPHA)
         self.surface.blit(sprite, rect)
 
         head = rect.top + self.sprites.unit_bbox(f.spec, flip).top
         if f.hp < f.spec.hp:
-            self._bar(pygame.Rect(x - 22, head - 9, 44, 4),
-                      f.hp / f.spec.hp, team, back=(18, 22, 27))
+            self._hp_bar(pygame.Rect(x - 22, head - 9, 44, 4), f, team, battle)
 
         # 振りかぶり。設計書7.5の「大きい一撃は発生0.6秒以上」を画面に出す。
         # ここが見えないと、見切りの読み合いが嘘になる（art/README.md 4章）。
@@ -342,8 +367,63 @@ class View:
             self._bar(pygame.Rect(x - 22, head - 17, 44, 5),
                       f.exposed_left / total, RED, back=(18, 22, 27))
 
-        if f.stun_left > 0:
-            pygame.draw.circle(self.surface, GOLD, (x, head - 24), 3)
+        # **「いま無敵」。** 硬直中の0.4秒は殴られず、敵の足も止めない
+        # （`Fighter.hittable`）。足元の輪郭と半透明だけだと「そういう絵柄」に
+        # も見えるので、短い言葉で言い切る。
+        if stunned:
+            self._text("無敵", self.f_small, ACCENT, (x, head - 28), center=True)
+
+    def _hp_bar(self, rect: pygame.Rect, f: Fighter, team, battle: Battle) -> None:
+        """体力の棒。**ノックバックの区切りを線で入れる。**
+
+        後退は「体力を kb 個に割った区切りを跨いだ瞬間」に起きる（設計書2.11）。
+        つまりこの線は *次にどこで下がるか* の予定表そのもので、重い一撃が
+        区切りを2本まとめて食う（＝そこから先は下がらなくなる）様子も、
+        棒の減り方としてそのまま見える。
+
+        `kb` は**呪文のかかった後の実効値**を使う ―― 死守・踏破
+        （ノックバック×0）が効いているあいだは線が消えるので、
+        「いま押し戻せない相手」が形で分かる。
+        """
+        self._bar(rect, f.hp / f.spec.hp, team, back=(18, 22, 27))
+        side = battle.sides[f.side]
+        kb = side.stat("knockback", f.spec.knockback, f.spec.race)
+        if kb < 2:               # 1回＝跨ぐのは死ぬときだけ。線を引く意味が無い
+            return
+        for i in range(1, int(kb)):
+            at = rect.x + int(rect.w * i / kb)
+            pygame.draw.line(self.surface, (18, 22, 27),
+                             (at, rect.y), (at, rect.bottom - 1))
+
+    def _knockback(self, f: Fighter, lane: float, x: int, feet: int,
+                   battle: Battle) -> None:
+        """**「いま下がった」を出す。**
+
+        後退そのものは20m ―― 画面では78pxで、キャラの絵より狭い。位置の変化
+        だけでは事件に見えないので、**どこから下がったか**を跡で残す。
+        跡の長さがそのまま失った20mで、硬直の0.4秒のあいだ薄れながら消える。
+
+        **View がフレームをまたぐ状態を持たない**という約束は守っている ――
+        起点は `x + 向き × 後退距離` として盤面から出る。硬直中は動かない
+        （`Battle.step_fighter` が stun 中はそこで返す）ので、この値は
+        硬直のあいだ固定される。
+        """
+        origin = self.px(
+            max(0.0, min(lane, f.x + f.facing * battle.kb_distance)), lane)
+        fade = max(0.0, min(1.0, f.stun_left / max(battle.kb_stun, 1e-6)))
+        left, right = min(origin, x), max(origin, x)
+        width = max(2, right - left)
+
+        trail = pygame.Surface((width, KB_TRAIL_H), pygame.SRCALPHA)
+        alpha = int(KB_TRAIL_ALPHA * fade)
+        # 横線を数本。密集していても「後ろに引かれた」向きだけは読める。
+        for y in (10, 18, 26):
+            pygame.draw.line(trail, (*ACCENT, alpha // 2), (0, y), (width - 1, y))
+        # 起点の印 ―― 「ここに居た」。跡の端に立てる。
+        tick = 0 if origin <= x else width - 1
+        pygame.draw.line(trail, (*ACCENT, alpha),
+                         (tick, 2), (tick, KB_TRAIL_H - 2), 2)
+        self.surface.blit(trail, (left, feet - KB_TRAIL_H - 2))
 
     # -------------------------------------------------------------- 壁の一撃
     def _base_hits(self, battle: Battle) -> None:
