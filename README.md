@@ -19,7 +19,7 @@ $ python3 game/tools/balance.py                   # 試合そのものを測る�
 $ python3 game/tools/art_brief.py                 # 作画の依頼書（13章）
 $ python3 game/tools/build_web.py                 # Web版を焼き直す（data を触ったら）
 $ python3 game/tools/conform.py                   # Python と JS が一致しているか
-$ python3 -m unittest discover -s game/tests -t . # 80件
+$ python3 -m unittest discover -s game/tests -t . # 81件
 ```
 
 | どこに | 何が |
@@ -32,7 +32,7 @@ $ python3 -m unittest discover -s game/tests -t . # 80件
 | `game/web/` | Web版（engine と試遊版の JS 移植。**依存なし**） |
 | `game/tools/` | 検算器・**バランス計測器**・仮絵の生成器・Web版の焼き込み・一致試験（どれも依存なし） |
 | `game/art/` | アート指針・パレット・仮絵・**作画依頼書**（`BRIEF.md`） |
-| `game/tests/` | 80件（標準ライブラリのみ） |
+| `game/tests/` | 81件（標準ライブラリのみ） |
 
 **実装は2つある**（Python と JS）。ずれると意味がないので、`conform.py` が
 両方で同じ試合を回し、0.5秒ごとの盤面を**浮動小数点のビット単位**で突き合わせる。

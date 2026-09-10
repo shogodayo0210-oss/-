@@ -343,6 +343,34 @@ class TestSpawnSeq(unittest.TestCase):
         self.assertEqual([f.spawn_seq for f in side.fighters], [1, 2])
 
 
+class TestFighterMoving(unittest.TestCase):
+    """`Fighter.moving`（見た目専用）は、実際に前進したtickだけ True になる。
+
+    歩行コマ（walk1/walk2、art/README.md 4章）の切り替えに使うフラグ ――
+    召喚演出中・振りかぶり中は False でなければ、待機コマの上で脚が
+    動いて見えてしまう。
+    """
+
+    def test_moving_true_only_while_actually_advancing(self):
+        bt = battle(money=1000)
+        side = bt.sides[0]
+        self.assertTrue(bt.deploy(side, "grunt"))
+        fighter = side.fighters[0]
+
+        while fighter.summon_left > 0:     # 召喚演出のあいだはまだ動かない
+            bt.step()
+        self.assertFalse(fighter.moving)
+
+        start_x = fighter.x
+        bt.step()                          # 演出明け、間合いに入るまでは前進する
+        self.assertTrue(fighter.moving)
+        self.assertGreater(fighter.x, start_x)
+
+        fighter.windup_left = 0.5          # 振りかぶり中はもう前進しない
+        bt.step()
+        self.assertFalse(fighter.moving)
+
+
 class TestKnockbackIntangibility(unittest.TestCase):
     """**ノックバック中は当たり判定が消える。**
 

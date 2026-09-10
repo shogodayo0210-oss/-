@@ -127,16 +127,26 @@ def _cost_scales(game) -> dict[str, float]:
             for u in units}
 
 
-ANIM_STATES = ("idle", "windup", "hit", "recover")
+ANIM_STATES = ("idle", "idle2", "windup", "hit", "recover", "walk1", "walk2")
+
+# 歩行コマの切り替え間隔（2コマの往復＝1サイクル）。基準速度 `_WALK_REF_SPEED`
+# のときにこの秒数で1サイクル ―― 実際の間隔はユニットの speed_mps に反比例させる
+# （足の速いユニットほど脚の入れ替えも速く見えるように。art/README.md 7章）。
+_WALK_CYCLE_REF_SEC = 0.30
+_WALK_REF_SPEED = 8.0
+# 待機コマ（呼吸）の切り替え間隔。攻撃頻度とは無関係の、常に一定のゆっくりした周期。
+_IDLE_BREATH_SEC = 1.4
 
 
-def _anim_state(f: Fighter) -> str:
-    """いまの攻撃モーションのコマ。View自身は状態を持たないので、
-    毎フレーム Fighter の残り時間（battle.py）から出し直す。
+def _anim_state(f: Fighter, t: float = 0.0) -> str:
+    """いまの見た目のコマ。View自身は状態を持たないので、毎フレーム
+    Fighter の残り時間（battle.py）と現在時刻 `t`（battle.t）から出し直す。
 
     振りかぶり中は windup。当たった直後（`exposed_left`＝後隙）の頭の
-    ごく短い間だけ hit、残りは recover ―― 攻撃発生・後隙のどちらも
-    絵が無いユニットは idle のままで、Sprites 側が自動でそこへ落ちる。
+    ごく短い間だけ hit、残りは recover。攻撃していないときは、実際に
+    前進しているか（`Fighter.moving`）で歩行 walk1/walk2 か待機 idle/idle2
+    かを分け、それぞれ一定周期で2コマを往復させる ―― どのコマも絵が
+    無いユニットは idle のままで、Sprites 側が自動でそこへ落ちる。
     """
     if f.windup_left > 0:
         return "windup"
@@ -144,7 +154,11 @@ def _anim_state(f: Fighter) -> str:
         recover_sec = f.spec.attack_recover_sec or f.exposed_left
         hit_sec = min(0.1, recover_sec * 0.3)
         return "hit" if f.exposed_left > max(0.0, recover_sec - hit_sec) else "recover"
-    return "idle"
+    if getattr(f, "moving", False):
+        speed = max(f.spec.speed_mps, 0.1)
+        cycle = _WALK_CYCLE_REF_SEC * (_WALK_REF_SPEED / speed)
+        return "walk2" if int(t / cycle) % 2 else "walk1"
+    return "idle2" if int(t / _IDLE_BREATH_SEC) % 2 else "idle"
 
 
 class Sprites:
@@ -407,12 +421,12 @@ class View:
             ]
             entries.sort(key=lambda e: e[0])
             for _, f in entries:
-                self._fighter(f, lane, row)
+                self._fighter(f, lane, row, battle.t)
 
-    def _fighter(self, f: Fighter, lane: float, row: int) -> None:
+    def _fighter(self, f: Fighter, lane: float, row: int, t: float = 0.0) -> None:
         mine = f.side == 0
         flip = not mine                    # 敵は左を向く
-        state = _anim_state(f)
+        state = _anim_state(f, t)
         sprite = self.sprites.unit(f.spec, flip, state)
         lift = row * 14
         x = self.px(f.x, lane)

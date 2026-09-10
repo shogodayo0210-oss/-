@@ -195,6 +195,9 @@ class Fighter {
     this.lifespan_left = lifespanLeft === undefined ? Infinity : lifespanLeft;
     // 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawnSeq）。
     this.spawn_seq = spawnSeq === undefined ? 0 : spawnSeq;
+    // 見た目専用。このtickで実際に前進したか（battle.py と同じ、spawn_seq 同様
+    // シミュレーションには触れない）。stepFighter が毎tick立て直す。
+    this.moving = false;
   }
 
   get alive() { return this.hp > 0; }
@@ -739,6 +742,9 @@ class Battle {
     const side = this.sides[fighter.side];
     const dt = this.tick;
 
+    // 見た目専用のリセット。実際に進んだ場合だけ末尾の分岐が立て直す。
+    fighter.moving = false;
+
     // **後隙は実時間で抜ける。** 押し戻されても気絶しても同じだけ流れる。
     if (fighter.exposed_left > 0) fighter.exposed_left -= dt;
 
@@ -771,6 +777,7 @@ class Battle {
     const speed = side.stat('speed', fighter.spec.speed_mps, fighter.spec.race);
     const moved = fighter.x + fighter.facing * speed * dt;
     fighter.x = Math.max(0.0, Math.min(this.game.laneLength, moved));
+    fighter.moving = true;
   }
 
   // ---------------------------------------------------------------- 進行

@@ -137,6 +137,10 @@ class Fighter:
     lifespan_left: float = math.inf
     # 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawn_seq）。
     spawn_seq: int = 0
+    # **見た目専用。** このtickで実際に前進したか（歩行コマの切り替えに使う）。
+    # `step_fighter` の冒頭で毎tick False に戻し、移動した分岐でだけ True にする
+    # ―― spawn_seq と同じく、シミュレーションにもconform.pyの指紋にも触れない。
+    moving: bool = False
 
     @property
     def alive(self) -> bool:
@@ -787,6 +791,10 @@ class Battle:
         side = self.sides[fighter.side]
         dt = self.tick
 
+        # 見た目専用のリセット。今回のtickで実際に進んだ場合だけ、
+        # 末尾の移動分岐が改めて True に立てる。
+        fighter.moving = False
+
         # **後隙は実時間で抜ける。** ノックバックされようが気絶させられようが、
         # 振り切った直後の時間は同じだけ流れる ―― 状態で伸び縮みさせると、
         # 「押し戻して後隙を伸ばす」という読みようのない挙動が生まれる。
@@ -835,6 +843,7 @@ class Battle:
         speed = side.stat("speed", fighter.spec.speed_mps, fighter.spec.race)
         moved = fighter.x + fighter.facing * speed * dt
         fighter.x = max(0.0, min(self.game.lane_length, moved))
+        fighter.moving = True
 
     # ------------------------------------------------------------------ 進行
     def step(self) -> None:
