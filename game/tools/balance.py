@@ -273,10 +273,35 @@ def main(argv=None) -> int:
     parser.add_argument("--hard-stop", type=float, dest="hard_stop",
                         help="安全弁の秒数を上書きして測る")
     args = parser.parse_args(argv)
-    if args.rosters < 0:
-        parser.error("--rosters must be non-negative")
 
-    game = tweak(load(), args.lane, args.cap, args.limit, args.hard_stop)
+    # **ありえない盤面を、入口で断る。**
+    #
+    # ここは設計の判断が乗っている数字を出す道具なので、*黙って測ってしまう*
+    # のが一番まずい ―― `--lane -5` は前線が届くはずのない盤面で
+    # 「前線が相手陣まで届いていない」と判定を出し、`--cap 0` は誰も出せない
+    # 盤面で「傷ついた拠点という状態が存在していない」と出す。どちらも
+    # *文面としては正しい* ので、指定の誤りだと気づけない。
+    # 落ちるほう（`--lane 0` と `--matches 0` はゼロ除算）はまだ親切なほう。
+    for name, value, least in (("--matches", args.matches, 1),
+                               ("--rosters", args.rosters, 0),
+                               ("--lane", args.lane, None),
+                               ("--cap", args.cap, 1),
+                               ("--limit", args.limit, None),
+                               ("--hard-stop", args.hard_stop, None)):
+        if value is None:
+            continue
+        if least is None:            # 秒数と長さは正であればよい
+            if value <= 0:
+                parser.error(f"{name} must be positive")
+        elif value < least:
+            parser.error(f"{name} must be at least {least}")
+
+    try:
+        game = tweak(load(), args.lane, args.cap, args.limit, args.hard_stop)
+    except ValueError as e:
+        # 寸法どうしの矛盾（雷 ≧ 安全弁 など）も使い方の誤りなので、
+        # トレースバックではなく使い方として出す。
+        parser.error(str(e))
     names = sorted(PRESETS)
     rows = []
     if args.rosters:

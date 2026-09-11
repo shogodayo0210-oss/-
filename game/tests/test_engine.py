@@ -3,6 +3,8 @@
     python3 -m unittest discover -s game/tests -t .
 """
 
+import contextlib
+import io
 import unittest
 
 from game.engine.battle import Battle, Effect, Fighter, Loadout, Result
@@ -10,7 +12,7 @@ from game.engine.data import load
 from game.engine.draft import draw_random_slots, match_seed, pick_template
 from game.engine.policy import POLICIES
 from game.engine.presets import trial_roster
-from game.tools import validate
+from game.tools import balance, validate
 
 
 GAME = load()
@@ -1022,6 +1024,29 @@ class TestData(unittest.TestCase):
         reachable = validate.money_at(GAME, deadline)
         for trump in GAME.trumps.values():
             self.assertLessEqual(trump.cost, reachable, trump.name)
+
+
+class MeasuringTool(unittest.TestCase):
+    """`balance.py` は設計の判断が乗っている数字を出す道具なので、
+    **ありえない盤面を黙って測らない**ことまで含めて回帰試験に入れる。"""
+
+    def test_impossible_boards_are_refused(self):
+        """`--lane -5` は「前線が届いていない」、`--cap 0` は「傷ついた拠点が
+        無い」と、*文面としては正しい判定*を返してしまう ―― 指定の誤りだと
+        気づけないのが一番まずい。落ちるほう（ゼロ除算）はまだ親切なほう。"""
+        for argv in (["--lane", "0"], ["--lane", "-5"], ["--cap", "0"],
+                     ["--matches", "0"], ["--rosters", "-1"],
+                     ["--limit", "-3"], ["--limit", "99999"],
+                     ["--hard-stop", "10"]):
+            with self.subTest(argv=argv):
+                said = io.StringIO()          # argparse は stderr に書く
+                with contextlib.redirect_stderr(said):
+                    with self.assertRaises(SystemExit) as caught:
+                        balance.main(argv)
+                # argparse の使い方エラー。トレースバックではなく終了コード2。
+                self.assertEqual(caught.exception.code, 2)
+                # どの指定が悪いのかが言われていること。
+                self.assertIn(argv[0], said.getvalue())
 
 
 if __name__ == "__main__":
