@@ -95,16 +95,19 @@ def setup(game, enemy: str, match_id: str, mirror: bool) -> dict:
         "match_id": match_id, "enemy": enemy, "mirror": mirror,
         "a": {"avatar": player.avatar, "roster": list(player.roster),
               "brought": player.brought, "trump": player.trump,
+              "stock_seed": player.stock_seed,
               "stock": stock_sequence(game, player.stock_seed, 96)},
         "b": {"avatar": foe.avatar, "roster": list(foe.roster),
               "brought": foe.brought, "trump": foe.trump,
+              "stock_seed": foe.stock_seed,
               "stock": stock_sequence(game, foe.stock_seed, 96)},
     }
 
 
 def loadout_of(spec: dict) -> Loadout:
     return Loadout(avatar=spec["avatar"], roster=tuple(spec["roster"]),
-                   brought=spec["brought"], trump=spec["trump"])
+                   brought=spec["brought"], trump=spec["trump"],
+                   stock_seed=spec["stock_seed"])
 
 
 def run_python(game, plan: dict, policy_a: str) -> list[list[str]]:
@@ -178,6 +181,7 @@ for (const job of jobs.plans) {
   const mk = spec => ({
     avatar: spec.avatar, roster: spec.roster,
     brought: spec.brought, trump: spec.trump,
+    stock_seed: spec.stock_seed,
   });
   const battle = new ENGINE.Battle(
     game, mk(job.plan.a), mk(job.plan.b),

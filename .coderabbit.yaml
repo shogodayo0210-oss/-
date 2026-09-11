@@ -1,0 +1,58 @@
+# CodeRabbit 設定。
+#
+# このリポジトリは Claude Code で書いている（PRの説明文にセッションURLが入る）。
+# 「自分で書いたAIに自分でレビューさせる」を避けるため、別系統のレビューとして
+# CodeRabbit を1つ挟む。GitHub App を有効化すれば、この設定が自動で効く。
+#
+# フィールド名は CodeRabbit 側の仕様変更で変わることがあるので、
+# 有効化する前に https://docs.coderabbit.ai/ で最新のキーを確認すること。
+
+language: "ja-JP"
+
+reviews:
+  profile: "assertive"          # 甘口(chill)ではなく辛口。二段構え（AI→人間）の一段目を弱くしない
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false                # draft PR（このリポジトリはPRをdraftで作る運用）ではレビューしない
+
+  # ── ノイズになるパスを抑制 ──────────────────────────────────
+  # 生成物・焼き込み済みファイルは「人が書いたロジック」ではないので、
+  # ここにコメントが付いても直しようがない（元の生成器を直すのが正しい）。
+  path_filters:
+    - "!game/web/out/**"        # build_web.py が焼き込む1枚もののHTML。差分の9割がdata:URI
+    - "!game/art/out/**"        # sprites.py が生成する仮ドット絵（PNG）
+    - "!game/art/BRIEF.md"      # art_brief.py の自動生成。「直接編集しない」と冒頭に明記されている
+
+  # ── パスごとの注意点 ─────────────────────────────────────
+  # このリポジトリ最大のレビューリスクは「Python engine と JS engine が
+  # 見た目は独立でも、片方だけ直して conform.py の一致が壊れる」こと。
+  path_instructions:
+    - path: "game/engine/**"
+      instructions: >
+        決定論的なシミュレータ。挙動を変える変更（新しい状態・新しい計算順序）が
+        あれば、対応する game/web/engine.js に同じ変更が入っているか、
+        PRの説明で「conform.py で一致確認済み」と述べられているかを確認すること。
+        表示専用の付随データ（画面のためだけの直近イベント等）は対象外でよい。
+    - path: "game/web/engine.js"
+      instructions: >
+        game/engine/battle.py の移植。Python 側に同じ変更が無いまま
+        この行だけを直しているように見えたら指摘すること。
+    - path: "game/data/*.json"
+      instructions: >
+        数値変更は game/tools/validate.py が定める約束（README.md 8〜9章）に
+        違反していないかを確認する。可能なら validate.py / balance.py の
+        実行結果がPRの説明に含まれているかも見ること。
+    - path: "game/tests/**"
+      instructions: >
+        既存テストを削除・skip・条件緩和する変更は、理由がPRの説明に
+        明記されていない限り強く指摘すること。
+
+  tone_instructions: >
+    このプロジェクトの日本語ドキュメントは「である」調で理由を先に書くスタイル。
+    レビューコメントも簡潔に、根拠（どの規約・どのテストに反するか）を添えて書く。
+
+chat:
+  auto_reply: true

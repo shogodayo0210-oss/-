@@ -574,15 +574,16 @@ def check_field(game: GameData, report: Report) -> None:
                  f"field: {longest.name} の射程 {longest.far}m が"
                  f"上限 {reach:.0f}m を超える")
 
-    # 一番遅いキャラでも、試合時間のうちにレーンを渡りきれること。
+    # **一番遅いキャラでも、雷が降り始めるまでにレーンを渡りきれること。**
     # 渡りきれない足があると、そのキャラは「前線が上がってから出す札」しか
-    # 名乗れず、序盤の択から丸ごと外れる。
+    # 名乗れず、序盤の択から丸ごと外れる。サドンデス（180秒）を物差しにする
+    # のは、そこから先は盤面が壊されるので歩ききっても意味が薄いから。
     slowest = min(game.units.values(), key=lambda u: u.speed_mps)
     crossing = lane / slowest.speed_mps
-    report.check(crossing <= game.time_limit * 0.5,
+    report.check(crossing <= game.time_limit,
                  f"field: 最も遅い {slowest.name}（速度 {slowest.speed_mps}）は"
                  f"レーン {lane:.0f}m を渡るのに {crossing:.0f}秒 かかり、"
-                 f"試合 {game.time_limit:.0f}秒 の半分を超える")
+                 f"雷が降り始める {game.time_limit:.0f}秒 に間に合わない")
 
 
 def duel(game: GameData, a: Unit, b: Unit, seconds: float = 60.0) -> int | None:
@@ -677,6 +678,61 @@ def check_duels(game: GameData, report: Report) -> list[str]:
         "**傾向として**高いほうが勝たないと、高いキャラを出す理由が消える ―― "
         "妨害や支援で値段ぶんの仕事をするキャラは、特性を持たせて外に置くこと")
     return lost
+
+
+def check_sudden_death(game: GameData, report: Report) -> None:
+    """**時計で裁くのをやめた代わりの装置**が、意図どおり効く形になっているか。
+
+    時間切れで与ダメージ割合を比べていた頃は、押し合いが固まったときに
+    両者無傷の0対0を量産していた（実測で50%）。いまは3分を過ぎたら雷が降り、
+    落ちた範囲のユニットは敵味方の区別なく倒れる。
+
+    縛るのは4つ ―― **通り道が残ること**、**予告が読めること**、
+    **安全弁が本当に後ろにあること**、**配布が雷より先に終わること**。
+    """
+    bolt = game.sudden_death
+    lane = game.lane_length
+    storm_at = game.time_limit
+
+    # ① 通り道が残る。半径が大きすぎると、雷が押し合いを壊すのではなく
+    #    **前進そのものを禁止する** ―― 実測で、レーンを覆う半径にしたら
+    #    誰も敵拠点まで歩けず900秒の安全弁まで0対0のままだった。
+    span = bolt["radius_max_m"] * 2
+    report.check(span <= lane / 3.0 + 1e-9,
+                 f"sudden_death: 雷の直径 {span:.0f}m がレーン {lane:.0f}m の"
+                 "1/3 を超える。**通り道が残らない** ―― 全部が死に続ける盤面では"
+                 "誰も敵拠点まで歩けず、雷が決着を早めるどころか妨げる")
+    report.check(bolt["radius_m"] <= bolt["radius_max_m"],
+                 "sudden_death: 初期半径が上限を超えている")
+
+    # ② 予告が読める。設計書7.5の「大きい一撃は必ず読める」を雷にも掛ける。
+    reaction = game.readability["human_reaction_sec"]
+    report.check(bolt["warn_sec"] >= reaction,
+                 f"sudden_death: 予告 {bolt['warn_sec']}秒 が"
+                 f"人の反応 {reaction}秒 より短い。"
+                 "予告なしに全滅させる装置は、読み合いではなく事故になる")
+
+    # ③ 安全弁は本当に後ろにある。ここは勝敗の仕組みではない。
+    report.check(game.hard_stop > storm_at,
+                 f"victory: 安全弁 {game.hard_stop:.0f}秒 が"
+                 f"雷の開始 {storm_at:.0f}秒 より前にある")
+
+    # ④ 配布は雷より先に終わる。そこから先は資金の勝負ではなく、
+    #    壊れた盤面を先に立て直す勝負になるので。
+    for drop in game.economy.get("milestones", []):
+        report.check(drop["at_sec"] < storm_at,
+                     f"milestones: {drop['at_sec']}秒 の配布が"
+                     f"雷の開始 {storm_at:.0f}秒 より後にある")
+
+    # ⑤ 呪文の回数。切り札（1回）より多く、ストックの枠より少なくない。
+    casts = game.casts_per_match
+    slots = game.card_rules["stock_slots"]
+    report.check(casts >= game.trump_rules["uses_per_match"],
+                 f"cards: 1試合に撃てる呪文 {casts}回 が切り札の回数より少ない")
+    report.check(casts <= slots + game.card_rules["brought"],
+                 f"cards: 1試合に撃てる呪文 {casts}回 が"
+                 f"手に持てる枚数 {slots + game.card_rules['brought']} を超える。"
+                 "回数で縛る意味が出るのは、持っている札より少ないとき")
 
 
 def check_siege(game: GameData, report: Report) -> None:
@@ -1088,6 +1144,7 @@ def main() -> int:
     check_traits(game, report)
     check_field(game, report)
     check_siege(game, report)
+    check_sudden_death(game, report)
     duel_losses = check_duels(game, report)
     check_roster_size(game, report)
     check_milestones(game, report)

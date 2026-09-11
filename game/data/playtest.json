@@ -1,0 +1,50 @@
+{
+  "_note": "塊A-4／A-5 の判定基準（ROADMAP.md『判定のしかた』）。出どころはこの1枚で、工程表も画面もここを指す ―― 数字と説明を両方持つと必ずどちらかがズレるので（DPS を data に持たせないのと同じ理由）。",
+  "_why_here": "「面白い」は測れないので、代わりに数えられるものを数える。**先に決めておくのが肝**で、遊んだ後に基準を作ると必ず自分に甘くなる。だから基準は試遊版の外側、触りにくいところに置いてある。",
+  "window": 10,
+  "_window_note": "直近この試合数で判定する。工程表の『10試合中』がこれ。",
+  "fail_limit": 3,
+  "_fail_limit_note": "これだけの本数が線を割ったら、塊Bに進まない。ルールを直して塊Aをやり直す ―― ここで1ヶ月使うほうが、後で6ヶ月失うより安い。",
+  "criteria": [
+    {
+      "id": "again",
+      "label": "もう1回を押した",
+      "asks": "machine",
+      "aggregate": "count",
+      "compare": "at_least",
+      "line": 7,
+      "unit": "試合",
+      "note": "決着したあと、続けてもう1試合始めたか。閉じた試合は数えない"
+    },
+    {
+      "id": "next_time",
+      "label": "「次はこうしよう」と思った",
+      "asks": "human",
+      "aggregate": "mean",
+      "compare": "at_least",
+      "line": 1,
+      "unit": "回/試合",
+      "note": "1試合あたりの回数。試合中に手が思い浮かんだ回数を、終わった直後に答える"
+    },
+    {
+      "id": "unread",
+      "label": "最後まで結果が読めなかった",
+      "asks": "human",
+      "aggregate": "count",
+      "compare": "at_least",
+      "line": 4,
+      "unit": "試合",
+      "note": "途中で勝敗が見えてしまった試合は数えない"
+    },
+    {
+      "id": "sped_up",
+      "label": "退屈して速度を上げた",
+      "asks": "machine",
+      "aggregate": "count",
+      "compare": "at_most",
+      "line": 3,
+      "unit": "試合",
+      "note": "試合中に×1より速くした試合。決着後に速くしても数えない"
+    }
+  ]
+}

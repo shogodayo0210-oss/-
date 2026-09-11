@@ -24,19 +24,21 @@ ART = Path(__file__).resolve().parent.parent / "art"
 # ---------------------------------------------------------------- 画面の寸法
 # にゃんこ大戦争と同じ並び ―― 上が戦場、下が操作盤。
 # 操作盤は2段：**呪文を選ぶところ**と、**キャラを召喚するところ**。
-W, H = 1140, 712
-GROUND_Y = 380          # ユニットが立つ線
-HUD_Y = 412             # ここから下が操作盤
-SPELL_Y = 418           # 呪文の段。札には効果の説明まで載せるので背を高くしてある
-SUMMON_Y = 548          # 資金と召喚の段
+W, H = 1320, 792
+GROUND_Y = 460          # ユニットが立つ線。旧380から拡張 ―― 戦場をもっと広く
+HUD_Y = 492             # ここから下が操作盤
+SPELL_Y = 498           # 呪文の段。札には効果の説明まで載せるので背を高くしてある
+SUMMON_Y = 628          # 資金と召喚の段
 LANE_LEFT, LANE_RIGHT = 100, W - 100
 
-UNIT_PX = 48            # art/README.md 1章の実寸
-AVATAR_PX = 64
-# 等倍だと画面に対して小さすぎる。art/README.md 1章の「等倍〜2倍、
-# 画面高さのおよそ1/6」に合わせて2倍で出す。補間しない scale を使うので
-# ドットは潰れない。
-SCALE = 2
+# 画面上の高さ（見た目の大きさ）をここで決める。**元絵の解像度は問わない。**
+# 48pxのドット絵でも、もっと大きい塗り絵調の絵でも、読み込んだ絵の実寸に
+# 合わせて高さがここに来るよう縮尺をかける ―― art/README.md 1章の
+# 「画面高さのおよそ1/6」がユニット、拠点はその1.3倍という目安（旧: 48px/64pxを
+# 2倍表示していたのと同じ見た目の大きさ）。元絵が変わってもレーンの密度や
+# HUDの寸法を触らずに済む。
+UNIT_TARGET_H = 96
+AVATAR_TARGET_H = 128
 
 # ---------------------------------------------------------------- 色
 # art/palette.json と同じ出どころ。種族ごとの色はそちらが持つ。
@@ -51,6 +53,28 @@ ACCENT = (62, 202, 217)
 GOLD = (224, 170, 70)
 GREEN = (79, 161, 150)
 RED = (226, 98, 47)
+BUFF = (94, 156, 224)   # 呪文フラッシュの「バフ」側。デバフは既存の RED を使い回す
+
+# 伝言1：数字はもう合っているが、何が起きたかが画面から伝わっていなかった。
+# 3つとも仮の四角・テキストでいい代わりに、**エンジン側の直近イベント
+# （Battle.base_hits / level_ups / cast_effects）だけを見て描く** ――
+# View 自身はフレームをまたぐ状態を持たない、という元々の約束を守るため。
+TRAINING_POPUP_SEC = 1.2     # 「財布 LvUP！」を出しておく秒数
+WALL_LABEL_SEC = 0.6         # 「WALL」表示を出しておく秒数
+CAST_FLASH_SEC = 0.25        # 画面端フラッシュの長さ
+
+# 伝言2：**ノックバックが目で分からなかった**（設計書2.11・14章「まだ無いもの」）。
+# 後退は20m ―― 画面では93px。**同じ93pxが、巨兵には7.1秒で斥候鼠には2.1秒**で、
+# 見た目が同じなのに払うものが3倍以上ちがう（巨兵に至っては体幅104pxに届かない）。
+# 位置が変わったことだけを見せても、事件の大きさは伝わらない。
+#
+# だから距離ではなく2つを描く ―― **どこから下がったか**（跡）と、
+# **判定が消えていること**（`Fighter.hittable`。殴られず、すり抜けられる）。
+# 色は盤面で他に使っていない ACCENT に寄せる。金＝振りかぶり「来るぞ」、
+# 赤＝後隙「いまなら通る」に対して、水色＝**「いま的ではない」**。
+KB_TRAIL_ALPHA = 165         # 下がった跡の濃さ。硬直の残り時間ぶん薄くなる
+KB_TRAIL_H = 34              # 跡の高さ（足元から）
+KB_GHOST_ALPHA = 110         # 硬直中の本体。透けているのが「的ではない」の意
 
 # 日本語が出るフォントを順に探す。無ければ pygame の既定にする。
 JP_FONTS = ("ipagothic", "ipapgothic", "notosanscjkjp", "notosansjp",
@@ -81,38 +105,143 @@ def _race_colors() -> dict[str, tuple[int, int, int]]:
     return {name: rgb(ramp["base"]) for name, ramp in raw.items()}
 
 
-class Sprites:
-    """PNG を読んで、向きごとに使い回す。"""
+def _art_scales() -> dict[str, float]:
+    """art/looks.json の任意項目 `art_scale`。表示だけの縮尺の掛け目（既定1.0）。
 
-    def __init__(self):
-        self._cache: dict[tuple[str, bool], tuple[pygame.Surface, pygame.Rect]] = {}
+    ゲームの数字（characters.json）には一切触れない ―― DPS と同じ理由で、
+    見た目の調整と data を混ぜない。下の `_cost_scales` と掛け合わさる
+    （コストなりの大きさに対する**追加の**微調整という位置づけ）。
+    """
+    with open(ART / "looks.json", encoding="utf-8") as f:
+        raw = json.load(f)["units"]
+    return {uid: entry.get("art_scale", 1.0) for uid, entry in raw.items()}
+
+
+COST_SCALE_MIN, COST_SCALE_MAX = 0.7, 1.3
+
+
+def _cost_scales(game) -> dict[str, float]:
+    """コストが高いほど大きく見せる ―― art/README.md 3章
+    「コストが高い＝大きい。キャンバスを埋める」を実際の描画に適用する。
+
+    生の cost をそのまま比例させると、安いユニットが大半を占める分布の下では
+    高コスト側だけが伸びてしまう。art_brief.py の `Scale` と同じ、
+    ロースター内の**順位**（percentile）で正規化する。
+    """
+    units = list(game.units.values())
+    costs = sorted(u.cost for u in units)
+    denom = max(len(costs) - 1, 1)
+
+    def rank(cost: int) -> float:
+        below = sum(1 for c in costs if c < cost)
+        return below / denom
+
+    return {u.id: COST_SCALE_MIN + rank(u.cost) * (COST_SCALE_MAX - COST_SCALE_MIN)
+            for u in units}
+
+
+ANIM_STATES = ("idle", "idle2", "windup", "hit", "recover",
+               "walk1", "walk2", "walk3", "walk4", "walk5", "walk6")
+
+# 歩行コマは walk1→walk2→…→walkN→walk1 の順に巡回する（発注シートの並び
+# そのまま。art/README.md 7章）。1コマぶんの表示時間は基準速度
+# `_WALK_REF_SPEED` のときにこの秒数 ―― 実際の間隔はユニットの speed_mps に
+# 反比例させる（足の速いユニットほど脚の入れ替えも速く見えるように）。
+_WALK_FRAME_COUNT = 6
+_WALK_FRAME_HOLD_SEC = 0.12
+_WALK_REF_SPEED = 8.0
+# 待機コマ（呼吸）の切り替え間隔。攻撃頻度とは無関係の、常に一定のゆっくりした周期。
+_IDLE_BREATH_SEC = 1.4
+
+
+def _anim_state(f: Fighter, t: float = 0.0) -> str:
+    """いまの見た目のコマ。View自身は状態を持たないので、毎フレーム
+    Fighter の残り時間（battle.py）と現在時刻 `t`（battle.t）から出し直す。
+
+    振りかぶり中は windup。当たった直後（`exposed_left`＝後隙）の頭の
+    ごく短い間だけ hit、残りは recover。攻撃していないときは、実際に
+    前進しているか（`Fighter.moving`）で歩行 walk1〜walk6 か待機 idle/idle2
+    かを分ける ―― 歩行は6コマを順に巡回、待機は2コマを往復させる。
+    どのコマも絵が無いユニットは idle のままで、Sprites 側が自動でそこへ落ちる。
+    """
+    if f.windup_left > 0:
+        return "windup"
+    if f.exposed_left > 0:
+        recover_sec = f.spec.attack_recover_sec or f.exposed_left
+        hit_sec = min(0.1, recover_sec * 0.3)
+        return "hit" if f.exposed_left > max(0.0, recover_sec - hit_sec) else "recover"
+    if getattr(f, "moving", False):
+        speed = max(f.spec.speed_mps, 0.1)
+        hold = _WALK_FRAME_HOLD_SEC * (_WALK_REF_SPEED / speed)
+        frame = int(t / hold) % _WALK_FRAME_COUNT
+        return f"walk{frame + 1}"
+    return "idle2" if int(t / _IDLE_BREATH_SEC) % 2 else "idle"
+
+
+class Sprites:
+    """PNG を読んで、向き・コマごとに使い回す。"""
+
+    def __init__(self, game):
+        self._cache: dict[tuple[str, bool, str], tuple[pygame.Surface, pygame.Rect]] = {}
         self._avatars: dict[str, pygame.Surface] = {}
         self._races = _race_colors()
+        self._art_overrides = _art_scales()
+        self._cost_scales = _cost_scales(game)
 
     @staticmethod
-    def _grow(surf: pygame.Surface) -> pygame.Surface:
-        return pygame.transform.scale(
-            surf, (surf.get_width() * SCALE, surf.get_height() * SCALE))
+    def _grow(surf: pygame.Surface, target_h: int) -> pygame.Surface:
+        """元絵の実寸に関わらず、高さが `target_h` に来るよう縦横同倍率で拡縮する。
 
-    def _entry(self, spec: Unit, flip: bool):
-        key = (spec.id, flip)
-        if key not in self._cache:
-            path = ART / "out" / "units" / f"{spec.id}.png"
-            surf = (pygame.image.load(str(path)).convert_alpha()
-                    if path.exists() else self._placeholder(spec))
-            surf = self._grow(surf)
-            if flip:
-                surf = pygame.transform.flip(surf, True, False)
-            # 48×48 の余白ぶんを覚えておく。絵の実体がどこから始まるかを
-            # 見ないと、体力の棒が頭の遥か上に浮く。
-            self._cache[key] = (surf, surf.get_bounding_rect())
-        return self._cache[key]
+        ドット絵（48px）が来ても、もっと高精細な絵が来ても同じ扱いにできる。
+        滑らかな `smoothscale` を使う ―― ドット絵前提の `scale`（最近傍・
+        カクカクのまま拡大）は、階調のある絵だと縁がギザギザになる。
+        """
+        h = surf.get_height()
+        if h <= 0:
+            return surf
+        ratio = target_h / h
+        size = (max(1, round(surf.get_width() * ratio)), target_h)
+        return pygame.transform.smoothscale(surf, size)
 
-    def unit(self, spec: Unit, flip: bool) -> pygame.Surface:
-        return self._entry(spec, flip)[0]
+    @staticmethod
+    def _path(unit_id: str, state: str) -> Path:
+        # 待機は昔からの `{id}.png`。他のコマだけ `_windup` 等の接尾辞 ――
+        # 攻撃コマを持たないユニットが大半なので、待機だけは無条件に
+        # 同じファイル名で読めるようにしておく（過去の絵と互換）。
+        suffix = "" if state == "idle" else f"_{state}"
+        return ART / "out" / "units" / f"{unit_id}{suffix}.png"
 
-    def unit_bbox(self, spec: Unit, flip: bool) -> pygame.Rect:
-        return self._entry(spec, flip)[1]
+    def _entry(self, spec: Unit, flip: bool, state: str = "idle"):
+        key = (spec.id, flip, state)
+        if key in self._cache:
+            return self._cache[key]
+        path = self._path(spec.id, state)
+        if path.exists():
+            surf = pygame.image.load(str(path)).convert_alpha()
+        elif state != "idle":
+            # このコマの絵が無ければ、待機の絵をそのまま使い回す
+            # （＝コマ送り機能があっても、絵が1枚だけのユニットは静止のまま）。
+            entry = self._entry(spec, flip, "idle")
+            self._cache[key] = entry
+            return entry
+        else:
+            surf = self._placeholder(spec)
+        scale = (self._cost_scales.get(spec.id, 1.0)
+                 * self._art_overrides.get(spec.id, 1.0))
+        surf = self._grow(surf, max(1, round(UNIT_TARGET_H * scale)))
+        if flip:
+            surf = pygame.transform.flip(surf, True, False)
+        # 元絵の余白ぶんを覚えておく。絵の実体がどこから始まるかを
+        # 見ないと、体力の棒が頭の遥か上に浮く。
+        entry = (surf, surf.get_bounding_rect())
+        self._cache[key] = entry
+        return entry
+
+    def unit(self, spec: Unit, flip: bool, state: str = "idle") -> pygame.Surface:
+        return self._entry(spec, flip, state)[0]
+
+    def unit_bbox(self, spec: Unit, flip: bool, state: str = "idle") -> pygame.Rect:
+        return self._entry(spec, flip, state)[1]
 
     def avatar(self, avatar_id: str, flip: bool) -> pygame.Surface | None:
         key = f"{avatar_id}:{flip}"
@@ -120,7 +249,8 @@ class Sprites:
             path = ART / "out" / "avatars" / f"{avatar_id}.png"
             if not path.exists():
                 return None
-            surf = self._grow(pygame.image.load(str(path)).convert_alpha())
+            surf = self._grow(pygame.image.load(str(path)).convert_alpha(),
+                              AVATAR_TARGET_H)
             self._avatars[key] = (pygame.transform.flip(surf, True, False)
                                   if flip else surf)
         return self._avatars[key]
@@ -179,7 +309,7 @@ class View:
     def __init__(self, surface: pygame.Surface, roster: tuple[Unit, ...], game):
         self.surface = surface
         self.game = game
-        self.sprites = Sprites()
+        self.sprites = Sprites(game)
         self.f_small = load_font(15)
         self.f_body = load_font(18)
         self.f_bold = load_font(20, bold=True)
@@ -260,6 +390,17 @@ class View:
             self._text(f"{metre}m", self.f_small, (86, 100, 114),
                        (x, GROUND_Y + 20), center=True)
 
+        # **落雷の予告。** 落ちる位置が1.2秒前に見える（設計書1.2）――
+        # 予告なしに全滅させる装置だと、読み合いではなく事故になる。
+        for lands_at, where, radius in battle.pending:
+            left = self.px(where - radius, lane)
+            right = self.px(where + radius, lane)
+            close = 1.0 - max(0.0, lands_at - battle.t) / max(battle.storm_warn, 1e-6)
+            pygame.draw.rect(self.surface, RED,
+                             (left, GROUND_Y - 150, right - left, 150), 2)
+            self._bar(pygame.Rect(left, GROUND_Y - 158, right - left, 5),
+                      close, RED, back=(18, 22, 27))
+
         for side in battle.sides:
             sprite = self.sprites.avatar(side.loadout.avatar, flip=side.index == 1)
             x = self.px(side.base_x, lane)
@@ -269,42 +410,75 @@ class View:
                 pygame.draw.rect(self.surface, MUTED,
                                  (x - 24, GROUND_Y - 96, 48, 96))
 
+    @staticmethod
+    def _depth_key(side: int, spawn_seq: int) -> int:
+        """出撃時の位置から、重なったときの前後を決める。
+
+        `Fighter.spawn_seq` は出撃した順に振られ、一生変わらない
+        （`Side._spawn_seq`、`battle.py`）。**配列の添字は使わない** ――
+        死んだ個体は `Battle.step` の最後で間引かれて `side.fighters` が
+        作り直されるので、添字は誰かが死ぬたびにずれる。
+        これをハッシュに通すだけで、シミュレータの乱数に一切触れずに
+        見た目だけの前後を作れる（毎回同じ並びに固定されるのを避けるための
+        ばらけさせ。同じユニットが並んでも壁のように単調に重ならない）。
+        """
+        h = (spawn_seq * 2654435761 + side * 0x9E3779B1) & 0xFFFFFFFF
+        return h ^ (h >> 15)
+
     def _fighters(self, battle: Battle) -> None:
         lane = battle.game.lane_length
-        # 奥の列から描く。前に立つものが手前に重なる。
+        # 奥の列から描く。列の中は出撃時に決まる前後で、手前のものを後に描く
+        # （＝重なった部分は手前のキャラだけが見える）。
         for row in (2, 1, 0):
-            for side in battle.sides:
-                for f in side.fighters:
-                    if not f.alive or self._row(f.spec) != row:
-                        continue
-                    self._fighter(f, lane, row)
+            entries = [
+                (self._depth_key(f.side, f.spawn_seq), f)
+                for side in battle.sides
+                for f in side.fighters
+                if f.alive and self._row(f.spec) == row
+            ]
+            entries.sort(key=lambda e: e[0])
+            for _, f in entries:
+                self._fighter(f, lane, row, battle)
 
-    def _fighter(self, f: Fighter, lane: float, row: int) -> None:
+    def _fighter(self, f: Fighter, lane: float, row: int, battle: Battle) -> None:
         mine = f.side == 0
         flip = not mine                    # 敵は左を向く
-        sprite = self.sprites.unit(f.spec, flip)
+        state = _anim_state(f, battle.t)
+        sprite = self.sprites.unit(f.spec, flip, state)
         lift = row * 14
         x = self.px(f.x, lane)
         feet = GROUND_Y - lift
         rect = sprite.get_rect(midbottom=(x, feet))
         team = GREEN if mine else RED
+        stunned = f.stun_left > 0          # 下がった直後。判定が消えている
+
+        # 下がった跡は本体より先に描く（下に敷く）。
+        if stunned:
+            self._knockback(f, lane, x, feet, battle)
 
         # 足元の楕円1枚。にゃんこ大戦争のやり方をそのまま採る（art/README.md 0章）。
         # 影を陣営の色で塗ると、同じ絵でもどちら側かが一目で分かる。
+        # **硬直中は塗らずに輪郭だけにする** ―― 当たり判定が消えていることを、
+        # いちばん目に入る足元で言う。塗り＝「ここに立っている的」、
+        # 輪郭だけ＝「居るが、的ではない」。
         shadow = pygame.Surface((sprite.get_width(), 14), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow, (*team, 70), shadow.get_rect())
-        pygame.draw.ellipse(shadow, (*team, 150), shadow.get_rect(), 2)
+        if not stunned:
+            pygame.draw.ellipse(shadow, (*team, 70), shadow.get_rect())
+        pygame.draw.ellipse(shadow, (*(ACCENT if stunned else team), 150),
+                            shadow.get_rect(), 2)
         self.surface.blit(shadow, shadow.get_rect(center=(x, feet - 2)))
 
         if f.summon_left > 0:                      # 召喚演出のあいだは半透明
             sprite = sprite.copy()
             sprite.set_alpha(90)
+        elif stunned:                              # 硬直中は的ではない
+            sprite = sprite.copy()
+            sprite.set_alpha(KB_GHOST_ALPHA)
         self.surface.blit(sprite, rect)
 
-        head = rect.top + self.sprites.unit_bbox(f.spec, flip).top
+        head = rect.top + self.sprites.unit_bbox(f.spec, flip, state).top
         if f.hp < f.spec.hp:
-            self._bar(pygame.Rect(x - 22, head - 9, 44, 4),
-                      f.hp / f.spec.hp, team, back=(18, 22, 27))
+            self._hp_bar(pygame.Rect(x - 22, head - 9, 44, 4), f, team, battle)
 
         # 振りかぶり。設計書7.5の「大きい一撃は発生0.6秒以上」を画面に出す。
         # ここが見えないと、見切りの読み合いが嘘になる（art/README.md 4章）。
@@ -322,8 +496,89 @@ class View:
             self._bar(pygame.Rect(x - 22, head - 17, 44, 5),
                       f.exposed_left / total, RED, back=(18, 22, 27))
 
-        if f.stun_left > 0:
-            pygame.draw.circle(self.surface, GOLD, (x, head - 24), 3)
+        # **「いま無敵」。** 硬直中の0.4秒は殴られず、敵の足も止めない
+        # （`Fighter.hittable`）。足元の輪郭と半透明だけだと「そういう絵柄」に
+        # も見えるので、短い言葉で言い切る。
+        if stunned:
+            self._text("無敵", self.f_small, ACCENT, (x, head - 28), center=True)
+
+    def _hp_bar(self, rect: pygame.Rect, f: Fighter, team, battle: Battle) -> None:
+        """体力の棒。**ノックバックの区切りを線で入れる。**
+
+        後退は「体力を kb 個に割った区切りを跨いだ瞬間」に起きる（設計書2.11）。
+        つまりこの線は *次にどこで下がるか* の予定表そのもので、重い一撃が
+        区切りを2本まとめて食う（＝そこから先は下がらなくなる）様子も、
+        棒の減り方としてそのまま見える。
+
+        `kb` は**呪文のかかった後の実効値**を使う ―― 死守・踏破
+        （ノックバック×0）が効いているあいだは線が消えるので、
+        「いま押し戻せない相手」が形で分かる。
+        """
+        self._bar(rect, f.hp / f.spec.hp, team, back=(18, 22, 27))
+        side = battle.sides[f.side]
+        kb = side.stat("knockback", f.spec.knockback, f.spec.race)
+        if kb < 2:               # 1回＝跨ぐのは死ぬときだけ。線を引く意味が無い
+            return
+        for i in range(1, int(kb)):
+            at = rect.x + int(rect.w * i / kb)
+            pygame.draw.line(self.surface, (18, 22, 27),
+                             (at, rect.y), (at, rect.bottom - 1))
+
+    def _knockback(self, f: Fighter, lane: float, x: int, feet: int,
+                   battle: Battle) -> None:
+        """**「いま下がった」を出す。**
+
+        後退そのものは20m ―― 画面では93px。位置の変化だけでは、それが
+        7.1秒ぶんなのか2.1秒ぶんなのか分からないので、**どこから下がったか**を跡で残す。
+        跡の長さがそのまま失った20mで、硬直の0.4秒のあいだ薄れながら消える。
+
+        **View がフレームをまたぐ状態を持たない**という約束は守っている ――
+        起点は `x + 向き × 後退距離` として盤面から出る。硬直中は動かない
+        （`Battle.step_fighter` が stun 中はそこで返す）ので、この値は
+        硬直のあいだ固定される。
+        """
+        origin = self.px(
+            max(0.0, min(lane, f.x + f.facing * battle.kb_distance)), lane)
+        fade = max(0.0, min(1.0, f.stun_left / max(battle.kb_stun, 1e-6)))
+        left, right = min(origin, x), max(origin, x)
+        width = max(2, right - left)
+
+        trail = pygame.Surface((width, KB_TRAIL_H), pygame.SRCALPHA)
+        alpha = int(KB_TRAIL_ALPHA * fade)
+        # 横線を数本。密集していても「後ろに引かれた」向きだけは読める。
+        for y in (10, 18, 26):
+            pygame.draw.line(trail, (*ACCENT, alpha // 2), (0, y), (width - 1, y))
+        # 起点の印 ―― 「ここに居た」。跡の端に立てる。
+        tick = 0 if origin <= x else width - 1
+        pygame.draw.line(trail, (*ACCENT, alpha),
+                         (tick, 2), (tick, KB_TRAIL_H - 2), 2)
+        self.surface.blit(trail, (left, feet - KB_TRAIL_H - 2))
+
+    # -------------------------------------------------------------- 壁の一撃
+    def _base_hits(self, battle: Battle) -> None:
+        """壁（対拠点倍率が低いユニット）が拠点を殴っても、削れているように
+        見えてしまう。数字を灰色にして「WALL」を添えるだけで、
+        「これは前に出るだけで拠点を割れない」と0.5秒で学習できる（伝言1）。
+        """
+        lane = battle.game.lane_length
+        for t, side_index, amount, is_wall in battle.base_hits:
+            if not is_wall:
+                continue
+            age = battle.t - t
+            if age > WALL_LABEL_SEC:
+                continue
+            side = battle.sides[side_index]
+            x = self.px(side.base_x, lane)
+            # 拠点（アバター）の絵の高さに合わせる。仮絵はいずれ差し替わるので、
+            # 決め打ちの高さではなく実際のスプライトから出す（無ければ
+            # `_field` の代替矩形と同じ96px）。
+            sprite = self.sprites.avatar(side.loadout.avatar, flip=side.index == 1)
+            top = GROUND_Y - (sprite.get_height() if sprite else 96)
+            rise = int(20 * (age / WALL_LABEL_SEC))
+            y = top - 24 - rise
+            self._text("WALL", self.f_small, MUTED, (x, y), center=True)
+            self._text(f"-{amount:.0f}", self.f_body, MUTED, (x, y + 18),
+                       center=True)
 
     # -------------------------------------------------------------- 拠点HP
     def _header(self, battle: Battle, player: int) -> None:
@@ -362,19 +617,29 @@ class View:
                 self._text("攻城中", self.f_small, GOLD,
                            (bar.centerx, bar.bottom + 8), center=True)
 
-        left = max(0.0, battle.game.time_limit - battle.t)
+        # 時計は「あと何秒で雷が降り始めるか」。時間切れは無い（設計書1.2）。
+        if battle.sudden_death:
+            self._text("落雷", self.f_num, RED, (W // 2, 26), center=True)
+            self._text(f"{int(battle.t) // 60}:{int(battle.t) % 60:02d}",
+                       self.f_small, MUTED, (W // 2, 50), center=True)
+            # 配布は雷が降り始めるより前に必ず終わっている
+            # （economy.milestonesはsudden_death_at_secより前に終わる。
+            # validate.pyのcheck_sudden_deathが縛る）ので、ここでは出さない ――
+            # 出しても常に空の「残り」が上の経過時間に重なるだけになる。
+            return
+        left = max(0.0, battle.storm_at - battle.t)
         self._text(f"{int(left) // 60}:{int(left) % 60:02d}", self.f_num, INK,
                    (W // 2, 26), center=True)
+        self._text("落雷まで", self.f_small, MUTED, (W // 2, 50), center=True)
 
         # 次の配布。**両者に同額**なので「誰が取るか」は無い ―― 読ませたいのは
         # 「あと何秒でいくら入るか」だけ。配布の直前に使い切っておくか、が択。
+        # 「落雷まで」と行を分ける（同じ高さに描くと両方とも読めなくなる）。
         drop = battle.next_drop()
-        if drop is None:
-            self._text("残り", self.f_small, MUTED, (W // 2, 50), center=True)
-            return
-        seconds, amount = drop
-        self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small, MUTED,
-                   (W // 2, 52), center=True)
+        if drop is not None:
+            seconds, amount = drop
+            self._text(f"両者 +{amount}  あと{seconds:.0f}秒", self.f_small,
+                       MUTED, (W // 2, 68), center=True)
 
     # ---------------------------------------------------------- 操作盤：呪文
     def _spells(self, battle: Battle, side: Side) -> None:
@@ -549,6 +814,57 @@ class View:
             self._text(note, self.f_small, RED if over_cap else MUTED,
                        (rect.centerx, rect.bottom - 13), center=True)
 
+    # -------------------------------------------------------------- 育成の演出
+    def _training(self, battle: Battle, side: Side) -> None:
+        """`_summon` の隅の小さな表示だけでは、初見だと「何秒間も何もできない」
+        という負の体験しか残らない。育成中は画面中央に大きく残り秒数を出し、
+        終わった瞬間は「財布 LvUP！」を出す（伝言1）。
+        """
+        # 育成が終わった直後の tick は「busy が外れる」のと「LvUP を記録する」が
+        # 同時に起きる。片方だけを出す ―― 両方出すと文字が重なる。
+        just_leveled = any(idx == side.index and battle.t - t <= TRAINING_POPUP_SEC
+                           for t, idx, _level in battle.level_ups)
+
+        if side.busy and not just_leveled:
+            total = max(battle.game.economy["growth"]["upgrade_sec"], 1e-6)
+            done = 1.0 - side.upgrading_left / total
+            self._text(f"財布を育成中…  あと{side.upgrading_left:.1f}秒",
+                       self.f_bold, GOLD, (W // 2, 148), center=True)
+            self._bar(pygame.Rect(W // 2 - 130, 166, 260, 8), done, GOLD,
+                      back=(18, 22, 27), border=RULE)
+
+        for t, side_index, level in battle.level_ups:
+            if side_index != side.index:
+                continue
+            age = battle.t - t
+            if age > TRAINING_POPUP_SEC:
+                continue
+            self._text(f"財布 Lv{level} UP！", self.f_big, GREEN,
+                       (W // 2, 148), center=True)
+
+    # -------------------------------------------------------------- 呪文のフラッシュ
+    def _cast_flash(self, battle: Battle, player: int) -> None:
+        """バフ／デバフは数値が変わるだけで、画面には「何も起きていない」
+        ように見えていた。発動の瞬間だけ画面端をその色で光らせる
+        （青＝バフ／赤＝デバフ、伝言1）。
+        """
+        thickness = 18
+        for t, target_index, is_buff in battle.cast_effects:
+            if target_index != player:
+                continue
+            age = battle.t - t
+            if age > CAST_FLASH_SEC:
+                continue
+            alpha = int(170 * (1.0 - age / CAST_FLASH_SEC))
+            color = (*(BUFF if is_buff else RED), alpha)
+            flash = pygame.Surface((W, H), pygame.SRCALPHA)
+            for rect in (
+                (0, 0, W, thickness), (0, H - thickness, W, thickness),
+                (0, 0, thickness, H), (W - thickness, 0, thickness, H),
+            ):
+                pygame.draw.rect(flash, color, rect)
+            self.surface.blit(flash, (0, 0))
+
     # -------------------------------------------------------------- 決着
     def _result(self, battle: Battle, player: int) -> None:
         veil = pygame.Surface((W, HUD_Y), pygame.SRCALPHA)
@@ -572,18 +888,26 @@ class View:
                    (W // 2, 296), center=True)
 
     # -------------------------------------------------------------- 1フレーム
-    def draw(self, battle: Battle, player: int, paused: bool = False) -> None:
+    def draw(self, battle: Battle, player: int, paused: bool = False,
+             speed: float = 1.0) -> None:
         side = battle.sides[player]
         self.surface.fill(BG)
         self._field(battle)
         self._fighters(battle)
+        self._base_hits(battle)
         self._header(battle, player)
         self._spells(battle, side)
         self._summon(battle, side)
+        self._training(battle, side)
+        self._cast_flash(battle, player)
+        # 早送りは常に出す。試合が拠点撃破まで続くので、いま何倍で見ているかが
+        # 分からないと「長い試合」と「速く回している」の区別がつかない。
+        if speed != 1.0:
+            self._text(f"×{speed:g}", self.f_bold, GOLD, (W - 26, 92), right=True)
         if battle.finished():
             self._result(battle, player)
         elif paused:
-            self._text("一時停止（Space）", self.f_bold, GOLD,
+            self._text("一時停止（Space）  速さ [ ]", self.f_bold, GOLD,
                        (W // 2, 120), center=True)
 
     # ------------------------------------------------------------ 当たり判定

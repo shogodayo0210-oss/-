@@ -11,12 +11,12 @@
                       **100%に近いほど悪い。** 押し返す手が無いということなので。
                       50%なら、序盤の優勢は勝敗を決めていない。
   逆転率              中盤に押されていた側が勝った割合。低すぎると詰み。
-  決着率              時間切れではなく拠点撃破で終わった割合。0%だと
+  決着率              安全弁ではなく拠点撃破で終わった割合。0%だと
                       前線が固まって誰も攻め落とせていない。
   前線の到達           前線が相手陣のどこまで届いたか。レーンを長くした意味が
                       あるかは、ここが動いているかで分かる。
 
-レーン長・場の上限・試合時間は上書きできる。data を書き換えずに
+レーン長・場の上限・雷が降り始める時刻は上書きできる。data を書き換えずに
 「レーンをもう100m伸ばしたらどうなるか」を測れるようにするため。
 
     python3 game/tools/balance.py
@@ -41,14 +41,18 @@ from game.engine.draft import commit, match_seed           # noqa: E402
 from game.engine.policy import POLICIES                    # noqa: E402
 from game.engine.presets import PRESETS, build             # noqa: E402
 
-# 序盤・中盤をどこで測るか。試合時間に対する割合で持つので、
-# 試合の長さを変えても同じ意味の点を見る。
-EARLY, MID = 0.20, 0.50
+# どこで測るか。**雷が降り始める時刻（180秒）を1.0とした割合。**
+# 試合そのものは拠点が落ちるまで続くので「試合時間の何%」では測れない ――
+# 代わりに、誰もが通る2つの点を見る。
+#   序盤   雷の1/5、つまり36秒 ―― 財布を育て終わるかどうかの頃
+#   雷の直前  180秒 ―― **盤面の勝負が終わり、外から壊され始める瞬間**
+EARLY, MID = 0.20, 1.0
 
 
-def tweak(game: GameData, lane=None, cap=None, limit=None) -> GameData:
+def tweak(game: GameData, lane=None, cap=None, limit=None,
+          hard_stop=None) -> GameData:
     """data を書き換えずに、場の寸法だけ差し替えた盤面を作る。"""
-    if lane is None and cap is None and limit is None:
+    if lane is None and cap is None and limit is None and hard_stop is None:
         return game
     match = copy.deepcopy(game.match)
     if lane is not None:
@@ -56,7 +60,16 @@ def tweak(game: GameData, lane=None, cap=None, limit=None) -> GameData:
     if cap is not None:
         match["field"]["max_units_per_side"] = cap
     if limit is not None:
-        match["victory"]["time_limit_sec"] = limit
+        # victory.time_limit_sec は廃止済み ―― GameData.time_limit は
+        # sudden_death_at_sec を読むので、そちらを書き換えないと --limit が
+        # 何も変えないまま黙って無視される（雷の開始時刻は data のまま）。
+        if limit >= match["victory"]["hard_stop_sec"]:
+            raise ValueError("--limit must be less than hard_stop_sec")
+        match["victory"]["sudden_death_at_sec"] = limit
+    if hard_stop is not None:
+        if hard_stop <= match["victory"]["sudden_death_at_sec"]:
+            raise ValueError("--hard-stop must be greater than sudden_death_at_sec")
+        match["victory"]["hard_stop_sec"] = hard_stop
     return replace(game, match=match)
 
 
@@ -86,15 +99,60 @@ class Sample:
                 self.hurt[i] += battle.tick
 
 
-def one(game: GameData, a: str, b: str, match_id: str):
+def varied_rosters(game: GameData, count: int) -> list[tuple[str, ...]]:
+    """**編成を振って測るための、8種の組み合わせをいくつか作る。**
+
+    3つの見本編成だけで測っていると、出てくる盤面がいつも同じになる ――
+    引き分けが多いのが *構造* のせいなのか *その3編成* のせいなのかが
+    分けられない。そこで役割の骨組みだけ揃えて、中身を散らした編成を作る。
+
+    骨組みは3つ ―― **壁を1体、接近戦を2体、遠距離を1体**。これが無い編成は
+    「並べるだけで何も起きない」ので、測っても盤面の話にならない。
+    残りは全体から引く。並びは種から決まるので、何度回しても同じ。
+    """
+    from game.engine.battle import Rng, seed32          # 決定論的な乱数
+
+    wall_line = game.wall_threshold
+    far_line = game.far_threshold
+    units = sorted(game.units.values(), key=lambda u: u.id)
+    walls = [u for u in units if u.is_wall(wall_line)]
+    close = [u for u in units if not u.is_wall(wall_line) and u.far <= 20]
+    far = [u for u in units if u.far > far_line]
+    slots = game.roster_rules["slots"]
+
+    out = []
+    for i in range(count):
+        rng = Rng(seed32(f"roster:{i}"))
+
+        def take(pool, picked):
+            free = [u for u in pool if u.id not in picked]
+            return free[int(rng.unit() * len(free))]
+
+        picked: list[str] = []
+        for pool, many in ((walls, 1), (close, 2), (far, 1)):
+            for _ in range(many):
+                picked.append(take(pool, picked).id)
+        while len(picked) < slots:
+            picked.append(take(units, picked).id)
+        out.append(tuple(picked))
+    return out
+
+
+def one(game: GameData, a: str, b: str, match_id: str,
+        roster_a=None, roster_b=None):
+    """1試合。編成を渡さなければ見本編成（PRESETS）で戦う。"""
     seed = match_seed(
         commit(tuple(PRESETS[a][1]), (PRESETS[a][2],), PRESETS[a][3],
                f"{match_id}:a"),
         commit(tuple(PRESETS[b][1]), (PRESETS[b][2],), PRESETS[b][3],
                f"{match_id}:b"),
         match_id)
-    battle = Battle(game, build(game, a, seed, "a"), build(game, b, seed, "b"),
-                    POLICIES[a], POLICIES[b])
+    load_a, load_b = build(game, a, seed, "a"), build(game, b, seed, "b")
+    if roster_a is not None:
+        load_a = replace(load_a, roster=roster_a)
+    if roster_b is not None:
+        load_b = replace(load_b, roster=roster_b)
+    battle = Battle(game, load_a, load_b, POLICIES[a], POLICIES[b])
     sample = Sample(battle)
     while not battle.finished():
         battle.step()
@@ -134,10 +192,11 @@ def report(game: GameData, rows) -> int:
     print(f"\n{n}試合  レーン{lane:.0f}m  上限{game.match['field']['max_units_per_side']}体"
           f"  {game.time_limit:.0f}秒")
     print("─" * 62)
-    print(f"  先制→勝ちの一致率（{EARLY:.0%}時点）  {pct(early_hit, early_n)}")
-    print(f"  中盤→勝ちの一致率（{MID:.0%}時点）  {pct(mid_hit, mid_n)}")
+    storm = game.time_limit
+    print(f"  先制→勝ちの一致率（{storm * EARLY:.0f}秒）  {pct(early_hit, early_n)}")
+    print(f"  雷の直前→勝ちの一致率（{storm:.0f}秒）  {pct(mid_hit, mid_n)}")
     if mid_n:
-        print(f"  逆転率（中盤に押されていた側の勝ち）  "
+        print(f"  逆転率（雷の直前に押されていた側の勝ち）  "
               f"{(mid_n - mid_hit) / mid_n:.0%}")
     print(f"  決着率（拠点撃破）                 {decisive / n:.0%}")
     print(f"  引き分け                          {draws / n:.0%}")
@@ -160,6 +219,13 @@ def report(game: GameData, rows) -> int:
           f"中央 {statistics.median(hurt):.0f}秒 / 最大 {max(hurt):.0f}秒")
     print(f"  解禁される札を撃った回数            {casts}回")
 
+    # 雷。**時計で裁くのをやめた代わりの装置**なので、効いているかを毎回見る。
+    storms = [sum(1 for _, _, text in r.events if "落雷 —" in text)
+              for r, _ in rows]
+    reached = sum(1 for x in storms if x)
+    print(f"  雷まで届いた試合                   {reached / n:.0%}"
+          f"（落ちた回数の中央 {statistics.median(storms):.0f}）")
+
     # ここが設計上の赤信号。数字を動かすたびに見る場所。
     problems = []
     if early_n and early_hit / early_n >= 0.9:
@@ -177,7 +243,7 @@ def report(game: GameData, rows) -> int:
         problems.append("引き分けが多すぎる。決着の手段が足りない")
     if mid_n >= 8 and mid_hit == mid_n:
         problems.append(
-            "中盤に押されていた側が一度も勝っていない。前半で決まりきっている ―― "
+            "雷の直前に押されていた側が一度も勝っていない。盤面で決まりきっている ―― "
             "拠点の傷で解禁される札が届いていないか、効果が小さすぎる")
     if names and max(hurt) <= 0:
         problems.append(
@@ -197,18 +263,63 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="balance")
     parser.add_argument("--matches", type=int, default=4,
                         help="方針の組み合わせ1つあたりの試合数")
+    parser.add_argument("--rosters", type=int, default=0,
+                        help="編成を振って測る。見本編成のかわりに、"
+                             "役割の骨組みだけ揃えた組み合わせをこの数だけ作る")
     parser.add_argument("--lane", type=float, help="レーン長を上書きして測る")
     parser.add_argument("--cap", type=int, help="場の上限を上書きして測る")
-    parser.add_argument("--limit", type=float, help="試合時間を上書きして測る")
+    parser.add_argument("--limit", type=float,
+                        help="雷が降り始める時刻を上書きして測る")
+    parser.add_argument("--hard-stop", type=float, dest="hard_stop",
+                        help="安全弁の秒数を上書きして測る")
     args = parser.parse_args(argv)
 
-    game = tweak(load(), args.lane, args.cap, args.limit)
+    # **ありえない盤面を、入口で断る。**
+    #
+    # ここは設計の判断が乗っている数字を出す道具なので、*黙って測ってしまう*
+    # のが一番まずい ―― `--lane -5` は前線が届くはずのない盤面で
+    # 「前線が相手陣まで届いていない」と判定を出し、`--cap 0` は誰も出せない
+    # 盤面で「傷ついた拠点という状態が存在していない」と出す。どちらも
+    # *文面としては正しい* ので、指定の誤りだと気づけない。
+    # 落ちるほう（`--lane 0` と `--matches 0` はゼロ除算）はまだ親切なほう。
+    for name, value, least in (("--matches", args.matches, 1),
+                               ("--rosters", args.rosters, 0),
+                               ("--lane", args.lane, None),
+                               ("--cap", args.cap, 1),
+                               ("--limit", args.limit, None),
+                               ("--hard-stop", args.hard_stop, None)):
+        if value is None:
+            continue
+        if least is None:            # 秒数と長さは正であればよい
+            if value <= 0:
+                parser.error(f"{name} must be positive")
+        elif value < least:
+            parser.error(f"{name} must be at least {least}")
+
+    try:
+        game = tweak(load(), args.lane, args.cap, args.limit, args.hard_stop)
+    except ValueError as e:
+        # 寸法どうしの矛盾（雷 ≧ 安全弁 など）も使い方の誤りなので、
+        # トレースバックではなく使い方として出す。
+        parser.error(str(e))
     names = sorted(PRESETS)
     rows = []
-    for a in names:
-        for b in names:
-            for i in range(args.matches):
-                rows.append(one(game, a, b, f"m{i}"))
+    if args.rosters:
+        # **編成を振る。** 方針は回しつつ、編成だけ総当たりにする ――
+        # 引き分けが構造のせいか、その編成のせいかを分けるため。
+        decks = varied_rosters(game, args.rosters)
+        print(f"編成を{len(decks)}通り振って総当たり "
+              f"（{len(decks) * len(decks)}組 × 方針{len(names)}通り）")
+        for i, deck_a in enumerate(decks):
+            for j, deck_b in enumerate(decks):
+                for k, side in enumerate(names):
+                    rows.append(one(game, side, names[(k + 1) % len(names)],
+                                    f"r{i}-{j}-{k}", deck_a, deck_b))
+    else:
+        for a in names:
+            for b in names:
+                for i in range(args.matches):
+                    rows.append(one(game, a, b, f"m{i}"))
     return report(game, rows)
 
 

@@ -24,6 +24,43 @@ from .draft import stock_sequence
 # 判定が 1e-16 の差でひっくり返り、左右対称の試合が割れる。
 EPS = 1e-6
 
+
+# --------------------------------------------------------------- 決定論的な乱数
+# **Python と JS で1ビットも違わない乱数が要る。** 呪文ストックの並びは
+# Python 側で引いて焼き込めば済んだが（`build_web.py`）、雷は試合の途中で
+# 引くので焼き込めない。Mersenne Twister を移植するのは危ないので、
+# 32ビット整数だけで書ける小さいものを両方に置く。
+#
+# JS 側は `Math.imul` と `>>> 0` で同じ32ビット演算になる。
+
+
+def seed32(text: str) -> int:
+    """文字列から32ビットの種を作る（FNV-1a）。"""
+    h = 2166136261
+    for byte in text.encode("utf-8"):
+        h = ((h ^ byte) * 16777619) & 0xFFFFFFFF
+    return h or 1
+
+
+class Rng:
+    """xorshift32。**同じ種からは必ず同じ並び** ―― 試合の再現に要る。"""
+
+    def __init__(self, seed: int):
+        self.state = seed & 0xFFFFFFFF or 1
+
+    def next(self) -> int:
+        x = self.state
+        x = (x ^ (x << 13)) & 0xFFFFFFFF
+        x ^= x >> 17
+        x = (x ^ (x << 5)) & 0xFFFFFFFF
+        self.state = x
+        return x
+
+    def unit(self) -> float:
+        """0以上1未満。倍精度なので JS と同じ値になる。"""
+        return self.next() / 4294967296.0
+
+
 # 効果の対象。カードの scope はこの4つのどれか。
 OWN_UNITS, ENEMY_UNITS, OWN_DEPLOY, ENEMY_ECONOMY = (
     "own_units", "enemy_units", "own_deploy", "enemy_economy")
@@ -37,6 +74,18 @@ NOT_SIMULATED = {
     "intel_net", "card_watch", "overdrive", "siege_order", "breach_order",
     "warchest", "swift_start", "veteran",
 }
+
+
+def storm_seed(loadout: "Loadout") -> str:
+    """雷の種にする、編成の名前。
+
+    **持ち込んだものだけで作る。** 最初は `stock_seed` だけを使っていたが、
+    あれは呪文の並びを焼き込むための欄で、移植側では落ちることがある ――
+    `conform.py` が「181秒あたりから食い違う」と鳴って気づいた。
+    落ちうる欄ひとつに雷の位置を預けると、Python と JS で違う場所に落ちる。
+    """
+    return (f"{loadout.avatar}:{','.join(loadout.roster)}:"
+            f"{loadout.brought}:{loadout.trump}:{loadout.stock_seed}")
 
 
 @dataclass(frozen=True)
@@ -86,6 +135,12 @@ class Fighter:
     knockbacks_done: int = 0
     summon_left: float = 0.0
     lifespan_left: float = math.inf
+    # 出撃時に決まって一生変わらない通し番号（見た目専用。Side._spawn_seq）。
+    spawn_seq: int = 0
+    # **見た目専用。** このtickで実際に前進したか（歩行コマの切り替えに使う）。
+    # `step_fighter` の冒頭で毎tick False に戻し、移動した分岐でだけ True にする
+    # ―― spawn_seq と同じく、シミュレーションにもconform.pyの指紋にも触れない。
+    moving: bool = False
 
     @property
     def alive(self) -> bool:
@@ -155,6 +210,12 @@ class Side:
         self.income_left = float(self.level_row["income_every_sec"])
 
         self.fighters: list[Fighter] = []
+        # 出撃した順に振るだけの通し番号。**戦闘の数字には一切効かない** ――
+        # 死んだ個体は `Battle.step` の最後で配列から間引かれる（生存者だけの
+        # 配列に作り直す）ので、配列の添字は出撃順の目印にならない。
+        # 重なったときの前後（見た目だけの話。view.py/view.js）を、
+        # 出撃時に決まって一生変わらない値で描きたいので、その目印をここで持つ。
+        self._spawn_seq = 0
         self.deploy_cd: dict[str, float] = {}
         self.gcd_left = 0.0
         self.casting: Card | None = None
@@ -177,6 +238,10 @@ class Side:
             self.stock.append(self._draw())
 
         self.trump_used = False
+        # **呪文は1試合に3回まで**（持ち込み・ストックの合計）。資金と
+        # クールタイムだけで縛っていた頃は、撃てるときに撃つのが常に正解で
+        # *いつ撃つか*が択になっていなかった。切り札（1試合1回）とは別枠。
+        self.casts_left = game.casts_per_match
         self.deploy_lock_left = 0.0
         self.upgrading_left = 0.0
 
@@ -243,7 +308,9 @@ class Side:
         return True
 
     def castable(self, source: tuple[str, int]) -> bool:
-        """いま撃てるか。資金・詠唱中・共通CD・育成中・個別CD・解禁を全部見る。"""
+        """いま撃てるか。回数・資金・詠唱中・共通CD・育成中・個別CD・解禁。"""
+        if self.casts_left <= 0:          # 1試合3回を使い切った
+            return False
         if self.casting is not None or self.gcd_left > 0 or self.busy:
             return False
         if source[0] == "brought" and self.brought_cd > 0:
@@ -389,11 +456,46 @@ class Battle:
         self.events: list[tuple[float, int, str]] = []
         self.verbose = verbose
 
+        # 画面のための直近イベント。**シミュレーションの結果ではなく、
+        # 見せ方の都合だけで持っている** ―― だから conform.py の指紋には
+        # 入れない（数字の一致試験にノイズを足すだけになる）。数tick分だけ
+        # 覚えておいて、古いものは step() の最後で捨てる（RECENT_SEC）。
+        self.base_hits: list[tuple[float, int, float, bool]] = []   # 拠点への1発
+        self.level_ups: list[tuple[float, int, int]] = []           # 財布の育成完了
+        self.cast_effects: list[tuple[float, int, bool]] = []       # 呪文の発動
+
+        # ── サドンデスの雷 ───────────────────────────────────
+        # 3分を過ぎたらレーンのどこかに落ちる。落ちた範囲のユニットは
+        # 敵味方の区別なく必ず倒れる ―― 前線が固まって動かなくなった盤面を、
+        # 外から壊すための仕組み（設計書1.2）。
+        #
+        # 種は両者の編成から作るので、**同じ試合は必ず同じところに落ちる**。
+        bolt = game.sudden_death
+        self.storm_at = game.time_limit
+        self.storm_every = bolt["every_sec"]
+        self.storm_radius = float(bolt["radius_m"])
+        self.storm_growth = bolt["radius_growth_m"]
+        self.storm_radius_max = float(bolt["radius_max_m"])
+        self.storm_warn = bolt["warn_sec"]
+        self.rng = Rng(seed32(storm_seed(a) + "|" + storm_seed(b) + "|storm"))
+        self.bolts_fallen = 0
+        # 予告中の雷。(落ちる時刻, 位置, 半径)。空なら何も来ていない。
+        self.pending: list[tuple[float, float, float]] = []
+        self._next_bolt = self.storm_at
+
+    RECENT_SEC = 3.0   # base_hits/level_ups/cast_effects を何秒分だけ覚えておくか
+
     # ------------------------------------------------------------------ 記録
     def note(self, side: int, text: str) -> None:
         self.events.append((self.t, side, text))
         if self.verbose:
             print(f"[{self.t:6.2f}] P{side + 1} {text}")
+
+    def _prune_recent(self) -> None:
+        cutoff = self.t - self.RECENT_SEC
+        self.base_hits = [h for h in self.base_hits if h[0] >= cutoff]
+        self.level_ups = [h for h in self.level_ups if h[0] >= cutoff]
+        self.cast_effects = [h for h in self.cast_effects if h[0] >= cutoff]
 
     # -------------------------------------------------------------- 出撃・行動
     def enemy_of(self, side: Side) -> Side:
@@ -410,7 +512,9 @@ class Battle:
         side.deploy_cd[unit_id] = side.deploy_cooldown(spec)
         side.last_race = spec.race          # 「連携」が次に見るのはこれ
         side.fighters.append(Fighter(spec=spec, side=side.index, x=side.base_x,
-                                     hp=float(spec.hp), facing=side.facing))
+                                     hp=float(spec.hp), facing=side.facing,
+                                     spawn_seq=side._spawn_seq))
+        side._spawn_seq += 1
         return True
 
     def summon_trump(self, side: Side) -> bool:
@@ -425,7 +529,9 @@ class Battle:
         side.fighters.append(Fighter(
             spec=spec, side=side.index, x=side.base_x, hp=float(spec.hp),
             facing=side.facing, summon_left=spec.summon_sec,
-            lifespan_left=spec.lifespan_sec + spec.summon_sec))
+            lifespan_left=spec.lifespan_sec + spec.summon_sec,
+            spawn_seq=side._spawn_seq))
+        side._spawn_seq += 1
         self.note(side.index, f"切り札 {spec.name} を召喚（演出 {spec.summon_sec}秒）")
         return True
 
@@ -446,6 +552,8 @@ class Battle:
             return False
         card = side.card_of(source)
         side.money -= card.cost
+        # 回数も詠唱に入った時点で減る。見切られても戻らない ―― 資金と同じ。
+        side.casts_left -= 1
 
         kind, index = source
         if kind == "brought":
@@ -460,7 +568,8 @@ class Battle:
         side.cast_started = self.t
         where = "持ち込み" if kind == "brought" else f"ストック{index + 1}"
         self.note(side.index,
-                  f"{card.name} を詠唱（{where}・{card.cost} / {side.cast_left:.2f}秒）")
+                  f"{card.name} を詠唱（{where}・{card.cost} / "
+                  f"{side.cast_left:.2f}秒・残り{side.casts_left}回）")
         return True
 
     def resolve_cast(self, side: Side) -> None:
@@ -480,12 +589,16 @@ class Battle:
                       f"見切り成功 — {card.name}（{card.cost}）を潰した（資金 +{reward}）")
             return
 
-        target = side if card.apply.scope.startswith("own") else enemy
+        own = card.apply.scope.startswith("own")
+        target = side if own else enemy
         # 種族呪文は、その種族のユニットにだけ乗る（`Side.stat` が絞る）。
         target.add_effect(Effect(stat=card.apply.stat, mult=card.apply.mult,
                                  add=card.apply.add,
                                  until=self.t + card.duration_sec, source=card.id,
                                  race=card.race))
+        # own_* は自分を強くする＝バフ、enemy_* は相手を弱くする＝デバフ。
+        # data/cards.json はこの2つしか無いので、scope からそのまま出せる。
+        self.cast_effects.append((self.t, target.index, own))
         self.note(side.index, f"{card.name} 発動（{card.duration_sec}秒）")
 
     def use_parry(self, side: Side) -> bool:
@@ -662,7 +775,12 @@ class Battle:
         # `apply_base_damage`。** 帯が届いた全員が削るが、寄せた数だけ
         # 速くはならない。
         if self.base_in_band(fighter):
-            self._base_damage.append((enemy, power * fighter.spec.siege_mult))
+            dealt = power * fighter.spec.siege_mult
+            self._base_damage.append((enemy, dealt))
+            # 画面向け。壁（対拠点倍率が低いユニット）が殴った一撃だけ、
+            # View 側が別扱いで灰色に見せる ―― 「これは削れない」が伝わるように。
+            self.base_hits.append(
+                (self.t, enemy.index, dealt, fighter.spec.is_wall(wall_line)))
 
         for victim in self.targets_in_band(fighter)[: fighter.spec.pierce]:
             bonus = (fighter.spec.anti_wall_mult
@@ -672,6 +790,10 @@ class Battle:
     def step_fighter(self, fighter: Fighter) -> None:
         side = self.sides[fighter.side]
         dt = self.tick
+
+        # 見た目専用のリセット。今回のtickで実際に進んだ場合だけ、
+        # 末尾の移動分岐が改めて True に立てる。
+        fighter.moving = False
 
         # **後隙は実時間で抜ける。** ノックバックされようが気絶させられようが、
         # 振り切った直後の時間は同じだけ流れる ―― 状態で伸び縮みさせると、
@@ -721,6 +843,7 @@ class Battle:
         speed = side.stat("speed", fighter.spec.speed_mps, fighter.spec.race)
         moved = fighter.x + fighter.facing * speed * dt
         fighter.x = max(0.0, min(self.game.lane_length, moved))
+        fighter.moving = True
 
     # ------------------------------------------------------------------ 進行
     def step(self) -> None:
@@ -742,7 +865,13 @@ class Battle:
             side.effects = [e for e in side.effects if e.until > self.t]
             side.gcd_left = max(0.0, side.gcd_left - dt)
             side.deploy_lock_left = max(0.0, side.deploy_lock_left - dt)
+            was_busy = side.upgrading_left > 0
             side.upgrading_left = max(0.0, side.upgrading_left - dt)
+            if was_busy and side.upgrading_left <= 0:
+                # 育成が終わった瞬間。level はもう上がっている
+                # （育成が始まった時点で払い済み・レベルも即座に上がる ―― 4章）ので、
+                # ここでは「使えるようになった」ことだけを伝える。
+                self.level_ups.append((self.t, side.index, side.level))
             for uid in list(side.deploy_cd):
                 side.deploy_cd[uid] = max(0.0, side.deploy_cd[uid] - dt)
 
@@ -785,6 +914,8 @@ class Battle:
             self.apply_damage(victim, amount)
         self.apply_base_damage(dt)
 
+        self._prune_recent()
+
         for side in self.sides:
             enemy = self.enemy_of(side)
             survivors = []
@@ -798,6 +929,10 @@ class Battle:
                     continue
                 survivors.append(fighter)
             side.fighters = survivors
+
+        # 雷は掃除のあと。倒れた者を二度数えないため。
+        if self.sudden_death:
+            self.step_storm()
 
         self.t += dt
 
@@ -840,8 +975,76 @@ class Battle:
         drop = self.drops[self._next_drop]
         return max(0.0, drop["at_sec"] - self.t), drop["amount"]
 
+    @property
+    def sudden_death(self) -> bool:
+        """雷が降り始めているか。画面と方針が見る。"""
+        return self.t >= self.storm_at
+
+    def schedule_bolt(self) -> None:
+        """次の雷の落ちる場所を決めて、予告に積む。
+
+        **落ちる位置は先に見える**（`warn_sec`）。設計書7.5の
+        「大きい一撃は必ず読める」を雷にも掛ける ―― 予告なしに全滅させる
+        装置だと、読み合いではなく事故になる。
+        """
+        lane = self.game.lane_length
+        where = self.rng.unit() * lane
+        # 広がるが上限がある。上限なしで測ったら、半径がレーンを覆った時点で
+        # **誰も敵拠点まで歩けなくなり**、900秒まで0対0のままだった ――
+        # 全部を殺す雷は押し合いを壊すのではなく、前進そのものを禁止する。
+        # bolts_fallen は「対」ではなく個々の落雷を数える（1組で2ずつ増える）
+        # ので、伸びは対の数（//2）で刻む ―― でないと1組につき2段分
+        # 伸びてしまい、12→14→…→20のはずが12→16→20になる。
+        pairs_fallen = self.bolts_fallen // 2
+        radius = min(self.storm_radius + self.storm_growth * pairs_fallen,
+                     self.storm_radius_max)
+        # **必ず対で落ちる。** 落ちる場所は乱数だが、鏡の位置にも同時に落ちる
+        # （x と レーン長−x）。1発だけだと、どちら側の半分に落ちたかで
+        # 有利不利がついた ―― 完全に同じ編成どうしの試合が引き分けにならなく
+        # なった時点で気づいた（test_identical_sides_draw）。
+        # 対にすると盤面の左右は釣り合ったまま、線だけが欠ける。
+        self.pending.append((self.t + self.storm_warn, where, radius))
+        self.pending.append((self.t + self.storm_warn, lane - where, radius))
+        self.note(0, f"落雷の予兆 — {where:.0f}m と {lane - where:.0f}m"
+                     f"（半径{radius:.0f}m・{self.storm_warn:g}秒後）")
+
+    def strike(self, where: float, radius: float) -> None:
+        """雷を落とす。**範囲内のユニットは敵味方の区別なく必ず倒れる。**
+
+        体力も装甲もノックバックも関係ない ―― ここだけは「ダメージ」ではなく
+        「取り除く」。押し合いを壊すのが仕事なので、耐えられては意味がない。
+        拠点には落ちない（`hits_bases`）: 盤面を壊すのが仕事で、勝敗を決めるのは
+        仕事ではない。
+        """
+        killed = [0, 0]
+        for side in self.sides:
+            for fighter in side.fighters:
+                if fighter.alive and abs(fighter.x - where) <= radius + EPS:
+                    fighter.hp = 0.0
+                    killed[side.index] += 1
+        self.bolts_fallen += 1
+        self.note(0, f"落雷 — {where:.0f}m（半径{radius:.0f}m）"
+                     f"P1 {killed[0]}体 / P2 {killed[1]}体")
+
+    def step_storm(self) -> None:
+        """雷の予告と着弾。tickの終わりに1回だけ。"""
+        if self.t >= self._next_bolt:
+            self.schedule_bolt()
+            self._next_bolt += self.storm_every
+        landed = [b for b in self.pending if self.t >= b[0]]
+        if landed:
+            self.pending = [b for b in self.pending if self.t < b[0]]
+            for _, where, radius in landed:
+                self.strike(where, radius)
+
     def finished(self) -> bool:
-        return (self.t >= self.game.time_limit
+        """**時間では決めない。** 拠点が落ちるまで続く。
+
+        `hard_stop` はシミュレータが止まらなくなるのを防ぐ安全弁で、
+        勝敗の仕組みではない ―― 雷は落ちるたびに範囲が広がるので、
+        実際にはそこへ達する前にどこかで線が壊れる。
+        """
+        return (self.t >= self.game.hard_stop
                 or any(s.base_hp <= 0 for s in self.sides))
 
     def run(self) -> "Result":
@@ -867,12 +1070,10 @@ class Result:
             winner = 0 if hp[1] <= 0 else 1
             reason = "拠点撃破"
         else:
-            full = battle.game.base_hp
-            dealt = ((full - hp[1]) / full, (full - hp[0]) / full)
-            if abs(dealt[0] - dealt[1]) < 1e-9:
-                winner, reason = None, "時間切れ・与ダメージ同率"
-            else:
-                winner = 0 if dealt[0] > dealt[1] else 1
-                reason = "時間切れ・与ダメージ割合"
+            # 両拠点が残ったまま終わるのは hard_stop（安全弁）だけ ――
+            # 時間切れという結末は無くした（設計書1.2）ので、与ダメージ割合で
+            # 勝敗を付けてはいけない。安全弁は「勝敗の仕組み」ではなく
+            # シミュレータが止まらなくなるのを防ぐためだけの装置。
+            winner, reason = None, "安全弁（決着せず）"
         return cls(winner=winner, reason=reason, seconds=battle.t, base_hp=hp,
                    level=(a.level, b.level), events=battle.events)

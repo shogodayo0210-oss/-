@@ -3,14 +3,16 @@
     python3 -m unittest discover -s game/tests -t .
 """
 
+import contextlib
+import io
 import unittest
 
-from game.engine.battle import Battle, Effect, Fighter, Loadout
+from game.engine.battle import Battle, Effect, Fighter, Loadout, Result
 from game.engine.data import load
 from game.engine.draft import draw_random_slots, match_seed, pick_template
 from game.engine.policy import POLICIES
 from game.engine.presets import trial_roster
-from game.tools import validate
+from game.tools import balance, validate
 
 
 GAME = load()
@@ -319,6 +321,58 @@ class TestRecovery(unittest.TestCase):
         self.assertAlmostEqual(opened / plain, GAME.combat["recover_damage_mult"])
 
 
+class TestSpawnSeq(unittest.TestCase):
+    """出撃順の通し番号（`Fighter.spawn_seq`）は、他の個体が死んでもずれない。
+
+    `Battle.step` は最後に死んだ個体を間引いて `side.fighters` を作り直す
+    （生存者だけの配列を新しく作る）ので、配列の添字をそのまま「出撃順」
+    として使うと、誰かが死ぬたびに残った個体の番号がずれる ―― 見た目の
+    重なり順（view.py/view.js）がそこでガクつく不具合になっていた。
+    """
+
+    def test_spawn_seq_survives_pruning_of_earlier_deaths(self):
+        bt = battle(money=1000)
+        side = bt.sides[0]
+        # 同じユニットは再出撃CDに引っかかるので、3種を1体ずつ出す。
+        for unit_id in ("grunt", "shieldman", "archer"):
+            self.assertTrue(bt.deploy(side, unit_id))
+        self.assertEqual([f.spawn_seq for f in side.fighters], [0, 1, 2])
+
+        side.fighters[0].hp = 0.0          # 最初に出した1体だけ倒す
+        bt.step()
+
+        self.assertEqual(len(side.fighters), 2)
+        self.assertEqual([f.spawn_seq for f in side.fighters], [1, 2])
+
+
+class TestFighterMoving(unittest.TestCase):
+    """`Fighter.moving`（見た目専用）は、実際に前進したtickだけ True になる。
+
+    歩行コマ（walk1/walk2、art/README.md 4章）の切り替えに使うフラグ ――
+    召喚演出中・振りかぶり中は False でなければ、待機コマの上で脚が
+    動いて見えてしまう。
+    """
+
+    def test_moving_true_only_while_actually_advancing(self):
+        bt = battle(money=1000)
+        side = bt.sides[0]
+        self.assertTrue(bt.deploy(side, "grunt"))
+        fighter = side.fighters[0]
+
+        while fighter.summon_left > 0:     # 召喚演出のあいだはまだ動かない
+            bt.step()
+        self.assertFalse(fighter.moving)
+
+        start_x = fighter.x
+        bt.step()                          # 演出明け、間合いに入るまでは前進する
+        self.assertTrue(fighter.moving)
+        self.assertGreater(fighter.x, start_x)
+
+        fighter.windup_left = 0.5          # 振りかぶり中はもう前進しない
+        bt.step()
+        self.assertFalse(fighter.moving)
+
+
 class TestKnockbackIntangibility(unittest.TestCase):
     """**ノックバック中は当たり判定が消える。**
 
@@ -535,6 +589,148 @@ class TestRaceSpells(unittest.TestCase):
         report = validate.Report()
         validate.check_races(GAME, report)
         self.assertEqual(report.errors, [])
+
+
+class TestCastLimit(unittest.TestCase):
+    """**呪文は1試合3回まで。** 資金とクールタイムだけだと、撃てるときに
+    撃つのが常に正解で「いつ撃つか」が択になっていなかった。"""
+
+    def side_with_money(self):
+        bt = battle(loadout(brought="morale"), loadout(), money=3000)
+        return bt, bt.sides[0]
+
+    def test_the_fourth_cast_is_refused(self):
+        bt, side = self.side_with_money()
+        limit = GAME.casts_per_match
+        for i in range(limit):
+            side.brought_cd = 0.0
+            side.gcd_left = 0.0
+            self.assertTrue(bt.start_cast(side, ("brought", 0)), f"{i + 1}回目")
+            side.casting = None
+        side.brought_cd = 0.0
+        side.gcd_left = 0.0
+        self.assertFalse(bt.start_cast(side, ("brought", 0)))
+        self.assertEqual(side.casts_left, 0)
+
+    def test_a_parried_cast_still_costs_a_use(self):
+        """見切られても回数は戻らない ―― 資金と同じ扱い。"""
+        bt = battle(loadout(avatar="bulwark", brought="morale"),
+                    loadout(avatar="bulwark"), money=3000)
+        side = bt.sides[0]
+        before = side.casts_left
+        bt.start_cast(side, ("brought", 0))
+        self.assertTrue(bt.use_parry(bt.sides[1]), "相手が見切りを持っていない")
+        bt.resolve_cast(side)
+        self.assertEqual(side.casts_left, before - 1)
+
+    def test_it_is_fewer_than_the_cards_you_hold(self):
+        """持っている枚数より少ないから、回数が択になる。"""
+        held = GAME.card_rules["stock_slots"] + GAME.card_rules["brought"]
+        self.assertLess(GAME.casts_per_match, held)
+
+
+class TestSuddenDeath(unittest.TestCase):
+    """**時間では勝敗を決めない。** 3分を過ぎたら雷が盤面を壊す。"""
+
+    def test_the_clock_no_longer_ends_the_match(self):
+        bt = battle()
+        bt.t = GAME.time_limit + 1.0
+        self.assertFalse(bt.finished())          # 昔はここで時間切れだった
+        bt.t = GAME.hard_stop
+        self.assertTrue(bt.finished())           # 安全弁だけが止める
+
+    def test_the_safety_stop_has_real_room_after_the_storm_starts(self):
+        """安全弁は雷が仕事をする時間を奪わない程度に、離れた場所にある。"""
+        self.assertGreater(GAME.hard_stop - GAME.time_limit, 60.0 * 5,
+                           "雷が5発降る前に安全弁が来ると、雷そのものが機能しない")
+
+    def test_the_storm_starts_on_time(self):
+        bt = battle()
+        self.assertFalse(bt.sudden_death)
+        bt.t = GAME.time_limit
+        self.assertTrue(bt.sudden_death)
+
+    def test_a_bolt_is_announced_before_it_lands(self):
+        bt = battle()
+        bt.t = GAME.time_limit
+        bt.schedule_bolt()
+        self.assertTrue(bt.pending)
+        lands_at = min(b[0] for b in bt.pending)
+        self.assertAlmostEqual(lands_at - bt.t, bt.storm_warn)
+        self.assertGreaterEqual(bt.storm_warn,
+                                GAME.readability["human_reaction_sec"])
+
+    def test_bolts_fall_in_mirrored_pairs(self):
+        """**必ず対で落ちる。** 片側だけだと同じ編成どうしが引き分けなくなる。"""
+        bt = battle()
+        bt.t = GAME.time_limit
+        bt.schedule_bolt()
+        spots = sorted(b[1] for b in bt.pending)
+        self.assertEqual(len(spots), 2)
+        self.assertAlmostEqual(spots[0] + spots[1], GAME.lane_length)
+
+    def test_it_kills_everything_in_range_on_both_sides(self):
+        bt = battle()
+        grunt, titan = GAME.units["grunt"], GAME.units["titan"]
+        near_a = Fighter(spec=grunt, side=0, x=100.0, hp=float(grunt.hp), facing=1)
+        near_b = Fighter(spec=titan, side=1, x=105.0, hp=float(titan.hp), facing=-1)
+        far_off = Fighter(spec=titan, side=1, x=200.0, hp=float(titan.hp), facing=-1)
+        bt.sides[0].fighters = [near_a]
+        bt.sides[1].fighters = [near_b, far_off]
+
+        bt.strike(102.0, 20.0)
+        self.assertFalse(near_a.alive)           # 体力700でも
+        self.assertFalse(near_b.alive)           # 体力6600でも
+        self.assertTrue(far_off.alive)           # 範囲の外は無傷
+
+    def test_the_lane_always_keeps_a_corridor(self):
+        """半径がレーンを覆うと、誰も敵拠点まで歩けなくなる。"""
+        widest = GAME.sudden_death["radius_max_m"] * 2
+        self.assertLessEqual(widest, GAME.lane_length / 3.0)
+
+    def test_the_same_match_always_gets_the_same_storm(self):
+        def spots():
+            bt = battle()
+            bt.t = GAME.time_limit
+            for _ in range(5):
+                bt.schedule_bolt()
+            return [round(b[1], 9) for b in bt.pending]
+
+        self.assertEqual(spots(), spots())
+
+    def test_the_radius_grows_once_per_pair_not_per_bolt(self):
+        """半径の伸びは**対（1組）につき1回**。1組は2発落ちるが、伸びは1回ぶん。
+
+        bolts_fallen は対ではなく個々の落雷を数える（1組で2ずつ増える）。
+        伸びをそのまま bolts_fallen で刻むと、12→14→…→20のはずが
+        12→16→20になってしまう（半分の対で頭打ちに達する）。
+        """
+        bt = battle()
+        bt.t = GAME.time_limit
+        base = GAME.sudden_death["radius_m"]
+        growth = GAME.sudden_death["radius_growth_m"]
+        seen = []
+        for _ in range(3):
+            bt.schedule_bolt()
+            pair = bt.pending[-2:]
+            seen.append(pair[0][2])
+            for _, where, radius in pair:
+                bt.strike(where, radius)
+        self.assertEqual(seen, [base, base + growth, base + growth * 2])
+
+    def test_the_safety_stop_is_not_a_timeout_verdict(self):
+        """安全弁で終わっても、時間切れの与ダメージ判定は使わない。
+
+        両拠点が残ったまま試合が終わるのは hard_stop（安全弁）だけ ――
+        時間切れという結末は無くしたので、勝者が付いてはいけない。
+        """
+        bt = battle()
+        bt.sides[0].base_hp = 100.0
+        bt.sides[1].base_hp = 50.0    # 与ダメージ割合なら片方が勝ってしまう値
+        bt.t = GAME.hard_stop
+        result = Result.of(bt)
+        self.assertIsNone(result.winner)
+        self.assertEqual(result.reason, "安全弁（決着せず）")
 
 
 class TestSiegeCap(unittest.TestCase):
@@ -828,6 +1024,29 @@ class TestData(unittest.TestCase):
         reachable = validate.money_at(GAME, deadline)
         for trump in GAME.trumps.values():
             self.assertLessEqual(trump.cost, reachable, trump.name)
+
+
+class MeasuringTool(unittest.TestCase):
+    """`balance.py` は設計の判断が乗っている数字を出す道具なので、
+    **ありえない盤面を黙って測らない**ことまで含めて回帰試験に入れる。"""
+
+    def test_impossible_boards_are_refused(self):
+        """`--lane -5` は「前線が届いていない」、`--cap 0` は「傷ついた拠点が
+        無い」と、*文面としては正しい判定*を返してしまう ―― 指定の誤りだと
+        気づけないのが一番まずい。落ちるほう（ゼロ除算）はまだ親切なほう。"""
+        for argv in (["--lane", "0"], ["--lane", "-5"], ["--cap", "0"],
+                     ["--matches", "0"], ["--rosters", "-1"],
+                     ["--limit", "-3"], ["--limit", "99999"],
+                     ["--hard-stop", "10"]):
+            with self.subTest(argv=argv):
+                said = io.StringIO()          # argparse は stderr に書く
+                with contextlib.redirect_stderr(said):
+                    with self.assertRaises(SystemExit) as caught:
+                        balance.main(argv)
+                # argparse の使い方エラー。トレースバックではなく終了コード2。
+                self.assertEqual(caught.exception.code, 2)
+                # どの指定が悪いのかが言われていること。
+                self.assertIn(argv[0], said.getvalue())
 
 
 if __name__ == "__main__":
